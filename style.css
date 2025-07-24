@@ -126,13 +126,14 @@ button.danger { background-color: var(--danger-color); color: white; }
 button.danger.small { padding: 6px 12px; font-size: 14px; border-radius: 8px; }
 button:disabled { background-color: #D1D5DB; border-color: #D1D5DB; color: #6B7280; cursor: not-allowed; transform: none; box-shadow: none; }
 .button-spinner { width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 1s linear infinite; }
+.action-buttons { display: flex; gap: 8px; }
 
 /* --- Tables --- */
 table { width: 100%; border-collapse: collapse; margin-top: 20px; }
 th, td { padding: 16px; text-align: left; vertical-align: middle; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
 th { font-size: 13px; font-weight: 600; color: var(--text-light-color); background-color: var(--bg-color); text-transform: uppercase; letter-spacing: 0.5px; }
 td { font-size: 14px; }
-td button.btn-edit, td .btn-receive-transfer { width: 100%; text-align: center; justify-content: center;}
+td button.btn-edit { width: 100%; text-align: center; justify-content: center;}
 tbody tr { transition: background-color 0.15s ease-in-out; }
 tbody tr:hover { background-color: #f7faff; }
 
@@ -183,6 +184,8 @@ tbody tr:hover { background-color: #f7faff; }
 #table-activity-log td:nth-child(3) { white-space: normal; word-break: break-word; }
 .permission-category { font-size: 16px; font-weight: 600; margin-top: 24px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border-color); color: var(--primary-dark); }
 .permissions-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+#view-transfer-modal-body p { margin: 4px 0; font-size: 16px; }
+#view-transfer-modal-body p strong { color: var(--text-light-color); display: inline-block; width: 120px; }
 
 /* --- Print & Responsive --- */
 @media print { body { background-color: #fff !important; } .app-container, .no-print { display: none !important; } #print-area { display: block !important; } .printable-document { display: block !important; box-shadow: none; border: none; padding:0; } .printable-document h2, .printable-document p { margin: 0 0 10px 0; } #print-area table { table-layout: auto; } #print-area th, #print-area td { white-space: normal !important; word-break: break-word !important; overflow: visible !important; text-overflow: clip !important; font-size: 10pt; padding: 8px; } }
