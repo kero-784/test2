@@ -16,10 +16,14 @@
                 <h1>Packing Stock</h1>
             </div>
             <form id="login-form">
-                <p>Please enter your login code to continue.</p>
+                <p>Please enter your credentials to continue.</p>
                 <div class="form-group">
-                    <label for="login-code">Login Code</label>
-                    <input type="password" id="login-code" required autocomplete="new-password">
+                    <label for="login-username">Username</label>
+                    <input type="text" id="login-username" required autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label for="login-code">Password / Login Code</label>
+                    <input type="password" id="login-code" required autocomplete="current-password">
                 </div>
                 <button type="submit" class="primary" style="width:100%; margin-top:10px;">Login</button>
             </form>
