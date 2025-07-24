@@ -14,7 +14,7 @@ window.printReport = function(elementId) {
 
 document.addEventListener('DOMContentLoaded', () => {
     // !!! IMPORTANT: PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzbgj8u7yi_YY5aGtaB95Pkf38MBpuPLrsoKzoJYLZCsErIRFiZyYaDMUHfLLHpOA/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxvX_sYOa-K-578QP_MVLCz0oE8rKzq8geqmS4VClBcvVOv66U7qym5CAyRSN8_BSd6/exec';
 
     const Logger = {
         info: (message, ...args) => console.log(`[StockWise INFO] ${message}`, ...args),
@@ -28,7 +28,8 @@ document.addEventListener('DOMContentLoaded', () => {
         loginCode: null,
         items: [], suppliers: [], branches: [], sections: [], transactions: [], payments: [], activityLog: [],
         currentReceiveList: [], currentTransferList: [], currentIssueList: [],
-        modalSelections: new Set(), invoiceModalSelections: new Set()
+        modalSelections: new Set(), invoiceModalSelections: new Set(),
+        allUsers: [], allRoles: [] // For User Management
     };
     let modalContext = null;
     
@@ -85,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // LOGIN SUCCESSFUL
             state.username = username;
-            state.loginCode = loginCode; // Stored in memory only for POST requests
+            state.loginCode = loginCode;
             state.currentUser = data.user;
             state.items = data.items || [];
             state.suppliers = data.suppliers || [];
@@ -139,12 +140,115 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // PART 2 OF 4: MODAL & UI LOGIC (No changes in this section)
+    // PART 2 OF 4: MODAL & UI LOGIC (with additions for User Management)
     function openItemSelectorModal() { let currentList; if (document.getElementById('subview-receive').classList.contains('active')) { modalContext = 'receive'; currentList = state.currentReceiveList; } else if (document.getElementById('subview-transfer').classList.contains('active')) { modalContext = 'transfer'; currentList = state.currentTransferList; } else if (document.getElementById('subview-issue').classList.contains('active')) { modalContext = 'issue'; currentList = state.currentIssueList; } state.modalSelections = new Set(currentList.map(item => item.itemCode)); renderItemsInModal(); itemSelectorModal.classList.add('active'); }
     function openInvoiceSelectorModal() { modalContext = 'invoices'; renderInvoicesInModal(); invoiceSelectorModal.classList.add('active'); }
     function closeModal() { itemSelectorModal.classList.remove('active'); invoiceSelectorModal.classList.remove('active'); editModal.classList.remove('active'); modalSearchInput.value = ''; modalContext = null; }
-    function openEditModal(type, id) { let record, formHtml; formEditRecord.dataset.type = type; formEditRecord.dataset.id = id; switch (type) { case 'item': record = findByKey(state.items, 'code', id); if (!record) return; editModalTitle.textContent = 'Edit Item'; formHtml = `<div class="form-grid"><div class="form-group"><label>Item Code</label><input type="text" value="${record.code}" readonly></div><div class="form-group"><label for="edit-item-barcode">Barcode</label><input type="text" id="edit-item-barcode" name="barcode" value="${record.barcode || ''}"></div><div class="form-group"><label for="edit-item-name">Item Name</label><input type="text" id="edit-item-name" name="name" value="${record.name}" required></div><div class="form-group"><label for="edit-item-unit">Unit</label><input type="text" id="edit-item-unit" name="unit" value="${record.unit}" required></div><div class="form-group"><label for="edit-item-supplier">Default Supplier</label><select id="edit-item-supplier" name="supplierCode"></select></div><div class="form-group"><label for="edit-item-cost">Default Cost</label><input type="number" id="edit-item-cost" name="cost" step="0.01" min="0" value="${record.cost}" required></div></div>`; editModalBody.innerHTML = formHtml; const supplierSelect = document.getElementById('edit-item-supplier'); populateOptions(supplierSelect, state.suppliers, 'Select Supplier', 'supplierCode', 'name'); supplierSelect.value = record.supplierCode; break; case 'supplier': record = findByKey(state.suppliers, 'supplierCode', id); if (!record) return; editModalTitle.textContent = 'Edit Supplier'; formHtml = `<div class="form-grid"><div class="form-group"><label>Supplier Code</label><input type="text" value="${record.supplierCode}" readonly></div><div class="form-group"><label for="edit-supplier-name">Supplier Name</label><input type="text" id="edit-supplier-name" name="name" value="${record.name}" required></div><div class="form-group"><label for="edit-supplier-contact">Contact Info</label><input type="text" id="edit-supplier-contact" name="contact" value="${record.contact || ''}"></div></div>`; editModalBody.innerHTML = formHtml; break; case 'branch': record = findByKey(state.branches, 'branchCode', id); if (!record) return; editModalTitle.textContent = 'Edit Branch'; formHtml = `<div class="form-grid"><div class="form-group"><label>Branch Code</label><input type="text" value="${record.branchCode}" readonly></div><div class="form-group"><label for="edit-branch-name">Branch Name</label><input type="text" id="edit-branch-name" name="name" value="${record.name}" required></div></div>`; editModalBody.innerHTML = formHtml; break; case 'section': record = findByKey(state.sections, 'sectionCode', id); if (!record) return; editModalTitle.textContent = 'Edit Section'; formHtml = `<div class="form-grid"><div class="form-group"><label>Section Code</label><input type="text" value="${record.sectionCode}" readonly></div><div class="form-group"><label for="edit-section-name">Section Name</label><input type="text" id="edit-section-name" name="name" value="${record.name}" required></div></div>`; editModalBody.innerHTML = formHtml; break; } editModal.classList.add('active'); }
-    async function handleUpdateSubmit(e) { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const type = formEditRecord.dataset.type; const id = formEditRecord.dataset.id; const formData = new FormData(formEditRecord); const updates = {}; for (let [key, value] of formData.entries()) { updates[key] = value; } const result = await postData('updateData', { type, id, updates }, btn); if (result) { showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} updated successfully!`, 'success'); closeModal(); await reloadDataAndRefreshUI(); } }
+    
+    function openEditModal(type, id) {
+        let record, formHtml;
+        formEditRecord.dataset.type = type;
+        formEditRecord.dataset.id = id;
+        switch (type) {
+            // Existing cases...
+            case 'item': record = findByKey(state.items, 'code', id); if (!record) return; editModalTitle.textContent = 'Edit Item'; formHtml = `<div class="form-grid"><div class="form-group"><label>Item Code</label><input type="text" value="${record.code}" readonly></div><div class="form-group"><label for="edit-item-barcode">Barcode</label><input type="text" id="edit-item-barcode" name="barcode" value="${record.barcode || ''}"></div><div class="form-group"><label for="edit-item-name">Item Name</label><input type="text" id="edit-item-name" name="name" value="${record.name}" required></div><div class="form-group"><label for="edit-item-unit">Unit</label><input type="text" id="edit-item-unit" name="unit" value="${record.unit}" required></div><div class="form-group"><label for="edit-item-supplier">Default Supplier</label><select id="edit-item-supplier" name="supplierCode"></select></div><div class="form-group"><label for="edit-item-cost">Default Cost</label><input type="number" id="edit-item-cost" name="cost" step="0.01" min="0" value="${record.cost}" required></div></div>`; editModalBody.innerHTML = formHtml; const supplierSelect = document.getElementById('edit-item-supplier'); populateOptions(supplierSelect, state.suppliers, 'Select Supplier', 'supplierCode', 'name'); supplierSelect.value = record.supplierCode; break;
+            case 'supplier': record = findByKey(state.suppliers, 'supplierCode', id); if (!record) return; editModalTitle.textContent = 'Edit Supplier'; formHtml = `<div class="form-grid"><div class="form-group"><label>Supplier Code</label><input type="text" value="${record.supplierCode}" readonly></div><div class="form-group"><label for="edit-supplier-name">Supplier Name</label><input type="text" id="edit-supplier-name" name="name" value="${record.name}" required></div><div class="form-group"><label for="edit-supplier-contact">Contact Info</label><input type="text" id="edit-supplier-contact" name="contact" value="${record.contact || ''}"></div></div>`; editModalBody.innerHTML = formHtml; break;
+            case 'branch': record = findByKey(state.branches, 'branchCode', id); if (!record) return; editModalTitle.textContent = 'Edit Branch'; formHtml = `<div class="form-grid"><div class="form-group"><label>Branch Code</label><input type="text" value="${record.branchCode}" readonly></div><div class="form-group"><label for="edit-branch-name">Branch Name</label><input type="text" id="edit-branch-name" name="name" value="${record.name}" required></div></div>`; editModalBody.innerHTML = formHtml; break;
+            case 'section': record = findByKey(state.sections, 'sectionCode', id); if (!record) return; editModalTitle.textContent = 'Edit Section'; formHtml = `<div class="form-grid"><div class="form-group"><label>Section Code</label><input type="text" value="${record.sectionCode}" readonly></div><div class="form-group"><label for="edit-section-name">Section Name</label><input type="text" id="edit-section-name" name="name" value="${record.name}" required></div></div>`; editModalBody.innerHTML = formHtml; break;
+            
+            // New cases for User Management
+            case 'user':
+                record = findByKey(state.allUsers, 'Username', id);
+                if (!record) return;
+                editModalTitle.textContent = 'Edit User';
+                const roleOptions = state.allRoles.map(r => `<option value="${r.RoleName}" ${r.RoleName === record.RoleName ? 'selected' : ''}>${r.RoleName}</option>`).join('');
+                const branchOptions = state.branches.map(b => `<option value="${b.branchCode}" ${b.branchCode === record.AssignedBranchCode ? 'selected' : ''}>${b.name}</option>`).join('');
+
+                formHtml = `<div class="form-grid">
+                    <div class="form-group"><label>Username</label><input type="text" value="${record.Username}" readonly></div>
+                    <div class="form-group"><label for="edit-user-name">Full Name</label><input type="text" id="edit-user-name" name="Name" value="${record.Name}" required></div>
+                    <div class="form-group"><label for="edit-user-role">Role</label><select id="edit-user-role" name="RoleName" required>${roleOptions}</select></div>
+                    <div class="form-group"><label for="edit-user-branch">Assigned Branch (if applicable)</label><select id="edit-user-branch" name="AssignedBranchCode"><option value="">None</option>${branchOptions}</select></div>
+                    <div class="form-group span-full"><label for="edit-user-password">New Password (leave blank to keep unchanged)</label><input type="password" id="edit-user-password" name="LoginCode"></div>
+                </div>`;
+                editModalBody.innerHTML = formHtml;
+                break;
+            
+            case 'role':
+                record = findByKey(state.allRoles, 'RoleName', id);
+                if (!record) return;
+                editModalTitle.textContent = `Edit Permissions for ${record.RoleName}`;
+                
+                // Get all possible permission keys, excluding RoleName
+                const permissionKeys = Object.keys(state.allRoles[0] || {}).filter(key => key !== 'RoleName');
+                
+                const permissionCategories = {
+                    'General Access': ['manageUsers', 'viewDashboard', 'viewActivityLog'],
+                    'Operations': ['viewOperations', 'opReceive', 'opIssue', 'opTransfer'],
+                    'Financials & Payments': ['viewPayments', 'viewFinancials', 'opRecordPayment'],
+                    'Data Management': ['viewSetup', 'viewMasterData', 'createItem', 'editItem', 'createSupplier', 'editSupplier', 'createBranch', 'editBranch', 'createSection', 'editSection'],
+                    'Reporting': ['viewStockLevels', 'viewTransactionHistory', 'viewAllBranches']
+                };
+
+                formHtml = '<h3>Permissions</h3>';
+                for (const category in permissionCategories) {
+                    formHtml += `<h4 class="permission-category">${category}</h4><div class="form-grid permissions-grid">`;
+                    permissionCategories[category].forEach(key => {
+                        if(permissionKeys.includes(key)){
+                            const isChecked = record[key] === true || String(record[key]).toUpperCase() === 'TRUE';
+                            formHtml += `<div class="form-group-checkbox"><input type="checkbox" id="edit-perm-${key}" name="${key}" ${isChecked ? 'checked' : ''}><label for="edit-perm-${key}">${key}</label></div>`;
+                        }
+                    });
+                    formHtml += `</div>`;
+                }
+
+                editModalBody.innerHTML = formHtml;
+                break;
+        }
+        editModal.classList.add('active');
+    }
+
+    async function handleUpdateSubmit(e) {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        const type = formEditRecord.dataset.type;
+        const id = formEditRecord.dataset.id;
+        const formData = new FormData(formEditRecord);
+        let payload, action;
+
+        if (type === 'user') {
+            action = 'updateUser';
+            const updates = {};
+            for (let [key, value] of formData.entries()) {
+                if (key === 'LoginCode' && value === '') continue; // Don't update password if blank
+                updates[key] = value;
+            }
+            payload = { Username: id, updates: updates };
+        } else if (type === 'role') {
+            action = 'updateRolePermissions';
+            const updates = {};
+            const allPerms = Object.keys(findByKey(state.allRoles, 'RoleName', id));
+            allPerms.forEach(key => {
+                if(key !== 'RoleName') {
+                    updates[key] = formData.has(key); // Set to true if checked, false otherwise
+                }
+            });
+            payload = { RoleName: id, updates: updates };
+        } else {
+             action = 'updateData';
+             const updates = {};
+             for (let [key, value] of formData.entries()) { updates[key] = value; }
+             payload = { type, id, updates };
+        }
+
+        const result = await postData(action, payload, btn);
+        if (result) {
+            showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} updated successfully!`, 'success');
+            closeModal();
+            await reloadDataAndRefreshUI();
+        }
+    }
+
     function renderItemsInModal(filter = '') { modalItemList.innerHTML = ''; const lowercasedFilter = filter.toLowerCase(); state.items.filter(item => item.name.toLowerCase().includes(lowercasedFilter) || item.code.toLowerCase().includes(lowercasedFilter)).forEach(item => { const isChecked = state.modalSelections.has(item.code); const itemDiv = document.createElement('div'); itemDiv.className = 'modal-item'; itemDiv.innerHTML = `<input type="checkbox" id="modal-item-${item.code}" data-code="${item.code}" ${isChecked ? 'checked' : ''}><label for="modal-item-${item.code}"><strong>${item.name}</strong><br><small style="color:var(--text-light-color)">Code: ${item.code} | Barcode: ${item.barcode || 'N/A'}</small></label>`; modalItemList.appendChild(itemDiv); }); }
     function renderInvoicesInModal() { const modalInvoiceList = document.getElementById('modal-invoice-list'); const supplierCode = document.getElementById('payment-supplier-select').value; const supplierFinancials = calculateSupplierFinancials(); const supplierInvoices = supplierFinancials[supplierCode]?.invoices; modalInvoiceList.innerHTML = ''; if (!supplierInvoices || Object.keys(supplierInvoices).length === 0) { modalInvoiceList.innerHTML = '<p>No invoices found for this supplier.</p>'; return; } const unpaidInvoices = Object.values(supplierInvoices).filter(inv => inv.status !== 'Paid'); if (unpaidInvoices.length === 0) { modalInvoiceList.innerHTML = '<p>No unpaid invoices for this supplier.</p>'; return; } unpaidInvoices.sort((a,b) => new Date(a.date) - new Date(b.date)).forEach(invoice => { const isChecked = state.invoiceModalSelections.has(invoice.number); const itemDiv = document.createElement('div'); itemDiv.className = 'modal-item'; itemDiv.innerHTML = `<input type="checkbox" id="modal-invoice-${invoice.number}" data-number="${invoice.number}" ${isChecked ? 'checked' : ''}><label for="modal-invoice-${invoice.number}"><strong>Invoice #: ${invoice.number}</strong><br><small style="color:var(--text-light-color)">Date: ${new Date(invoice.date).toLocaleDateString()} | Amount Due: ${invoice.balance.toFixed(2)} EGP</small></label>`; modalInvoiceList.appendChild(itemDiv); }); }
     function handleModalCheckboxChange(e) { if (e.target.type === 'checkbox') { const itemCode = e.target.dataset.code; if (e.target.checked) { state.modalSelections.add(itemCode); } else { state.modalSelections.delete(itemCode); } } }
@@ -164,15 +268,15 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderReceiveListTable() { const tbody = document.getElementById('table-receive-list').querySelector('tbody'); tbody.innerHTML = ''; if (state.currentReceiveList.length === 0) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No items selected. Click "Select Items".</td></tr>'; updateReceiveGrandTotal(); return; } state.currentReceiveList.forEach((item, index) => { const tr = document.createElement('tr'); tr.innerHTML = `<td>${item.itemCode}</td><td>${item.itemName}</td><td><input type="number" class="table-input" value="${item.quantity}" min="0.01" step="0.01" data-index="${index}" data-field="quantity"></td><td><input type="number" class="table-input" value="${item.cost.toFixed(2)}" min="0" step="0.01" data-index="${index}" data-field="cost"></td><td id="total-cost-${index}">${(item.quantity * item.cost).toFixed(2)} EGP</td><td><button class="danger small" data-index="${index}">X</button></td>`; tbody.appendChild(tr); }); updateReceiveGrandTotal(); }
     function renderTransferListTable() { const tbody = document.getElementById('table-transfer-list').querySelector('tbody'); const fromBranchCode = document.getElementById('transfer-from-branch').value; const stock = calculateStockLevels(); tbody.innerHTML = ''; if (state.currentTransferList.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No items selected. Click "Select Items".</td></tr>'; updateTransferGrandTotal(); return; } state.currentTransferList.forEach((item, index) => { const availableStock = stock[fromBranchCode]?.[item.itemCode]?.quantity || 0; const tr = document.createElement('tr'); tr.innerHTML = `<td>${item.itemCode}</td><td>${item.itemName}</td><td>${availableStock.toFixed(2)}</td><td><input type="number" class="table-input" value="${item.quantity}" min="0.01" max="${availableStock}" step="0.01" data-index="${index}" data-field="quantity"></td><td><button class="danger small" data-index="${index}">X</button></td>`; tbody.appendChild(tr); }); updateTransferGrandTotal(); }
     function renderIssueListTable() { const tbody = document.getElementById('table-issue-list').querySelector('tbody'); const fromBranchCode = document.getElementById('issue-from-branch').value; const stock = calculateStockLevels(); tbody.innerHTML = ''; if (state.currentIssueList.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No items selected. Click "Select Items".</td></tr>'; updateIssueGrandTotal(); return; } state.currentIssueList.forEach((item, index) => { const availableStock = stock[fromBranchCode]?.[item.itemCode]?.quantity || 0; const tr = document.createElement('tr'); tr.innerHTML = `<td>${item.itemCode}</td><td>${item.itemName}</td><td>${availableStock.toFixed(2)}</td><td><input type="number" class="table-input" value="${item.quantity}" min="0.01" max="${availableStock}" step="0.01" data-index="${index}" data-field="quantity"></td><td><button class="danger small" data-index="${index}">X</button></td>`; tbody.appendChild(tr); }); updateIssueGrandTotal(); }
-    function renderItemCentricStockView(itemsToRender = state.items) { const container = document.getElementById('item-centric-stock-container'); const stockByBranch = calculateStockLevels(); const branchesToDisplay = getVisibleBranchesForCurrentUser(); let tableHTML = `<table id="table-stock-levels-by-item"><thead><tr><th>Code</th><th>Item Name</th>`; branchesToDisplay.forEach(b => { tableHTML += `<th>${b.name}</th>` }); tableHTML += `<th>Total</th></tr></thead><tbody>`; itemsToRender.forEach(item => { tableHTML += `<tr><td>${item.code}</td><td>${item.name}</td>`; let total = 0; branchesToDisplay.forEach(branch => { const qty = stockByBranch[branch.branchCode]?.[item.code]?.quantity || 0; total += qty; tableHTML += `<td>${qty > 0 ? qty.toFixed(2) : '-'}</td>`; }); tableHTML += `<td><strong>${total.toFixed(2)}</strong></td></tr>`; }); tableHTML += `</tbody></table>`; container.innerHTML = tableHTML; }
+    function renderItemCentricStockView(itemsToRender = state.items) { const container = document.getElementById('item-centric-stock-container') || document.getElementById('dashboard-stock-container'); if(!container) return; const stockByBranch = calculateStockLevels(); const branchesToDisplay = getVisibleBranchesForCurrentUser(); let tableHTML = `<table id="table-stock-levels-by-item"><thead><tr><th>Code</th><th>Item Name</th>`; branchesToDisplay.forEach(b => { tableHTML += `<th>${b.name}</th>` }); tableHTML += `<th>Total</th></tr></thead><tbody>`; itemsToRender.forEach(item => { tableHTML += `<tr><td>${item.code}</td><td>${item.name}</td>`; let total = 0; branchesToDisplay.forEach(branch => { const qty = stockByBranch[branch.branchCode]?.[item.code]?.quantity || 0; total += qty; tableHTML += `<td>${qty > 0 ? qty.toFixed(2) : '-'}</td>`; }); tableHTML += `<td><strong>${total.toFixed(2)}</strong></td></tr>`; }); tableHTML += `</tbody></table>`; container.innerHTML = tableHTML; }
     function renderItemInquiry(searchTerm) { const resultsContainer = document.getElementById('item-inquiry-results'); if (!searchTerm) { resultsContainer.innerHTML = ''; return; } const stockByBranch = calculateStockLevels(); const filteredItems = state.items.filter(i => i.name.toLowerCase().includes(searchTerm) || i.code.toLowerCase().includes(searchTerm)); let html = ''; const branchesToDisplay = getVisibleBranchesForCurrentUser(); filteredItems.slice(0, 10).forEach(item => { html += `<h4>${item.name} (${item.code})</h4><table><thead><tr><th>Branch</th><th>Qty</th><th>Value</th></tr></thead><tbody>`; let found = false; let totalQty = 0; let totalValue = 0; branchesToDisplay.forEach(branch => { const itemStock = stockByBranch[branch.branchCode]?.[item.code]; if (itemStock && itemStock.quantity > 0) { const value = itemStock.quantity * itemStock.avgCost; html += `<tr><td>${branch.name} (${branch.branchCode || ''})</td><td>${itemStock.quantity.toFixed(2)}</td><td>${value.toFixed(2)} EGP</td></tr>`; totalQty += itemStock.quantity; totalValue += value; found = true; } }); if (!found) { html += `<tr><td colspan="3">No stock for this item.</td></tr>`; } else { html += `<tr style="font-weight:bold; background-color: var(--bg-color);"><td>Total</td><td>${totalQty.toFixed(2)}</td><td>${totalValue.toFixed(2)} EGP</td></tr>` } html += `</tbody></table><hr>`; }); resultsContainer.innerHTML = html; }
     function renderSupplierStatement(supplierCode, startDateStr, endDateStr) { const resultsContainer = document.getElementById('supplier-statement-results'); const exportBtn = document.getElementById('btn-export-supplier-statement'); const supplier = findByKey(state.suppliers, 'supplierCode', supplierCode); if (!supplier) { exportBtn.disabled = true; return; } const financials = calculateSupplierFinancials(); const supplierData = financials[supplierCode]; const sDate = startDateStr ? new Date(startDateStr) : null; const eDate = endDateStr ? new Date(endDateStr) : null; if(eDate) eDate.setHours(23, 59, 59, 999); let openingBalance = 0; if (sDate) { supplierData.events.forEach(event => { if (new Date(event.date) < sDate) { openingBalance += event.debit - event.credit; } }); } const filteredEvents = supplierData.events.filter(event => { const eventDate = new Date(event.date); return (!sDate || eventDate >= sDate) && (!eDate || eventDate <= eDate); }); let balance = openingBalance; let tableBodyHtml = ''; if (sDate) { tableBodyHtml += `<tr style="background-color: var(--bg-color);"><td colspan="3"><strong>Opening Balance as of ${sDate.toLocaleDateString()}</strong></td><td>-</td><td>-</td><td><strong>${openingBalance.toFixed(2)} EGP</strong></td></tr>`; } filteredEvents.forEach(event => { balance += event.debit - event.credit; tableBodyHtml += `<tr><td>${new Date(event.date).toLocaleDateString()}</td><td>${event.type}</td><td>${event.ref}</td><td>${event.debit > 0 ? event.debit.toFixed(2) : '-'}</td><td>${event.credit > 0 ? event.credit.toFixed(2) : '-'}</td><td>${balance.toFixed(2)} EGP</td></tr>`; }); let dateHeader = `for all time`; if (sDate && eDate) { dateHeader = `from ${sDate.toLocaleDateString()} to ${eDate.toLocaleDateString()}`; } else if (sDate) { dateHeader = `from ${sDate.toLocaleDateString()}`; } else if (eDate) { dateHeader = `until ${eDate.toLocaleDateString()}`; } resultsContainer.innerHTML = `<div class="printable-document"><div class="printable-header"><div><h2>Supplier Statement: ${supplier.name}</h2><p style="margin:0; color: var(--text-light-color);">For period: ${dateHeader}</p></div><button class="secondary no-print" onclick="printReport('supplier-statement-results')">Print</button></div><p><strong>Date Generated:</strong> ${new Date().toLocaleString()}</p><div class="report-area"><table id="table-supplier-statement-report"><thead><tr><th>Date</th><th>Type</th><th>Reference</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead><tbody>${tableBodyHtml}</tbody><tfoot><tr style="font-weight:bold; background-color: var(--bg-color);"><td colspan="5" style="text-align:right;">Closing Balance:</td><td>${balance.toFixed(2)} EGP</td></tr></tfoot></table></div></div>`; resultsContainer.style.display = 'block'; exportBtn.disabled = false;}
-    function renderBranchStatement(branchCode, startDateStr, endDateStr) { const resultsContainer = document.getElementById('branch-statement-results'); const exportBtn = document.getElementById('btn-export-branch-statement'); const branch = findByKey(state.branches, 'branchCode', branchCode); if (!branch) { exportBtn.disabled = true; return; } const sDate = startDateStr ? new Date(startDateStr) : null; const eDate = endDateStr ? new Date(endDateStr) : null; if(eDate) eDate.setHours(23, 59, 59, 999); const filteredTransactions = state.transactions.filter(t => { const eventDate = new Date(t.date); const isInvolved = t.branchCode === branchCode || t.fromBranchCode === branchCode || t.toBranchCode === branchCode; return isInvolved && (!sDate || eventDate >= sDate) && (!eDate || eventDate <= eDate); }).sort((a,b) => new Date(a.date) - new Date(b.date)); let tableBodyHtml = ''; filteredTransactions.forEach(t => { const item = findByKey(state.items, 'code', t.itemCode) || {name: 'N/A'}; let type = '', details = '', qtyIn = '-', qtyOut = '-'; if (t.type === 'receive' && t.branchCode === branchCode) { type = 'Receive'; details = `From: ${findByKey(state.suppliers, 'supplierCode', t.supplierCode)?.name || 'N/A'} (Ref: ${t.invoiceNumber})`; qtyIn = t.quantity.toFixed(2); } else if (t.type === 'issue' && t.fromBranchCode === branchCode) { type = 'Issue'; details = `To: ${findByKey(state.sections, 'sectionCode', t.sectionCode)?.name || 'N/A'} (Ref: ${t.invoiceNumber})`; qtyOut = t.quantity.toFixed(2); } else if (t.type === 'transfer' && t.fromBranchCode === branchCode) { type = 'Transfer Out'; details = `To: ${findByKey(state.branches, 'branchCode', t.toBranchCode)?.name || 'N/A'}`; qtyOut = t.quantity.toFixed(2); } else if (t.type === 'transfer' && t.toBranchCode === branchCode) { type = 'Transfer In'; details = `From: ${findByKey(state.branches, 'branchCode', t.fromBranchCode)?.name || 'N/A'}`; qtyIn = t.quantity.toFixed(2); } else { return; } tableBodyHtml += `<tr><td>${new Date(t.date).toLocaleString()}</td><td>${item.code}</td><td>${item.name}</td><td>${type}</td><td>${details}</td><td style="text-align:right;">${qtyIn}</td><td style="text-align:right;">${qtyOut}</td></tr>`; }); let dateHeader = "for all time"; if (sDate && eDate) { dateHeader = `from ${sDate.toLocaleDateString()} to ${eDate.toLocaleDateString()}`; } else if (sDate) { dateHeader = `from ${sDate.toLocaleDateString()}`; } else if (eDate) { dateHeader = `until ${eDate.toLocaleDateString()}`; } resultsContainer.innerHTML = `<div class="printable-document"><div class="printable-header"><div><h2>Branch Activity: ${branch.name}</h2><p style="margin:0; color: var(--text-light-color);">For period: ${dateHeader}</p></div><button class="secondary no-print" onclick="printReport('branch-statement-results')">Print</button></div><div class="report-area"><table id="table-branch-statement-report"><thead><tr><th>Date</th><th>Item Code</th><th>Item Name</th><th>Type</th><th>Details</th><th style="text-align:right;">Qty In</th><th style="text-align:right;">Qty Out</th></tr></thead><tbody>${tableBodyHtml}</tbody></table></div></div>`; resultsContainer.style.display = 'block'; exportBtn.disabled = false;}
-    function renderSectionStatement(sectionCode, startDateStr, endDateStr) { const resultsContainer = document.getElementById('section-statement-results'); const exportBtn = document.getElementById('btn-export-section-statement'); const section = findByKey(state.sections, 'sectionCode', sectionCode); if (!section) { exportBtn.disabled = true; return; } const sDate = startDateStr ? new Date(startDateStr) : null; const eDate = endDateStr ? new Date(endDateStr) : null; if(eDate) eDate.setHours(23, 59, 59, 999); const filteredTransactions = state.transactions.filter(t => { const eventDate = new Date(t.date); return t.type === 'issue' && t.sectionCode === sectionCode && (!sDate || eventDate >= sDate) && (!eDate || eventDate <= eDate); }).sort((a,b) => new Date(a.date) - new Date(b.date)); let tableBodyHtml = ''; let totalItems = 0; filteredTransactions.forEach(t => { const item = findByKey(state.items, 'code', t.itemCode) || {name: 'N/A', unit: 'N/A'}; const fromBranch = findByKey(state.branches, 'branchCode', t.fromBranchCode) || {name: 'N/A'}; totalItems += t.quantity; tableBodyHtml += `<tr><td>${new Date(t.date).toLocaleString()}</td><td>${t.invoiceNumber}</td><td>${item.code}</td><td>${item.name}</td><td>${fromBranch.name}</td><td style="text-align:right;">${t.quantity.toFixed(2)} ${item.unit}</td></tr>`; }); let dateHeader = "for all time"; if (sDate && eDate) { dateHeader = `from ${sDate.toLocaleDateString()} to ${eDate.toLocaleDateString()}`; } else if (sDate) { dateHeader = `from ${sDate.toLocaleDateString()}`; } else if (eDate) { dateHeader = `until ${eDate.toLocaleDateString()}`; } resultsContainer.innerHTML = `<div class="printable-document"><div class="printable-header"><div><h2>Section Usage: ${section.name}</h2><p style="margin:0; color: var(--text-light-color);">For period: ${dateHeader}</p></div><button class="secondary no-print" onclick="printReport('section-statement-results')">Print</button></div><div class="report-area"><table id="table-section-statement-report"><thead><tr><th>Date</th><th>Ref #</th><th>Item Code</th><th>Item Name</th><th>From Branch</th><th style="text-align:right;">Quantity Issued</th></tr></thead><tbody>${tableBodyHtml}</tbody><tfoot><tr style="font-weight:bold; background-color: var(--bg-color);"><td colspan="5" style="text-align:right;">Total Items:</td><td style="text-align:right;">${totalItems.toFixed(2)}</td></tr></tfoot></table></div></div>`; resultsContainer.style.display = 'block'; exportBtn.disabled = false;}
-    function renderTransactionHistory(filter = '') { const tbody = document.getElementById('table-transaction-history').querySelector('tbody'); tbody.innerHTML = ''; const lowerFilter = filter.toLowerCase(); const invoiceFinances = calculateSupplierFinancials().allInvoices; const grouped = {}; state.transactions.forEach(t => { const key = t.batchId; if (!grouped[key]) { grouped[key] = { date: t.date, type: t.type, batchId: key, invoiceNumber: t.invoiceNumber, transactions: [] }; } grouped[key].transactions.push(t); }); Object.values(grouped).sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(group => { const first = group.transactions[0]; let details = '', searchableText = `${group.batchId} ${first.invoiceNumber || ''} ${first.type}`, statusTag = '', refNum = first.invoiceNumber || first.batchId; if (first.type === 'receive') { const status = invoiceFinances[first.invoiceNumber]?.status || 'Unpaid'; statusTag = `<span class="status-tag status-${status.toLowerCase()}">${status}</span>`; const supplier = findByKey(state.suppliers, 'supplierCode', first.supplierCode); const branch = findByKey(state.branches, 'branchCode', first.branchCode); details = `Received ${group.transactions.length} item(s) from <strong>${supplier?.name || 'N/A'}</strong> to <strong>${branch?.name || 'N/A'}</strong>`; searchableText += ` ${supplier?.name} ${branch?.name}`; } else if (first.type === 'transfer') { const from = findByKey(state.branches, 'branchCode', first.fromBranchCode); const to = findByKey(state.branches, 'branchCode', first.toBranchCode); details = `Transferred ${group.transactions.length} item(s) from <strong>${from?.name || 'N/A'}</strong> to <strong>${to?.name || 'N/A'}</strong>`; searchableText += ` ${from?.name} ${to?.name}`; } else if (first.type === 'issue') { const from = findByKey(state.branches, 'branchCode', first.fromBranchCode); const to = findByKey(state.sections, 'sectionCode', first.sectionCode); details = `Issued ${group.transactions.length} item(s) from <strong>${from?.name || 'N/A'}</strong> to <strong>${to?.name || 'N/A'}</strong>`; searchableText += ` ${from?.name} ${to?.name}`; refNum = first.invoiceNumber; } if (filter && !searchableText.toLowerCase().includes(lowerFilter)) return; const tr = document.createElement('tr'); tr.innerHTML = `<td>${new Date(first.date).toLocaleString()}</td><td>${first.type.charAt(0).toUpperCase() + first.type.slice(1)}</td><td>${refNum}</td><td>${details}</td><td>${statusTag}</td><td><button class="secondary small no-print" data-batch-id="${group.batchId}" data-type="${first.type}">View/Print</button></td>`; tbody.appendChild(tr); }); }
+    function renderBranchStatement(branchCode, startDateStr, endDateStr) { const resultsContainer = document.getElementById('branch-statement-results'); const exportBtn = document.getElementById('btn-export-branch-statement'); const branch = findByKey(state.branches, 'branchCode', branchCode); if (!branch) { exportBtn.disabled = true; return; } const sDate = startDateStr ? new Date(startDateStr) : null; const eDate = endDateStr ? new Date(endDateStr) : null; if(eDate) eDate.setHours(23, 59, 59, 999); const filteredTransactions = state.transactions.filter(t => { const eventDate = new Date(t.date); const isInvolved = t.branchCode === branchCode || t.fromBranchCode === branchCode || t.toBranchCode === branchCode; return isInvolved && (!sDate || eventDate >= sDate) && (!eDate || eventDate <= eDate); }).sort((a,b) => new Date(a.date) - new Date(b.date)); let tableBodyHtml = ''; filteredTransactions.forEach(t => { const item = findByKey(state.items, 'code', t.itemCode) || {name: 'N/A'}; let type = '', details = '', qtyIn = '-', qtyOut = '-'; if (t.type === 'receive' && t.branchCode === branchCode) { type = 'Receive'; details = `From: ${findByKey(state.suppliers, 'supplierCode', t.supplierCode)?.name || 'N/A'} (Ref: ${t.invoiceNumber})`; qtyIn = t.quantity.toFixed(2); } else if (t.type === 'issue' && t.fromBranchCode === branchCode) { type = 'Issue'; details = `To: ${findByKey(state.sections, 'sectionCode', t.sectionCode)?.name || 'N/A'} (Ref: ${t.ref})`; qtyOut = t.quantity.toFixed(2); } else if (t.type === 'transfer' && t.fromBranchCode === branchCode) { type = 'Transfer Out'; details = `To: ${findByKey(state.branches, 'branchCode', t.toBranchCode)?.name || 'N/A'} (Ref: ${t.ref})`; qtyOut = t.quantity.toFixed(2); } else if (t.type === 'transfer' && t.toBranchCode === branchCode) { type = 'Transfer In'; details = `From: ${findByKey(state.branches, 'branchCode', t.fromBranchCode)?.name || 'N/A'} (Ref: ${t.ref})`; qtyIn = t.quantity.toFixed(2); } else { return; } tableBodyHtml += `<tr><td>${new Date(t.date).toLocaleString()}</td><td>${item.code}</td><td>${item.name}</td><td>${type}</td><td>${details}</td><td style="text-align:right;">${qtyIn}</td><td style="text-align:right;">${qtyOut}</td></tr>`; }); let dateHeader = "for all time"; if (sDate && eDate) { dateHeader = `from ${sDate.toLocaleDateString()} to ${eDate.toLocaleDateString()}`; } else if (sDate) { dateHeader = `from ${sDate.toLocaleDateString()}`; } else if (eDate) { dateHeader = `until ${eDate.toLocaleDateString()}`; } resultsContainer.innerHTML = `<div class="printable-document"><div class="printable-header"><div><h2>Branch Activity: ${branch.name}</h2><p style="margin:0; color: var(--text-light-color);">For period: ${dateHeader}</p></div><button class="secondary no-print" onclick="printReport('branch-statement-results')">Print</button></div><div class="report-area"><table id="table-branch-statement-report"><thead><tr><th>Date</th><th>Item Code</th><th>Item Name</th><th>Type</th><th>Details</th><th style="text-align:right;">Qty In</th><th style="text-align:right;">Qty Out</th></tr></thead><tbody>${tableBodyHtml}</tbody></table></div></div>`; resultsContainer.style.display = 'block'; exportBtn.disabled = false;}
+    function renderSectionStatement(sectionCode, startDateStr, endDateStr) { const resultsContainer = document.getElementById('section-statement-results'); const exportBtn = document.getElementById('btn-export-section-statement'); const section = findByKey(state.sections, 'sectionCode', sectionCode); if (!section) { exportBtn.disabled = true; return; } const sDate = startDateStr ? new Date(startDateStr) : null; const eDate = endDateStr ? new Date(endDateStr) : null; if(eDate) eDate.setHours(23, 59, 59, 999); const filteredTransactions = state.transactions.filter(t => { const eventDate = new Date(t.date); return t.type === 'issue' && t.sectionCode === sectionCode && (!sDate || eventDate >= sDate) && (!eDate || eventDate <= eDate); }).sort((a,b) => new Date(a.date) - new Date(b.date)); let tableBodyHtml = ''; let totalItems = 0; filteredTransactions.forEach(t => { const item = findByKey(state.items, 'code', t.itemCode) || {name: 'N/A', unit: 'N/A'}; const fromBranch = findByKey(state.branches, 'branchCode', t.fromBranchCode) || {name: 'N/A'}; totalItems += t.quantity; tableBodyHtml += `<tr><td>${new Date(t.date).toLocaleString()}</td><td>${t.ref}</td><td>${item.code}</td><td>${item.name}</td><td>${fromBranch.name}</td><td style="text-align:right;">${t.quantity.toFixed(2)} ${item.unit}</td></tr>`; }); let dateHeader = "for all time"; if (sDate && eDate) { dateHeader = `from ${sDate.toLocaleDateString()} to ${eDate.toLocaleDateString()}`; } else if (sDate) { dateHeader = `from ${sDate.toLocaleDateString()}`; } else if (eDate) { dateHeader = `until ${eDate.toLocaleDateString()}`; } resultsContainer.innerHTML = `<div class="printable-document"><div class="printable-header"><div><h2>Section Usage: ${section.name}</h2><p style="margin:0; color: var(--text-light-color);">For period: ${dateHeader}</p></div><button class="secondary no-print" onclick="printReport('section-statement-results')">Print</button></div><div class="report-area"><table id="table-section-statement-report"><thead><tr><th>Date</th><th>Ref #</th><th>Item Code</th><th>Item Name</th><th>From Branch</th><th style="text-align:right;">Quantity Issued</th></tr></thead><tbody>${tableBodyHtml}</tbody><tfoot><tr style="font-weight:bold; background-color: var(--bg-color);"><td colspan="5" style="text-align:right;">Total Items:</td><td style="text-align:right;">${totalItems.toFixed(2)}</td></tr></tfoot></table></div></div>`; resultsContainer.style.display = 'block'; exportBtn.disabled = false;}
+    function renderTransactionHistory(filter = '') { const tbody = document.getElementById('table-transaction-history').querySelector('tbody'); tbody.innerHTML = ''; const lowerFilter = filter.toLowerCase(); const invoiceFinances = calculateSupplierFinancials().allInvoices; const grouped = {}; state.transactions.forEach(t => { const key = t.batchId; if (!grouped[key]) { grouped[key] = { date: t.date, type: t.type, batchId: key, invoiceNumber: t.invoiceNumber, ref: t.ref, transactions: [] }; } grouped[key].transactions.push(t); }); Object.values(grouped).sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(group => { const first = group.transactions[0]; let details = '', searchableText = `${group.batchId} ${first.invoiceNumber || ''} ${first.ref || ''} ${first.type}`, statusTag = '', refNum = first.invoiceNumber || first.ref || first.batchId; if (first.type === 'receive') { const status = invoiceFinances[first.invoiceNumber]?.status || 'Unpaid'; statusTag = `<span class="status-tag status-${status.toLowerCase()}">${status}</span>`; const supplier = findByKey(state.suppliers, 'supplierCode', first.supplierCode); const branch = findByKey(state.branches, 'branchCode', first.branchCode); details = `Received ${group.transactions.length} item(s) from <strong>${supplier?.name || 'N/A'}</strong> to <strong>${branch?.name || 'N/A'}</strong>`; searchableText += ` ${supplier?.name} ${branch?.name}`; } else if (first.type === 'transfer') { const from = findByKey(state.branches, 'branchCode', first.fromBranchCode); const to = findByKey(state.branches, 'branchCode', first.toBranchCode); details = `Transferred ${group.transactions.length} item(s) from <strong>${from?.name || 'N/A'}</strong> to <strong>${to?.name || 'N/A'}</strong>`; searchableText += ` ${from?.name} ${to?.name}`; } else if (first.type === 'issue') { const from = findByKey(state.branches, 'branchCode', first.fromBranchCode); const to = findByKey(state.sections, 'sectionCode', first.sectionCode); details = `Issued ${group.transactions.length} item(s) from <strong>${from?.name || 'N/A'}</strong> to <strong>${to?.name || 'N/A'}</strong>`; searchableText += ` ${from?.name} ${to?.name}`; } if (filter && !searchableText.toLowerCase().includes(lowerFilter)) return; const tr = document.createElement('tr'); tr.innerHTML = `<td>${new Date(first.date).toLocaleString()}</td><td>${first.type.charAt(0).toUpperCase() + first.type.slice(1)}</td><td>${refNum}</td><td>${details}</td><td>${statusTag}</td><td><button class="secondary small no-print" data-batch-id="${group.batchId}" data-type="${first.type}">View/Print</button></td>`; tbody.appendChild(tr); }); }
     function renderActivityLog() { const tbody = document.getElementById('table-activity-log').querySelector('tbody'); tbody.innerHTML = ''; state.activityLog.slice().reverse().forEach(log => { const tr = document.createElement('tr'); tr.innerHTML = `<td>${new Date(log.timestamp).toLocaleString()}</td><td>${log.action}</td><td>${log.description}</td>`; tbody.appendChild(tr); }); }
     const generateReceiveDocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; const branch = findByKey(state.branches, 'branchCode', data.branchCode) || { name: 'DELETED' }; let itemsHtml = '', totalValue = 0; data.items.forEach(item => { const itemTotal = item.quantity * item.cost; totalValue += itemTotal; itemsHtml += `<tr><td>${item.itemCode}</td><td>${item.itemName}</td><td>${item.quantity.toFixed(2)}</td><td>${item.cost.toFixed(2)} EGP</td><td>${itemTotal.toFixed(2)} EGP</td></tr>`; }); const content = `<div class="printable-document card"><h2>Goods Received Note</h2><p><strong>GRN No:</strong> ${data.batchId}</p><p><strong>Invoice #:</strong> ${data.invoiceNumber}</p><p><strong>Date:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>Supplier:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><p><strong>Received at:</strong> ${branch.name} (${branch.branchCode || ''})</p><hr><h3>Items Received</h3><table><thead><tr><th>Code</th><th>Item</th><th>Qty</th><th>Cost/Unit</th><th>Total</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">Total Value</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>Notes:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Signature:</strong> _________________________</p></div>`; printContent(content); }
-    const generateTransferDocument = (data) => { const fromBranch = findByKey(state.branches, 'branchCode', data.fromBranchCode) || { name: 'DELETED' }; const toBranch = findByKey(state.branches, 'branchCode', data.toBranchCode) || { name: 'DELETED' }; let itemsHtml = ''; data.items.forEach(item => { const fullItem = findByKey(state.items, 'code', item.itemCode) || { code: 'N/A', name: 'DELETED', unit: 'N/A' }; itemsHtml += `<tr><td>${fullItem.code}</td><td>${fullItem.name}</td><td>${item.quantity.toFixed(2)}</td><td>${fullItem.unit}</td></tr>`; }); const content = `<div class="printable-document card"><h2>Internal Transfer Order</h2><p><strong>Order ID:</strong> ${data.batchId}</p><p><strong>Date:</strong> ${new Date(data.date).toLocaleString()}</p><hr><p><strong>From:</strong> ${fromBranch.name} (${fromBranch.branchCode || ''})</p><p><strong>To:</strong> ${toBranch.name} (${toBranch.branchCode || ''})</p><hr><h3>Items Transferred</h3><table><thead><tr><th>Code</th><th>Item</th><th>Qty</th><th>Unit</th></tr></thead><tbody>${itemsHtml}</tbody></table><hr><p><strong>Notes:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Sender:</strong> _________________</p><p><strong>Receiver:</strong> _________________</p></div>`; printContent(content); }
+    const generateTransferDocument = (data) => { const fromBranch = findByKey(state.branches, 'branchCode', data.fromBranchCode) || { name: 'DELETED' }; const toBranch = findByKey(state.branches, 'branchCode', data.toBranchCode) || { name: 'DELETED' }; let itemsHtml = ''; data.items.forEach(item => { const fullItem = findByKey(state.items, 'code', item.itemCode) || { code: 'N/A', name: 'DELETED', unit: 'N/A' }; itemsHtml += `<tr><td>${fullItem.code}</td><td>${fullItem.name}</td><td>${item.quantity.toFixed(2)}</td><td>${fullItem.unit}</td></tr>`; }); const content = `<div class="printable-document card"><h2>Internal Transfer Order</h2><p><strong>Order ID:</strong> ${data.batchId}</p><p><strong>Reference:</strong> ${data.ref}</p><p><strong>Date:</strong> ${new Date(data.date).toLocaleString()}</p><hr><p><strong>From:</strong> ${fromBranch.name} (${fromBranch.branchCode || ''})</p><p><strong>To:</strong> ${toBranch.name} (${toBranch.branchCode || ''})</p><hr><h3>Items Transferred</h3><table><thead><tr><th>Code</th><th>Item</th><th>Qty</th><th>Unit</th></tr></thead><tbody>${itemsHtml}</tbody></table><hr><p><strong>Notes:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Sender:</strong> _________________</p><p><strong>Receiver:</strong> _________________</p></div>`; printContent(content); }
     const generateIssueDocument = (data) => { const fromBranch = findByKey(state.branches, 'branchCode', data.fromBranchCode) || { name: 'DELETED' }; const toSection = findByKey(state.sections, 'sectionCode', data.sectionCode) || { name: 'DELETED' }; let itemsHtml = ''; data.items.forEach(item => { const fullItem = findByKey(state.items, 'code', item.itemCode) || { name: 'DELETED', unit: 'N/A' }; itemsHtml += `<tr><td>${item.itemCode}</td><td>${item.itemName || fullItem.name}</td><td>${item.quantity.toFixed(2)}</td><td>${fullItem.unit}</td></tr>`; }); const content = `<div class="printable-document card"><h2>Stock Issue Note</h2><p><strong>Issue Ref #:</strong> ${data.ref}</p><p><strong>Batch ID:</strong> ${data.batchId}</p><p><strong>Date:</strong> ${new Date(data.date).toLocaleString()}</p><hr><p><strong>From Branch:</strong> ${fromBranch.name} (${fromBranch.branchCode || ''})</p><p><strong>To Section:</strong> ${toSection.name} (${toSection.sectionCode || ''})</p><hr><h3>Items Issued</h3><table><thead><tr><th>Code</th><th>Item</th><th>Qty</th><th>Unit</th></tr></thead><tbody>${itemsHtml}</tbody></table><hr><p><strong>Notes:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Issued By:</strong> _________________</p><p><strong>Received By:</strong> _________________</p></div>`; printContent(content); }
     const generatePaymentVoucher = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; let invoicesHtml = ''; data.payments.forEach(p => { invoicesHtml += `<tr><td>${p.invoiceNumber}</td><td>${p.amount.toFixed(2)} EGP</td></tr>`; }); const content = `<div class="printable-document card"><h2>Payment Voucher</h2><p><strong>Voucher ID:</strong> ${data.payments[0].paymentId}</p><p><strong>Date:</strong> ${new Date(data.date).toLocaleString()}</p><hr><p><strong>Paid To:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><p><strong>Amount:</strong> ${data.totalAmount.toFixed(2)} EGP</p><p><strong>Method:</strong> ${data.method}</p><hr><h3>Payment Allocation</h3><table><thead><tr><th>Invoice #</th><th>Amount Paid</th></tr></thead><tbody>${invoicesHtml}</tbody></table><br><p><strong>Signature:</strong> _________________</p></div>`; printContent(content); }
     
@@ -180,7 +284,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateReceiveGrandTotal() { let grandTotal = 0; state.currentReceiveList.forEach(item => { grandTotal += (item.quantity || 0) * (item.cost || 0); }); document.getElementById('receive-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; }
     function updateTransferGrandTotal() { let grandTotalQty = 0; state.currentTransferList.forEach(item => { grandTotalQty += item.quantity || 0; }); document.getElementById('transfer-grand-total').textContent = grandTotalQty.toFixed(2); }
     function updateIssueGrandTotal() { let grandTotalQty = 0; state.currentIssueList.forEach(item => { grandTotalQty += item.quantity || 0; }); document.getElementById('issue-grand-total').textContent = grandTotalQty.toFixed(2); }
-    async function handleTransactionSubmit(payload, buttonEl) { const result = await postData('addTransactionBatch', payload, buttonEl); if (result) { showToast(`${payload.type.charAt(0).toUpperCase() + payload.type.slice(1)} processed!`, 'success'); if (payload.type === 'receive') { generateReceiveDocument(result.data); state.currentReceiveList = []; document.getElementById('form-receive-details').reset(); document.getElementById('receive-invoice').value = `GRN-${Date.now()}`; } else if (payload.type === 'transfer') { generateTransferDocument(result.data); state.currentTransferList = []; document.getElementById('form-transfer-details').reset(); } else if (payload.type === 'issue') { generateIssueDocument(result.data); state.currentIssueList = []; document.getElementById('form-issue-details').reset(); document.getElementById('issue-ref').value = `ISN-${Date.now()}`; } await reloadDataAndRefreshUI(); } }
+    async function handleTransactionSubmit(payload, buttonEl) { const result = await postData('addTransactionBatch', payload, buttonEl); if (result) { showToast(`${payload.type.charAt(0).toUpperCase() + payload.type.slice(1)} processed!`, 'success'); if (payload.type === 'receive') { generateReceiveDocument(result.data); state.currentReceiveList = []; document.getElementById('form-receive-details').reset(); document.getElementById('receive-source-supplier').checked = true; document.getElementById('receive-source-supplier').dispatchEvent(new Event('change')); } else if (payload.type === 'transfer') { generateTransferDocument(result.data); if (document.getElementById('subview-receive').classList.contains('active')) { state.currentReceiveList = []; document.getElementById('form-receive-details').reset(); document.getElementById('receive-source-supplier').checked = true; document.getElementById('receive-source-supplier').dispatchEvent(new Event('change')); } else { state.currentTransferList = []; document.getElementById('form-transfer-details').reset(); } } else if (payload.type === 'issue') { generateIssueDocument(result.data); state.currentIssueList = []; document.getElementById('form-issue-details').reset(); document.getElementById('issue-ref').value = `ISN-${Date.now()}`; } await reloadDataAndRefreshUI(); } }
     const findByKey = (array, key, value) => (array || []).find(el => String(el[key]) === String(value));
     const generateId = () => `id_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const printContent = (content) => { document.getElementById('print-area').innerHTML = content; setTimeout(() => window.print(), 100); }
@@ -205,21 +309,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const assignedBranchCode = String(state.currentUser.AssignedBranchCode);
 
         // Lock down operations views
-        const receiveBranchSelect = document.getElementById('receive-branch');
-        receiveBranchSelect.value = assignedBranchCode;
-        receiveBranchSelect.disabled = true;
+        document.getElementById('receive-branch').value = assignedBranchCode;
+        document.getElementById('receive-branch').disabled = true;
 
-        const issueBranchSelect = document.getElementById('issue-from-branch');
-        issueBranchSelect.value = assignedBranchCode;
-        issueBranchSelect.disabled = true;
-        issueBranchSelect.dispatchEvent(new Event('change'));
+        document.getElementById('issue-from-branch').value = assignedBranchCode;
+        document.getElementById('issue-from-branch').disabled = true;
+        document.getElementById('issue-from-branch').dispatchEvent(new Event('change'));
 
-        const transferBranchSelect = document.getElementById('transfer-from-branch');
-        transferBranchSelect.value = assignedBranchCode;
-        transferBranchSelect.disabled = true;
-        transferBranchSelect.dispatchEvent(new Event('change'));
+        document.getElementById('transfer-from-branch').value = assignedBranchCode;
+        document.getElementById('transfer-from-branch').disabled = true;
+        document.getElementById('transfer-from-branch').dispatchEvent(new Event('change'));
         
-        // Lock down financials report if user cannot view all branches
         const branchStatementSelect = document.getElementById('branch-statement-select');
         if (!userCan('viewAllBranches')) {
             branchStatementSelect.value = assignedBranchCode;
@@ -229,55 +329,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    const refreshViewData = (viewId) => {
+    const refreshViewData = async (viewId) => {
         if (!state.currentUser) return;
         switch(viewId) {
-            case 'dashboard': renderItemCentricStockView(); /* Dashboard now uses this */ break;
-            case 'setup': 
-                document.getElementById('form-add-item').parentElement.style.display = userCan('createItem') ? 'block' : 'none';
-                document.getElementById('form-add-supplier').parentElement.style.display = userCan('createSupplier') ? 'block' : 'none';
-                document.getElementById('form-add-branch').parentElement.style.display = userCan('createBranch') ? 'block' : 'none';
-                document.getElementById('form-add-section').parentElement.style.display = userCan('createSection') ? 'block' : 'none';
-                populateOptions(document.getElementById('item-supplier'), state.suppliers, 'Select Supplier', 'supplierCode', 'name'); 
-                break;
-            case 'master-data': 
-                document.querySelector('[data-subview="items"]').style.display = userCan('editItem') ? 'inline-block' : 'none';
-                document.querySelector('[data-subview="suppliers"]').style.display = userCan('editSupplier') ? 'inline-block' : 'none';
-                document.querySelector('[data-subview="branches"]').style.display = userCan('editBranch') ? 'inline-block' : 'none';
-                document.querySelector('[data-subview="sections"]').style.display = userCan('editSection') ? 'inline-block' : 'none';
-                renderItemsTable(); renderSuppliersTable(); renderBranchesTable(); renderSectionsTable(); 
-                document.querySelector('#view-master-data .sub-nav-item[style*="inline-block"]')?.click();
-                break;
+            case 'dashboard': renderItemCentricStockView(); break;
+            case 'setup': document.getElementById('form-add-item').parentElement.style.display = userCan('createItem') ? 'block' : 'none'; document.getElementById('form-add-supplier').parentElement.style.display = userCan('createSupplier') ? 'block' : 'none'; document.getElementById('form-add-branch').parentElement.style.display = userCan('createBranch') ? 'block' : 'none'; document.getElementById('form-add-section').parentElement.style.display = userCan('createSection') ? 'block' : 'none'; populateOptions(document.getElementById('item-supplier'), state.suppliers, 'Select Supplier', 'supplierCode', 'name'); break;
+            case 'master-data': document.querySelector('[data-subview="items"]').style.display = userCan('editItem') ? 'inline-block' : 'none'; document.querySelector('[data-subview="suppliers"]').style.display = userCan('editSupplier') ? 'inline-block' : 'none'; document.querySelector('[data-subview="branches"]').style.display = userCan('editBranch') ? 'inline-block' : 'none'; document.querySelector('[data-subview="sections"]').style.display = userCan('editSection') ? 'inline-block' : 'none'; renderItemsTable(); renderSuppliersTable(); renderBranchesTable(); renderSectionsTable(); document.querySelector('#view-master-data .sub-nav-item[style*="inline-block"]')?.click(); break;
             case 'operations': 
-                document.querySelector('[data-subview="receive"]').style.display = userCan('opReceive') ? 'inline-block' : 'none';
-                document.querySelector('[data-subview="issue"]').style.display = userCan('opIssue') ? 'inline-block' : 'none';
-                document.querySelector('[data-subview="transfer"]').style.display = userCan('opTransfer') ? 'inline-block' : 'none';
-                document.getElementById('receive-invoice').value = `GRN-${Date.now()}`; document.getElementById('issue-ref').value = `ISN-${Date.now()}`;
-                populateOptions(document.getElementById('receive-supplier'), state.suppliers, 'Select Supplier', 'supplierCode', 'name'); 
-                populateOptions(document.getElementById('receive-branch'), state.branches, 'Select Branch', 'branchCode', 'name'); 
-                populateOptions(document.getElementById('transfer-from-branch'), state.branches, 'Select Source', 'branchCode', 'name'); 
-                populateOptions(document.getElementById('transfer-to-branch'), state.branches, 'Select Destination', 'branchCode', 'name'); 
-                populateOptions(document.getElementById('issue-from-branch'), state.branches, 'Select Source', 'branchCode', 'name'); 
-                populateOptions(document.getElementById('issue-to-section'), state.sections, 'Select Destination', 'sectionCode', 'name'); 
+                document.querySelector('[data-subview="receive"]').style.display = userCan('opReceive') ? 'inline-block' : 'none'; document.querySelector('[data-subview="issue"]').style.display = userCan('opIssue') ? 'inline-block' : 'none'; document.querySelector('[data-subview="transfer"]').style.display = userCan('opTransfer') ? 'inline-block' : 'none'; 
+                document.getElementById('receive-source-supplier').dispatchEvent(new Event('change'));
+                populateOptions(document.getElementById('receive-supplier'), state.suppliers, 'Select Supplier', 'supplierCode', 'name'); populateOptions(document.getElementById('receive-branch'), state.branches, 'Select Branch', 'branchCode', 'name'); populateOptions(document.getElementById('receive-from-branch'), state.branches, 'Select Source Branch', 'branchCode', 'name');
+                populateOptions(document.getElementById('transfer-from-branch'), state.branches, 'Select Source', 'branchCode', 'name'); populateOptions(document.getElementById('transfer-to-branch'), state.branches, 'Select Destination', 'branchCode', 'name'); populateOptions(document.getElementById('issue-from-branch'), state.branches, 'Select Source', 'branchCode', 'name'); populateOptions(document.getElementById('issue-to-section'), state.sections, 'Select Destination', 'sectionCode', 'name'); 
                 renderReceiveListTable(); renderIssueListTable(); renderTransferListTable();
                 document.querySelector('#view-operations .sub-nav-item[style*="inline-block"]')?.click();
                 if (state.currentUser.AssignedBranchCode) applyBranchUserUIConstraints();
                 break;
             case 'payments': renderPaymentList(); break;
-            case 'financials': 
-                populateOptions(document.getElementById('supplier-statement-select'), state.suppliers, 'Select a Supplier', 'supplierCode', 'name');
-                populateOptions(document.getElementById('branch-statement-select'), getVisibleBranchesForCurrentUser(), 'Select a Branch', 'branchCode', 'name');
-                populateOptions(document.getElementById('section-statement-select'), state.sections, 'Select a Section', 'sectionCode', 'name');
-                document.querySelector('#view-financials .sub-nav-item').click();
-                if (state.currentUser.AssignedBranchCode) applyBranchUserUIConstraints();
-                break;
-            case 'stock-levels':
-                document.getElementById('stock-levels-title').textContent = userCan('viewAllBranches') ? 'Stock by Item (All Branches)' : 'Stock by Item (Your Branch)';
-                renderItemCentricStockView(); 
-                document.getElementById('item-inquiry-search').value = ''; renderItemInquiry(''); document.getElementById('stock-levels-search').value = ''; 
-                break;
+            case 'financials': populateOptions(document.getElementById('supplier-statement-select'), state.suppliers, 'Select a Supplier', 'supplierCode', 'name'); populateOptions(document.getElementById('branch-statement-select'), getVisibleBranchesForCurrentUser(), 'Select a Branch', 'branchCode', 'name'); populateOptions(document.getElementById('section-statement-select'), state.sections, 'Select a Section', 'sectionCode', 'name'); document.querySelector('#view-financials .sub-nav-item').click(); if (state.currentUser.AssignedBranchCode) applyBranchUserUIConstraints(); break;
+            case 'stock-levels': document.getElementById('stock-levels-title').textContent = userCan('viewAllBranches') ? 'Stock by Item (All Branches)' : 'Stock by Item (Your Branch)'; renderItemCentricStockView(); document.getElementById('item-inquiry-search').value = ''; renderItemInquiry(''); document.getElementById('stock-levels-search').value = ''; break;
             case 'transaction-history': renderTransactionHistory(); break;
             case 'activity-log': renderActivityLog(); break;
+            case 'user-management':
+                const result = await postData('getAllUsersAndRoles', {}, null);
+                if (result) {
+                    state.allUsers = result.data.users;
+                    state.allRoles = result.data.roles;
+                    renderUserManagementUI();
+                }
+                break;
         }
     }
 
@@ -285,18 +364,14 @@ document.addEventListener('DOMContentLoaded', () => {
         Logger.info('Reloading data...');
         const { username, loginCode } = state;
         if (!username || !loginCode) { logout(); return; }
-
         const currentView = document.querySelector('.nav-item a.active')?.dataset.view || 'dashboard';
-        
         try {
             const response = await fetch(`${SCRIPT_URL}?username=${encodeURIComponent(username)}&loginCode=${encodeURIComponent(loginCode)}`);
             if (!response.ok) throw new Error('Failed to reload data.');
             const data = await response.json();
             if (data.status === 'error') throw new Error(data.message);
-            
             Object.keys(data).forEach(key => { state[key] = data[key] || state[key]; });
-
-            refreshViewData(currentView);
+            await refreshViewData(currentView);
             Logger.info('Reload complete.');
         } catch (err) {
             Logger.error('Data reload failed:', err);
@@ -305,6 +380,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    function renderUserManagementUI() {
+        // Render Users Table
+        const usersTbody = document.getElementById('table-users').querySelector('tbody');
+        usersTbody.innerHTML = '';
+        state.allUsers.forEach(user => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${user.Username}</td><td>${user.Name}</td><td>${user.RoleName}</td><td>${findByKey(state.branches, 'branchCode', user.AssignedBranchCode)?.name || 'N/A'}</td><td><button class="secondary small btn-edit" data-type="user" data-id="${user.Username}">Edit User</button></td>`;
+            usersTbody.appendChild(tr);
+        });
+
+        // Render Roles Table
+        const rolesTbody = document.getElementById('table-roles').querySelector('tbody');
+        rolesTbody.innerHTML = '';
+        state.allRoles.forEach(role => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${role.RoleName}</td><td><button class="secondary small btn-edit" data-type="role" data-id="${role.RoleName}">Edit Permissions</button></td>`;
+            rolesTbody.appendChild(tr);
+        });
+    }
+
     function setupSearch(inputId, renderFn, dataKey, searchKeys) {
         const searchInput = document.getElementById(inputId);
         if (!searchInput) return;
@@ -332,7 +427,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function attachEventListeners() {
         btnLogout.addEventListener('click', logout);
         document.querySelectorAll('#main-nav a').forEach(link => { if(link.id !== 'btn-logout') link.addEventListener('click', e => { e.preventDefault(); showView(link.dataset.view); }); });
+        
+        // --- Edit button listeners for multiple views ---
         document.getElementById('view-master-data').addEventListener('click', e => { if (e.target.classList.contains('btn-edit')) { openEditModal(e.target.dataset.type, e.target.dataset.id); } });
+        document.getElementById('view-user-management').addEventListener('click', e => { if (e.target.classList.contains('btn-edit')) { openEditModal(e.target.dataset.type, e.target.dataset.id); } });
+        
         document.getElementById('btn-show-receive-modal').addEventListener('click', openItemSelectorModal);
         document.getElementById('btn-show-transfer-modal').addEventListener('click', openItemSelectorModal);
         document.getElementById('btn-show-issue-modal').addEventListener('click', openItemSelectorModal);
@@ -351,13 +450,35 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('btn-close-edit-modal').addEventListener('click', closeModal);
         document.getElementById('btn-cancel-edit-modal').addEventListener('click', closeModal);
         formEditRecord.addEventListener('submit', handleUpdateSubmit);
-        document.getElementById('form-add-item').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const code = document.getElementById('item-code').value; if (findByKey(state.items, 'code', code)) { showToast(`Item code "${code}" already exists.`, 'error'); return; } const data = { code: code, barcode: document.getElementById('item-barcode').value, name: document.getElementById('item-name').value, unit: document.getElementById('item-unit').value, supplierCode: document.getElementById('item-supplier').value, cost: parseFloat(document.getElementById('item-cost').value) }; if (!data.name || !data.code || !data.unit || isNaN(data.cost)) { showToast("Please fill all required fields.", "error"); return; } const result = await postData('addItem', data, btn); if (result) { showToast('Item added!', 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
-        document.getElementById('form-add-supplier').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const code = document.getElementById('supplier-code').value; if (findByKey(state.suppliers, 'supplierCode', code)) { showToast(`Supplier code "${code}" already exists.`, 'error'); return; } const data = { supplierCode: code, name: document.getElementById('supplier-name').value, contact: document.getElementById('supplier-contact').value }; if (!data.name || !data.supplierCode) { showToast("Supplier name and code are required.", "error"); return; } const result = await postData('addSupplier', data, btn); if (result) { showToast('Supplier added!', 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
-        document.getElementById('form-add-branch').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const code = document.getElementById('branch-code').value; if (findByKey(state.branches, 'branchCode', code)) { showToast(`Branch code "${code}" already exists.`, 'error'); return; } const data = { branchCode: code, name: document.getElementById('branch-name').value }; if (!data.name || !data.branchCode) { showToast("Branch name and code are required.", "error"); return; } const result = await postData('addBranch', data, btn); if (result) { showToast('Branch added!', 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
-        document.getElementById('form-add-section').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const code = document.getElementById('section-code').value; if (findByKey(state.sections, 'sectionCode', code)) { showToast(`Section code "${code}" already exists.`, 'error'); return; } const data = { sectionCode: code, name: document.getElementById('section-name').value }; if (!data.name || !data.sectionCode) { showToast("Section name and code are required.", "error"); return; } const result = await postData('addSection', data, btn); if (result) { showToast('Section added!', 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
-        document.getElementById('form-record-payment').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const supplierCode = document.getElementById('payment-supplier-select').value; const method = document.getElementById('payment-method').value; let totalAmount = 0; const payments = []; if (!supplierCode || !method) { showToast("Please select a supplier and enter a payment method.", "error"); return; } document.querySelectorAll('.payment-amount-input').forEach(input => { const amount = parseFloat(input.value); if (amount > 0) { totalAmount += amount; payments.push({ paymentId: generateId(), date: new Date().toISOString(), supplierCode: supplierCode, invoiceNumber: input.dataset.invoice, amount: amount, method: method }); } }); if (payments.length === 0) { showToast("No payments to record. Please enter an amount > 0 for at least one invoice.", "error"); return; } const result = await postData('addPaymentBatch', { payments, totalAmount, supplierCode, date: new Date().toISOString(), method }, btn); if (result) { showToast(`${payments.length} payment(s) recorded!`, 'success'); generatePaymentVoucher(result.data); e.target.reset(); state.invoiceModalSelections.clear(); renderPaymentList(); reloadDataAndRefreshUI(); } });
-        document.getElementById('btn-submit-receive-batch').addEventListener('click', async (e) => { const btn = e.currentTarget; const supplierCode = document.getElementById('receive-supplier').value, branchCode = document.getElementById('receive-branch').value, invoiceNumber = document.getElementById('receive-invoice').value, notes = document.getElementById('receive-notes').value; if (!supplierCode || !branchCode || !invoiceNumber || state.currentReceiveList.length === 0) { showToast('Please fill all GRN details and select at least one item.', 'error'); return; } const payload = { type: 'receive', batchId: generateId(), supplierCode, branchCode, invoiceNumber, date: new Date().toISOString(), items: state.currentReceiveList, notes }; await handleTransactionSubmit(payload, btn); });
-        document.getElementById('btn-submit-transfer-batch').addEventListener('click', async (e) => { const btn = e.currentTarget; const fromBranchCode = document.getElementById('transfer-from-branch').value, toBranchCode = document.getElementById('transfer-to-branch').value, notes = document.getElementById('transfer-notes').value; if (!fromBranchCode || !toBranchCode || fromBranchCode === toBranchCode || state.currentTransferList.length === 0) { showToast('Please select valid branches and add at least one item.', 'error'); return; } const payload = { type: 'transfer', batchId: generateId(), fromBranchCode, toBranchCode, date: new Date().toISOString(), items: state.currentTransferList, notes }; await handleTransactionSubmit(payload, btn); });
+        document.getElementById('form-add-item').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { code: document.getElementById('item-code').value, barcode: document.getElementById('item-barcode').value, name: document.getElementById('item-name').value, unit: document.getElementById('item-unit').value, supplierCode: document.getElementById('item-supplier').value, cost: parseFloat(document.getElementById('item-cost').value) }; const result = await postData('addItem', data, btn); if (result) { showToast('Item added!', 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
+        document.getElementById('form-add-supplier').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { supplierCode: document.getElementById('supplier-code').value, name: document.getElementById('supplier-name').value, contact: document.getElementById('supplier-contact').value }; const result = await postData('addSupplier', data, btn); if (result) { showToast('Supplier added!', 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
+        document.getElementById('form-add-branch').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { branchCode: document.getElementById('branch-code').value, name: document.getElementById('branch-name').value }; const result = await postData('addBranch', data, btn); if (result) { showToast('Branch added!', 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
+        document.getElementById('form-add-section').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { sectionCode: document.getElementById('section-code').value, name: document.getElementById('section-name').value }; const result = await postData('addSection', data, btn); if (result) { showToast('Section added!', 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
+        document.getElementById('form-record-payment').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const supplierCode = document.getElementById('payment-supplier-select').value; const method = document.getElementById('payment-method').value; let totalAmount = 0; const payments = []; document.querySelectorAll('.payment-amount-input').forEach(input => { const amount = parseFloat(input.value); if (amount > 0) { totalAmount += amount; payments.push({ paymentId: generateId(), date: new Date().toISOString(), supplierCode: supplierCode, invoiceNumber: input.dataset.invoice, amount: amount, method: method }); } }); const result = await postData('addPaymentBatch', { payments, totalAmount, supplierCode, date: new Date().toISOString(), method }, btn); if (result) { showToast(`${payments.length} payment(s) recorded!`, 'success'); generatePaymentVoucher(result.data); e.target.reset(); state.invoiceModalSelections.clear(); renderPaymentList(); reloadDataAndRefreshUI(); } });
+        document.getElementById('btn-submit-receive-batch').addEventListener('click', async (e) => {
+            const btn = e.currentTarget;
+            const toBranchCode = document.getElementById('receive-branch').value;
+            const notes = document.getElementById('receive-notes').value;
+            if (!toBranchCode || state.currentReceiveList.length === 0) { showToast('Please select a "To Branch" and add items.', 'error'); return; }
+
+            const source = document.querySelector('input[name="receiveSource"]:checked').value;
+            let payload;
+
+            if (source === 'supplier') {
+                const supplierCode = document.getElementById('receive-supplier').value;
+                const invoiceNumber = document.getElementById('receive-invoice').value;
+                if (!supplierCode || !invoiceNumber) { showToast('Please select a supplier and enter an invoice number.', 'error'); return; }
+                payload = { type: 'receive', batchId: generateId(), supplierCode, branchCode: toBranchCode, invoiceNumber, date: new Date().toISOString(), items: state.currentReceiveList, notes };
+            } else { // source is 'branch'
+                const fromBranchCode = document.getElementById('receive-from-branch').value;
+                const ref = document.getElementById('receive-transfer-ref').value;
+                if (!fromBranchCode || fromBranchCode === toBranchCode) { showToast('Please select a valid and different source branch.', 'error'); return; }
+                const itemsForTransfer = state.currentReceiveList.map(item => ({ itemCode: item.itemCode, quantity: item.quantity }));
+                payload = { type: 'transfer', batchId: generateId(), fromBranchCode, toBranchCode, ref, date: new Date().toISOString(), items: itemsForTransfer, notes };
+            }
+            await handleTransactionSubmit(payload, btn);
+        });
+        document.getElementById('btn-submit-transfer-batch').addEventListener('click', async (e) => { const btn = e.currentTarget; const fromBranchCode = document.getElementById('transfer-from-branch').value, toBranchCode = document.getElementById('transfer-to-branch').value, notes = document.getElementById('transfer-notes').value, ref = document.getElementById('transfer-ref').value; if (!fromBranchCode || !toBranchCode || fromBranchCode === toBranchCode || state.currentTransferList.length === 0) { showToast('Please select valid branches and add at least one item.', 'error'); return; } const payload = { type: 'transfer', batchId: generateId(), fromBranchCode, toBranchCode, ref, date: new Date().toISOString(), items: state.currentTransferList, notes }; await handleTransactionSubmit(payload, btn); });
         document.getElementById('btn-submit-issue-batch').addEventListener('click', async(e) => { const btn = e.currentTarget; const fromBranchCode = document.getElementById('issue-from-branch').value, sectionCode = document.getElementById('issue-to-section').value, ref = document.getElementById('issue-ref').value, notes = document.getElementById('issue-notes').value; if (!fromBranchCode || !sectionCode || !ref || state.currentIssueList.length === 0) { showToast('Please fill all issue details and select at least one item.', 'error'); return; } const payload = { type: 'issue', batchId: generateId(), fromBranchCode, sectionCode, ref, date: new Date().toISOString(), items: state.currentIssueList, notes }; await handleTransactionSubmit(payload, btn); });
         document.getElementById('table-receive-list').addEventListener('input', e => { if (e.target.classList.contains('table-input')) { const index = e.target.dataset.index; const field = e.target.dataset.field; const value = parseFloat(e.target.value); if (!isNaN(value)) { state.currentReceiveList[index][field] = value; const item = state.currentReceiveList[index]; document.getElementById(`total-cost-${index}`).textContent = `${(item.quantity * item.cost).toFixed(2)} EGP`; updateReceiveGrandTotal(); } } });
         document.getElementById('table-receive-list').addEventListener('click', e => { if (e.target.classList.contains('danger')) { const index = e.target.dataset.index; state.currentReceiveList.splice(index, 1); renderReceiveListTable(); } });
@@ -381,16 +502,18 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('btn-export-branches').addEventListener('click', () => exportToExcel('table-branches', 'BranchList.xlsx'));
         document.getElementById('btn-export-sections').addEventListener('click', () => exportToExcel('table-sections', 'SectionList.xlsx'));
         document.getElementById('btn-export-stock').addEventListener('click', () => exportToExcel('table-stock-levels-by-item', 'StockLevels.xlsx'));
+        document.querySelectorAll('input[name="receiveSource"]').forEach(radio => { radio.addEventListener('change', (e) => {
+            const isSupplier = e.target.value === 'supplier';
+            document.querySelector('.receive-supplier-fields').style.display = isSupplier ? 'block' : 'none';
+            document.querySelector('.receive-branch-fields').style.display = isSupplier ? 'none' : 'block';
+        })});
     }
 
     function setupRoleBasedNav() {
         const user = state.currentUser;
         if (!user) return;
-        
         const userFirstName = user.Name.split(' ')[0];
         document.querySelector('.sidebar-header h1').textContent = `Hi, ${userFirstName}`;
-        
-        // Hide/show nav links based on permissions
         document.querySelector('[data-view="dashboard"]').parentElement.style.display = userCan('viewDashboard') ? '' : 'none';
         document.querySelector('[data-view="operations"]').parentElement.style.display = userCan('viewOperations') ? '' : 'none';
         document.querySelector('[data-view="payments"]').parentElement.style.display = userCan('viewPayments') ? '' : 'none';
@@ -400,6 +523,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelector('[data-view="setup"]').parentElement.style.display = userCan('viewSetup') ? '' : 'none';
         document.querySelector('[data-view="master-data"]').parentElement.style.display = userCan('viewMasterData') ? '' : 'none';
         document.querySelector('[data-view="activity-log"]').parentElement.style.display = userCan('viewActivityLog') ? '' : 'none';
+        document.querySelector('[data-view="user-management"]').parentElement.style.display = userCan('manageUsers') ? '' : 'none';
     }
 
     function logout() {
@@ -409,7 +533,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function initializeAppUI() {
         Logger.info('Application UI initializing...');
-        
         setupRoleBasedNav();
         attachEventListeners();
         attachSubNavListeners(); 
@@ -418,11 +541,8 @@ document.addEventListener('DOMContentLoaded', () => {
         setupSearch('search-branches', renderBranchesTable, 'branches', ['name', 'branchCode']);
         setupSearch('search-sections', renderSectionsTable, 'sections', ['name', 'sectionCode']);
         setupSearch('stock-levels-search', renderItemCentricStockView, 'items', ['name', 'code']);
-        
-        // Show the first available view based on user permissions
         const firstVisibleView = document.querySelector('#main-nav .nav-item[style*="display:"]:not([style*="display: none"]) a')?.dataset.view || 'dashboard';
         showView(firstVisibleView);
-
         Logger.info('Application initialized successfully.');
     }
 
