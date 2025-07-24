@@ -830,7 +830,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     await reloadDataAndRefreshUI();
                 }
             }
-        });
         document.getElementById('btn-add-new-user').addEventListener('click', () => { openEditModal('user', null); /* Logic for adding new user will be in openEditModal */ });
         document.getElementById('btn-add-new-role').addEventListener('click', async () => { const roleName = prompt("Enter new role name:"); if(roleName) { const result = await postData('addRole', { RoleName: roleName }); if (result) { showToast("Role added!", 'success'); await reloadDataAndRefreshUI(); } } });
         document.getElementById('subview-in-transit').addEventListener('click', async e => {
