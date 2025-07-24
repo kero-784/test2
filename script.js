@@ -1,6 +1,15 @@
 // PART 1 OF 4: CORE SETUP & API
 
-window.printReport = function(elementId) { const reportContent = document.querySelector(`#${elementId} .printable-document`); if (reportContent) { document.getElementById('print-area').innerHTML = reportContent.outerHTML; setTimeout(() => window.print(), 100); } else { console.error(`Could not find content to print in #${elementId}`); alert("Error: Report content not found."); } }
+window.printReport = function(elementId) {
+    const reportContent = document.querySelector(`#${elementId} .printable-document`);
+    if (reportContent) {
+        document.getElementById('print-area').innerHTML = reportContent.outerHTML;
+        setTimeout(() => window.print(), 100);
+    } else {
+        console.error(`Could not find content to print in #${elementId}`);
+        alert("Error: Report content not found.");
+    }
+};
 
 document.addEventListener('DOMContentLoaded', () => {
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxTaJ9VavYXqDiXP0N-fayd3r2U0TWndC9pzNfYbmBA2K4-hU3b9SKxiZcnkUjvgLgc/exec';
@@ -12,76 +21,482 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     let state = {
-        currentUser: null, username: null, loginCode: null,
-        items: [], suppliers: [], branches: [], sections: [], transactions: [], payments: [], activityLog: [],
-        currentReceiveList: [], currentTransferList: [], currentIssueList: [],
-        modalSelections: new Set(), invoiceModalSelections: new Set(),
-        allUsers: [], allRoles: []
+        currentUser: null,
+        username: null,
+        loginCode: null,
+        items: [],
+        suppliers: [],
+        branches: [],
+        sections: [],
+        transactions: [],
+        payments: [],
+        activityLog: [],
+        currentReceiveList: [],
+        currentTransferList: [],
+        currentIssueList: [],
+        modalSelections: new Set(),
+        invoiceModalSelections: new Set(),
+        allUsers: [],
+        allRoles: []
     };
     let modalContext = null;
-    
-    const userCan = (permission) => { const p = state.currentUser?.permissions?.[permission]; return p === true || String(p).toUpperCase() === 'TRUE'; };
 
-    const loginContainer = document.getElementById('login-container'), loginForm = document.getElementById('login-form'), loginUsernameInput = document.getElementById('login-username'), loginCodeInput = document.getElementById('login-code'), loginError = document.getElementById('login-error'), loginLoader = document.getElementById('login-loader'), appContainer = document.getElementById('app-container'), btnLogout = document.getElementById('btn-logout'), itemSelectorModal = document.getElementById('item-selector-modal'), invoiceSelectorModal = document.getElementById('invoice-selector-modal'), editModal = document.getElementById('edit-modal'), modalItemList = document.getElementById('modal-item-list'), modalSearchInput = document.getElementById('modal-search-items'), editModalBody = document.getElementById('edit-modal-body'), editModalTitle = document.getElementById('edit-modal-title'), formEditRecord = document.getElementById('form-edit-record');
+    const userCan = (permission) => {
+        const p = state.currentUser?.permissions?.[permission];
+        return p === true || String(p).toUpperCase() === 'TRUE';
+    };
+
+    const loginContainer = document.getElementById('login-container'),
+        loginForm = document.getElementById('login-form'),
+        loginUsernameInput = document.getElementById('login-username'),
+        loginCodeInput = document.getElementById('login-code'),
+        loginError = document.getElementById('login-error'),
+        loginLoader = document.getElementById('login-loader'),
+        appContainer = document.getElementById('app-container'),
+        btnLogout = document.getElementById('btn-logout'),
+        itemSelectorModal = document.getElementById('item-selector-modal'),
+        invoiceSelectorModal = document.getElementById('invoice-selector-modal'),
+        editModal = document.getElementById('edit-modal'),
+        modalItemList = document.getElementById('modal-item-list'),
+        modalSearchInput = document.getElementById('modal-search-items'),
+        editModalBody = document.getElementById('edit-modal-body'),
+        editModalTitle = document.getElementById('edit-modal-title'),
+        formEditRecord = document.getElementById('form-edit-record');
 
     async function attemptLogin(username, loginCode) {
         if (!username || !loginCode) return;
-        loginForm.style.display = 'none'; loginError.textContent = ''; loginLoader.style.display = 'flex'; Logger.info(`Attempting to login...`);
-        if (!SCRIPT_URL || !SCRIPT_URL.includes('macros/s')) { const errorMsg = 'SCRIPT_URL is not set or invalid in script.js.'; Logger.error(errorMsg); loginError.textContent = errorMsg; loginLoader.style.display = 'none'; loginForm.style.display = 'block'; return; }
+        loginForm.style.display = 'none';
+        loginError.textContent = '';
+        loginLoader.style.display = 'flex';
+        Logger.info(`Attempting to login...`);
+        if (!SCRIPT_URL || !SCRIPT_URL.includes('macros/s')) {
+            const errorMsg = 'SCRIPT_URL is not set or invalid in script.js.';
+            Logger.error(errorMsg);
+            loginError.textContent = errorMsg;
+            loginLoader.style.display = 'none';
+            loginForm.style.display = 'block';
+            return;
+        }
         try {
             const response = await fetch(`${SCRIPT_URL}?username=${encodeURIComponent(username)}&loginCode=${encodeURIComponent(loginCode)}`);
             if (!response.ok) throw new Error(`Network error: ${response.status} ${response.statusText}`);
             const data = await response.json();
-            if (data.status === 'error' || !data.user) { throw new Error(data.message || 'Invalid username or login code.'); }
-            state.username = username; state.loginCode = loginCode; state.currentUser = data.user;
-            Object.keys(data).forEach(key => { if(key !== 'user') state[key] = data[key] || []; });
+            if (data.status === 'error' || !data.user) {
+                throw new Error(data.message || 'Invalid username or login code.');
+            }
+            state.username = username;
+            state.loginCode = loginCode;
+            state.currentUser = data.user;
+            Object.keys(data).forEach(key => {
+                if (key !== 'user') state[key] = data[key] || [];
+            });
             Logger.info(`Login successful for user: ${state.currentUser.Name} (Role: ${state.currentUser.RoleName})`);
-            loginContainer.style.display = 'none'; appContainer.style.display = 'flex';
+            loginContainer.style.display = 'none';
+            appContainer.style.display = 'flex';
             initializeAppUI();
         } catch (error) {
             const userMsg = error.message.includes('Network error') ? 'Failed to connect to server.' : error.message;
-            Logger.error('Login failed:', error); loginError.textContent = userMsg;
-            loginLoader.style.display = 'none'; loginForm.style.display = 'block'; loginCodeInput.value = ''; loginUsernameInput.value = '';
+            Logger.error('Login failed:', error);
+            loginError.textContent = userMsg;
+            loginLoader.style.display = 'none';
+            loginForm.style.display = 'block';
+            loginCodeInput.value = '';
+            loginUsernameInput.value = '';
         }
     }
 
     async function postData(action, data, buttonEl) {
         setButtonLoading(true, buttonEl);
-        const { username, loginCode } = state;
-        if (!username || !loginCode) { showToast('Session expired. Please log in again.', 'error'); setTimeout(() => location.reload(), 2000); return null; }
+        const {
+            username,
+            loginCode
+        } = state;
+        if (!username || !loginCode) {
+            showToast('Session expired. Please log in again.', 'error');
+            setTimeout(() => location.reload(), 2000);
+            return null;
+        }
         Logger.info(`POSTing data: ${action}`, data);
         try {
-            const response = await fetch(SCRIPT_URL, { method: 'POST', mode: 'cors', body: JSON.stringify({ username, loginCode, action, data }) });
+            const response = await fetch(SCRIPT_URL, {
+                method: 'POST',
+                mode: 'cors',
+                body: JSON.stringify({
+                    username,
+                    loginCode,
+                    action,
+                    data
+                })
+            });
             const result = await response.json();
             if (result.status !== 'success') throw new Error(result.message || 'An unknown error occurred on the server.');
             Logger.info(`POST successful for ${action}`, result);
             return result;
         } catch (error) {
             const userMsg = `Could not save data: ${error.message}`;
-            Logger.error(userMsg, error); showToast(userMsg, 'error'); return null;
+            Logger.error(userMsg, error);
+            showToast(userMsg, 'error');
+            return null;
         } finally {
             setButtonLoading(false, buttonEl);
         }
     }
-    
+
     // PART 2 OF 4: MODAL & UI LOGIC
-    function openItemSelectorModal() { let currentList; if (document.getElementById('subview-receive').classList.contains('active')) { modalContext = 'receive'; currentList = state.currentReceiveList; } else if (document.getElementById('subview-transfer').classList.contains('active')) { modalContext = 'transfer'; currentList = state.currentTransferList; } else if (document.getElementById('subview-issue').classList.contains('active')) { modalContext = 'issue'; currentList = state.currentIssueList; } state.modalSelections = new Set(currentList.map(item => item.itemCode)); renderItemsInModal(); itemSelectorModal.classList.add('active'); }
-    function openInvoiceSelectorModal() { modalContext = 'invoices'; renderInvoicesInModal(); invoiceSelectorModal.classList.add('active'); }
-    function closeModal() { itemSelectorModal.classList.remove('active'); invoiceSelectorModal.classList.remove('active'); editModal.classList.remove('active'); modalSearchInput.value = ''; modalContext = null; }
-    function openEditModal(type, id) { let record, formHtml; formEditRecord.dataset.type = type; formEditRecord.dataset.id = id; switch (type) { case 'item': record = findByKey(state.items, 'code', id); if (!record) return; editModalTitle.textContent = 'Edit Item'; formHtml = `<div class="form-grid"><div class="form-group"><label>Item Code</label><input type="text" value="${record.code}" readonly></div><div class="form-group"><label for="edit-item-barcode">Barcode</label><input type="text" id="edit-item-barcode" name="barcode" value="${record.barcode || ''}"></div><div class="form-group"><label for="edit-item-name">Item Name</label><input type="text" id="edit-item-name" name="name" value="${record.name}" required></div><div class="form-group"><label for="edit-item-unit">Unit</label><input type="text" id="edit-item-unit" name="unit" value="${record.unit}" required></div><div class="form-group"><label for="edit-item-supplier">Default Supplier</label><select id="edit-item-supplier" name="supplierCode"></select></div><div class="form-group"><label for="edit-item-cost">Default Cost</label><input type="number" id="edit-item-cost" name="cost" step="0.01" min="0" value="${record.cost}" required></div></div>`; editModalBody.innerHTML = formHtml; const supplierSelect = document.getElementById('edit-item-supplier'); populateOptions(supplierSelect, state.suppliers, 'Select Supplier', 'supplierCode', 'name'); supplierSelect.value = record.supplierCode; break; case 'supplier': record = findByKey(state.suppliers, 'supplierCode', id); if (!record) return; editModalTitle.textContent = 'Edit Supplier'; formHtml = `<div class="form-grid"><div class="form-group"><label>Supplier Code</label><input type="text" value="${record.supplierCode}" readonly></div><div class="form-group"><label for="edit-supplier-name">Supplier Name</label><input type="text" id="edit-supplier-name" name="name" value="${record.name}" required></div><div class="form-group"><label for="edit-supplier-contact">Contact Info</label><input type="text" id="edit-supplier-contact" name="contact" value="${record.contact || ''}"></div></div>`; editModalBody.innerHTML = formHtml; break; case 'branch': record = findByKey(state.branches, 'branchCode', id); if (!record) return; editModalTitle.textContent = 'Edit Branch'; formHtml = `<div class="form-grid"><div class="form-group"><label>Branch Code</label><input type="text" value="${record.branchCode}" readonly></div><div class="form-group"><label for="edit-branch-name">Branch Name</label><input type="text" id="edit-branch-name" name="name" value="${record.name}" required></div></div>`; editModalBody.innerHTML = formHtml; break; case 'section': record = findByKey(state.sections, 'sectionCode', id); if (!record) return; editModalTitle.textContent = 'Edit Section'; formHtml = `<div class="form-grid"><div class="form-group"><label>Section Code</label><input type="text" value="${record.sectionCode}" readonly></div><div class="form-group"><label for="edit-section-name">Section Name</label><input type="text" id="edit-section-name" name="name" value="${record.name}" required></div></div>`; editModalBody.innerHTML = formHtml; break; case 'user': record = findByKey(state.allUsers, 'Username', id); if (!record) return; editModalTitle.textContent = 'Edit User'; const roleOptions = state.allRoles.map(r => `<option value="${r.RoleName}" ${r.RoleName === record.RoleName ? 'selected' : ''}>${r.RoleName}</option>`).join(''); const branchOptions = state.branches.map(b => `<option value="${b.branchCode}" ${b.branchCode === record.AssignedBranchCode ? 'selected' : ''}>${b.name}</option>`).join(''); formHtml = `<div class="form-grid"><div class="form-group"><label>Username</label><input type="text" value="${record.Username}" readonly></div><div class="form-group"><label for="edit-user-name">Full Name</label><input type="text" id="edit-user-name" name="Name" value="${record.Name}" required></div><div class="form-group"><label for="edit-user-role">Role</label><select id="edit-user-role" name="RoleName" required>${roleOptions}</select></div><div class="form-group"><label for="edit-user-branch">Assigned Branch (if applicable)</label><select id="edit-user-branch" name="AssignedBranchCode"><option value="">None</option>${branchOptions}</select></div><div class="form-group span-full"><label for="edit-user-password">New Password (leave blank to keep unchanged)</label><input type="password" id="edit-user-password" name="LoginCode"></div></div>`; editModalBody.innerHTML = formHtml; break; case 'role': record = findByKey(state.allRoles, 'RoleName', id); if (!record) return; editModalTitle.textContent = `Edit Permissions for ${record.RoleName}`; const permissionKeys = Object.keys(state.allRoles[0] || {}).filter(key => key !== 'RoleName'); const permissionCategories = { 'General Access': ['manageUsers', 'viewDashboard', 'viewActivityLog'], 'Operations': ['viewOperations', 'opReceive', 'opIssue', 'opTransfer'], 'Financials & Payments': ['viewPayments', 'viewFinancials', 'opRecordPayment'], 'Data Management': ['viewSetup', 'viewMasterData', 'createItem', 'editItem', 'createSupplier', 'editSupplier', 'createBranch', 'editBranch', 'createSection', 'editSection'], 'Reporting': ['viewStockLevels', 'viewTransactionHistory', 'viewAllBranches'] }; formHtml = '<h3>Permissions</h3>'; for (const category in permissionCategories) { formHtml += `<h4 class="permission-category">${category}</h4><div class="form-grid permissions-grid">`; permissionCategories[category].forEach(key => { if(permissionKeys.includes(key)){ const isChecked = record[key] === true || String(record[key]).toUpperCase() === 'TRUE'; formHtml += `<div class="form-group-checkbox"><input type="checkbox" id="edit-perm-${key}" name="${key}" ${isChecked ? 'checked' : ''}><label for="edit-perm-${key}">${key}</label></div>`; } }); formHtml += `</div>`; } editModalBody.innerHTML = formHtml; break;} editModal.classList.add('active'); }
-    async function handleUpdateSubmit(e) { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const type = formEditRecord.dataset.type; const id = formEditRecord.dataset.id; const formData = new FormData(formEditRecord); let payload, action; if (type === 'user') { action = 'updateUser'; const updates = {}; for (let [key, value] of formData.entries()) { if (key === 'LoginCode' && value === '') continue; updates[key] = value; } payload = { Username: id, updates: updates }; } else if (type === 'role') { action = 'updateRolePermissions'; const updates = {}; const allPerms = Object.keys(findByKey(state.allRoles, 'RoleName', id)); allPerms.forEach(key => { if(key !== 'RoleName') { updates[key] = formData.has(key); } }); payload = { RoleName: id, updates: updates }; } else { action = 'updateData'; const updates = {}; for (let [key, value] of formData.entries()) { updates[key] = value; } payload = { type, id, updates }; } const result = await postData(action, payload, btn); if (result) { showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} updated successfully!`, 'success'); closeModal(); await reloadDataAndRefreshUI(); } }
-    function renderItemsInModal(filter = '') { modalItemList.innerHTML = ''; const lowercasedFilter = filter.toLowerCase(); state.items.filter(item => item.name.toLowerCase().includes(lowercasedFilter) || item.code.toLowerCase().includes(lowercasedFilter)).forEach(item => { const isChecked = state.modalSelections.has(item.code); const itemDiv = document.createElement('div'); itemDiv.className = 'modal-item'; itemDiv.innerHTML = `<input type="checkbox" id="modal-item-${item.code}" data-code="${item.code}" ${isChecked ? 'checked' : ''}><label for="modal-item-${item.code}"><strong>${item.name}</strong><br><small style="color:var(--text-light-color)">Code: ${item.code} | Barcode: ${item.barcode || 'N/A'}</small></label>`; modalItemList.appendChild(itemDiv); }); }
-    function renderInvoicesInModal() { const modalInvoiceList = document.getElementById('modal-invoice-list'); const supplierCode = document.getElementById('payment-supplier-select').value; const supplierFinancials = calculateSupplierFinancials(); const supplierInvoices = supplierFinancials[supplierCode]?.invoices; modalInvoiceList.innerHTML = ''; if (!supplierInvoices || Object.keys(supplierInvoices).length === 0) { modalInvoiceList.innerHTML = '<p>No invoices found for this supplier.</p>'; return; } const unpaidInvoices = Object.values(supplierInvoices).filter(inv => inv.status !== 'Paid'); if (unpaidInvoices.length === 0) { modalInvoiceList.innerHTML = '<p>No unpaid invoices for this supplier.</p>'; return; } unpaidInvoices.sort((a,b) => new Date(a.date) - new Date(b.date)).forEach(invoice => { const isChecked = state.invoiceModalSelections.has(invoice.number); const itemDiv = document.createElement('div'); itemDiv.className = 'modal-item'; itemDiv.innerHTML = `<input type="checkbox" id="modal-invoice-${invoice.number}" data-number="${invoice.number}" ${isChecked ? 'checked' : ''}><label for="modal-invoice-${invoice.number}"><strong>Invoice #: ${invoice.number}</strong><br><small style="color:var(--text-light-color)">Date: ${new Date(invoice.date).toLocaleDateString()} | Amount Due: ${invoice.balance.toFixed(2)} EGP</small></label>`; modalInvoiceList.appendChild(itemDiv); }); }
-    function handleModalCheckboxChange(e) { if (e.target.type === 'checkbox') { const itemCode = e.target.dataset.code; if (e.target.checked) { state.modalSelections.add(itemCode); } else { state.modalSelections.delete(itemCode); } } }
-    function handleInvoiceModalCheckboxChange(e) { if (e.target.type === 'checkbox') { const invoiceNumber = e.target.dataset.number; if (e.target.checked) { state.invoiceModalSelections.add(invoiceNumber); } else { state.invoiceModalSelections.delete(invoiceNumber); } } }
-    function renderPaymentList() { const supplierCode = document.getElementById('payment-supplier-select').value; const container = document.getElementById('payment-invoice-list-container'); if (!supplierCode) { container.style.display = 'none'; return; } const supplierInvoices = calculateSupplierFinancials()[supplierCode]?.invoices; const tableBody = document.getElementById('table-payment-list').querySelector('tbody'); tableBody.innerHTML = ''; let total = 0; if (state.invoiceModalSelections.size === 0) { container.style.display = 'none'; return; } state.invoiceModalSelections.forEach(invNum => { const invoice = supplierInvoices[invNum]; if (!invoice) return; const balance = invoice.balance; total += balance; const tr = document.createElement('tr'); tr.innerHTML = `<td>${invoice.number}</td><td>${balance.toFixed(2)} EGP</td><td><input type="number" class="table-input payment-amount-input" data-invoice="${invoice.number}" value="${balance.toFixed(2)}" step="0.01" min="0" max="${balance.toFixed(2)}" style="max-width: 150px;"></td>`; tableBody.appendChild(tr); }); document.getElementById('payment-total-amount').textContent = `${total.toFixed(2)} EGP`; container.style.display = 'block'; }
-    function handlePaymentInputChange() { let total = 0; document.querySelectorAll('.payment-amount-input').forEach(input => { total += parseFloat(input.value) || 0; }); document.getElementById('payment-total-amount').textContent = `${total.toFixed(2)} EGP`; }
-    function confirmModalSelection() { const selectedCodes = state.modalSelections; switch(modalContext) { case 'invoices': renderPaymentList(); break; case 'receive': const newReceiveList = []; selectedCodes.forEach(code => { const existing = state.currentReceiveList.find(i => i.itemCode === code); if (existing) { newReceiveList.push(existing); } else { const item = findByKey(state.items, 'code', code); if(item) newReceiveList.push({ itemCode: item.code, itemName: item.name, quantity: 1, cost: item.cost }); }}); state.currentReceiveList = newReceiveList; renderReceiveListTable(); break; case 'transfer': const newTransferList = []; selectedCodes.forEach(code => { const existing = state.currentTransferList.find(i => i.itemCode === code); if (existing) { newTransferList.push(existing); } else { const item = findByKey(state.items, 'code', code); if (item) newTransferList.push({ itemCode: item.code, itemName: item.name, quantity: 1 }); }}); state.currentTransferList = newTransferList; renderTransferListTable(); break; case 'issue': const newIssueList = []; selectedCodes.forEach(code => { const existing = state.currentIssueList.find(i => i.itemCode === code); if (existing) { newIssueList.push(existing); } else { const item = findByKey(state.items, 'code', code); if (item) newIssueList.push({ itemCode: item.code, itemName: item.name, quantity: 1 }); }}); state.currentIssueList = newIssueList; renderIssueListTable(); break; } closeModal(); }
-    function showView(viewId) { Logger.info(`Switching view to: ${viewId}`); document.querySelectorAll('.view').forEach(view => view.classList.remove('active')); document.querySelectorAll('#main-nav a').forEach(link => link.classList.remove('active')); document.getElementById(`view-${viewId}`).classList.add('active'); const activeLink = document.querySelector(`[data-view="${viewId}"]`); if (activeLink) { activeLink.classList.add('active'); document.getElementById('view-title').textContent = activeLink.querySelector('span').textContent; } refreshViewData(viewId); }
-    function showToast(message, type = 'success') { if (type === 'error') Logger.error(`User Toast: ${message}`); const container = document.getElementById('toast-container'); const toast = document.createElement('div'); toast.className = `toast ${type}`; toast.textContent = message; container.appendChild(toast); setTimeout(() => toast.remove(), 3500); }
-    function setButtonLoading(isLoading, buttonEl) { if (!buttonEl) return; if (isLoading) { buttonEl.disabled = true; buttonEl.dataset.originalText = buttonEl.innerHTML; buttonEl.innerHTML = '<div class="button-spinner"></div><span>Processing...</span>'; } else { buttonEl.disabled = false; if (buttonEl.dataset.originalText) { buttonEl.innerHTML = buttonEl.dataset.originalText; } } }
-    
+    function openItemSelectorModal() {
+        let currentList;
+        if (document.getElementById('subview-receive').classList.contains('active')) {
+            modalContext = 'receive';
+            currentList = state.currentReceiveList;
+        } else if (document.getElementById('subview-transfer').classList.contains('active')) {
+            modalContext = 'transfer';
+            currentList = state.currentTransferList;
+        } else if (document.getElementById('subview-issue').classList.contains('active')) {
+            modalContext = 'issue';
+            currentList = state.currentIssueList;
+        }
+        state.modalSelections = new Set(currentList.map(item => item.itemCode));
+        renderItemsInModal();
+        itemSelectorModal.classList.add('active');
+    }
+
+    function openInvoiceSelectorModal() {
+        modalContext = 'invoices';
+        renderInvoicesInModal();
+        invoiceSelectorModal.classList.add('active');
+    }
+
+    function closeModal() {
+        itemSelectorModal.classList.remove('active');
+        invoiceSelectorModal.classList.remove('active');
+        editModal.classList.remove('active');
+        modalSearchInput.value = '';
+        modalContext = null;
+    }
+
+    function openEditModal(type, id) {
+        let record, formHtml;
+        formEditRecord.dataset.type = type;
+        formEditRecord.dataset.id = id;
+        switch (type) {
+            case 'item':
+                record = findByKey(state.items, 'code', id);
+                if (!record) return;
+                editModalTitle.textContent = 'Edit Item';
+                formHtml = `<div class="form-grid"><div class="form-group"><label>Item Code</label><input type="text" value="${record.code}" readonly></div><div class="form-group"><label for="edit-item-barcode">Barcode</label><input type="text" id="edit-item-barcode" name="barcode" value="${record.barcode || ''}"></div><div class="form-group"><label for="edit-item-name">Item Name</label><input type="text" id="edit-item-name" name="name" value="${record.name}" required></div><div class="form-group"><label for="edit-item-unit">Unit</label><input type="text" id="edit-item-unit" name="unit" value="${record.unit}" required></div><div class="form-group"><label for="edit-item-supplier">Default Supplier</label><select id="edit-item-supplier" name="supplierCode"></select></div><div class="form-group"><label for="edit-item-cost">Default Cost</label><input type="number" id="edit-item-cost" name="cost" step="0.01" min="0" value="${record.cost}" required></div></div>`;
+                editModalBody.innerHTML = formHtml;
+                const supplierSelect = document.getElementById('edit-item-supplier');
+                populateOptions(supplierSelect, state.suppliers, 'Select Supplier', 'supplierCode', 'name');
+                supplierSelect.value = record.supplierCode;
+                break;
+            case 'supplier':
+                record = findByKey(state.suppliers, 'supplierCode', id);
+                if (!record) return;
+                editModalTitle.textContent = 'Edit Supplier';
+                formHtml = `<div class="form-grid"><div class="form-group"><label>Supplier Code</label><input type="text" value="${record.supplierCode}" readonly></div><div class="form-group"><label for="edit-supplier-name">Supplier Name</label><input type="text" id="edit-supplier-name" name="name" value="${record.name}" required></div><div class="form-group"><label for="edit-supplier-contact">Contact Info</label><input type="text" id="edit-supplier-contact" name="contact" value="${record.contact || ''}"></div></div>`;
+                editModalBody.innerHTML = formHtml;
+                break;
+            case 'branch':
+                record = findByKey(state.branches, 'branchCode', id);
+                if (!record) return;
+                editModalTitle.textContent = 'Edit Branch';
+                formHtml = `<div class="form-grid"><div class="form-group"><label>Branch Code</label><input type="text" value="${record.branchCode}" readonly></div><div class="form-group"><label for="edit-branch-name">Branch Name</label><input type="text" id="edit-branch-name" name="name" value="${record.name}" required></div></div>`;
+                editModalBody.innerHTML = formHtml;
+                break;
+            case 'section':
+                record = findByKey(state.sections, 'sectionCode', id);
+                if (!record) return;
+                editModalTitle.textContent = 'Edit Section';
+                formHtml = `<div class="form-grid"><div class="form-group"><label>Section Code</label><input type="text" value="${record.sectionCode}" readonly></div><div class="form-group"><label for="edit-section-name">Section Name</label><input type="text" id="edit-section-name" name="name" value="${record.name}" required></div></div>`;
+                editModalBody.innerHTML = formHtml;
+                break;
+            case 'user':
+                record = findByKey(state.allUsers, 'Username', id);
+                if (!record) return;
+                editModalTitle.textContent = 'Edit User';
+                const roleOptions = state.allRoles.map(r => `<option value="${r.RoleName}" ${r.RoleName === record.RoleName ? 'selected' : ''}>${r.RoleName}</option>`).join('');
+                const branchOptions = state.branches.map(b => `<option value="${b.branchCode}" ${b.branchCode === record.AssignedBranchCode ? 'selected' : ''}>${b.name}</option>`).join('');
+                formHtml = `<div class="form-grid"><div class="form-group"><label>Username</label><input type="text" value="${record.Username}" readonly></div><div class="form-group"><label for="edit-user-name">Full Name</label><input type="text" id="edit-user-name" name="Name" value="${record.Name}" required></div><div class="form-group"><label for="edit-user-role">Role</label><select id="edit-user-role" name="RoleName" required>${roleOptions}</select></div><div class="form-group"><label for="edit-user-branch">Assigned Branch (if applicable)</label><select id="edit-user-branch" name="AssignedBranchCode"><option value="">None</option>${branchOptions}</select></div><div class="form-group span-full"><label for="edit-user-password">New Password (leave blank to keep unchanged)</label><input type="password" id="edit-user-password" name="LoginCode"></div></div>`;
+                editModalBody.innerHTML = formHtml;
+                break;
+            case 'role':
+                record = findByKey(state.allRoles, 'RoleName', id);
+                if (!record) return;
+                editModalTitle.textContent = `Edit Permissions for ${record.RoleName}`;
+                const permissionKeys = Object.keys(state.allRoles[0] || {}).filter(key => key !== 'RoleName');
+                const permissionCategories = {
+                    'General Access': ['manageUsers', 'viewDashboard', 'viewActivityLog'],
+                    'Operations': ['viewOperations', 'opReceive', 'opIssue', 'opTransfer'],
+                    'Financials & Payments': ['viewPayments', 'viewFinancials', 'opRecordPayment'],
+                    'Data Management': ['viewSetup', 'viewMasterData', 'createItem', 'editItem', 'createSupplier', 'editSupplier', 'createBranch', 'editBranch', 'createSection', 'editSection'],
+                    'Reporting': ['viewStockLevels', 'viewTransactionHistory', 'viewAllBranches']
+                };
+                formHtml = '<h3>Permissions</h3>';
+                for (const category in permissionCategories) {
+                    formHtml += `<h4 class="permission-category">${category}</h4><div class="form-grid permissions-grid">`;
+                    permissionCategories[category].forEach(key => {
+                        if (permissionKeys.includes(key)) {
+                            const isChecked = record[key] === true || String(record[key]).toUpperCase() === 'TRUE';
+                            formHtml += `<div class="form-group-checkbox"><input type="checkbox" id="edit-perm-${key}" name="${key}" ${isChecked ? 'checked' : ''}><label for="edit-perm-${key}">${key}</label></div>`;
+                        }
+                    });
+                    formHtml += `</div>`;
+                }
+                editModalBody.innerHTML = formHtml;
+                break;
+        }
+        editModal.classList.add('active');
+    }
+
+    async function handleUpdateSubmit(e) {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        const type = formEditRecord.dataset.type;
+        const id = formEditRecord.dataset.id;
+        const formData = new FormData(formEditRecord);
+        let payload, action;
+        if (type === 'user') {
+            action = 'updateUser';
+            const updates = {};
+            for (let [key, value] of formData.entries()) {
+                if (key === 'LoginCode' && value === '') continue;
+                updates[key] = value;
+            }
+            payload = {
+                Username: id,
+                updates: updates
+            };
+        } else if (type === 'role') {
+            action = 'updateRolePermissions';
+            const updates = {};
+            const allPerms = Object.keys(findByKey(state.allRoles, 'RoleName', id));
+            allPerms.forEach(key => {
+                if (key !== 'RoleName') {
+                    updates[key] = formData.has(key);
+                }
+            });
+            payload = {
+                RoleName: id,
+                updates: updates
+            };
+        } else {
+            action = 'updateData';
+            const updates = {};
+            for (let [key, value] of formData.entries()) {
+                updates[key] = value;
+            }
+            payload = {
+                type,
+                id,
+                updates
+            };
+        }
+        const result = await postData(action, payload, btn);
+        if (result) {
+            showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} updated successfully!`, 'success');
+            closeModal();
+            await reloadDataAndRefreshUI();
+        }
+    }
+
+    function renderItemsInModal(filter = '') {
+        modalItemList.innerHTML = '';
+        const lowercasedFilter = filter.toLowerCase();
+        state.items.filter(item => item.name.toLowerCase().includes(lowercasedFilter) || item.code.toLowerCase().includes(lowercasedFilter)).forEach(item => {
+            const isChecked = state.modalSelections.has(item.code);
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'modal-item';
+            itemDiv.innerHTML = `<input type="checkbox" id="modal-item-${item.code}" data-code="${item.code}" ${isChecked ? 'checked' : ''}><label for="modal-item-${item.code}"><strong>${item.name}</strong><br><small style="color:var(--text-light-color)">Code: ${item.code} | Barcode: ${item.barcode || 'N/A'}</small></label>`;
+            modalItemList.appendChild(itemDiv);
+        });
+    }
+
+    function renderInvoicesInModal() {
+        const modalInvoiceList = document.getElementById('modal-invoice-list');
+        const supplierCode = document.getElementById('payment-supplier-select').value;
+        const supplierFinancials = calculateSupplierFinancials();
+        const supplierInvoices = supplierFinancials[supplierCode]?.invoices;
+        modalInvoiceList.innerHTML = '';
+        if (!supplierInvoices || Object.keys(supplierInvoices).length === 0) {
+            modalInvoiceList.innerHTML = '<p>No invoices found for this supplier.</p>';
+            return;
+        }
+        const unpaidInvoices = Object.values(supplierInvoices).filter(inv => inv.status !== 'Paid');
+        if (unpaidInvoices.length === 0) {
+            modalInvoiceList.innerHTML = '<p>No unpaid invoices for this supplier.</p>';
+            return;
+        }
+        unpaidInvoices.sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(invoice => {
+            const isChecked = state.invoiceModalSelections.has(invoice.number);
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'modal-item';
+            itemDiv.innerHTML = `<input type="checkbox" id="modal-invoice-${invoice.number}" data-number="${invoice.number}" ${isChecked ? 'checked' : ''}><label for="modal-invoice-${invoice.number}"><strong>Invoice #: ${invoice.number}</strong><br><small style="color:var(--text-light-color)">Date: ${new Date(invoice.date).toLocaleDateString()} | Amount Due: ${invoice.balance.toFixed(2)} EGP</small></label>`;
+            modalInvoiceList.appendChild(itemDiv);
+        });
+    }
+
+    function handleModalCheckboxChange(e) {
+        if (e.target.type === 'checkbox') {
+            const itemCode = e.target.dataset.code;
+            if (e.target.checked) {
+                state.modalSelections.add(itemCode);
+            } else {
+                state.modalSelections.delete(itemCode);
+            }
+        }
+    }
+
+    function handleInvoiceModalCheckboxChange(e) {
+        if (e.target.type === 'checkbox') {
+            const invoiceNumber = e.target.dataset.number;
+            if (e.target.checked) {
+                state.invoiceModalSelections.add(invoiceNumber);
+            } else {
+                state.invoiceModalSelections.delete(invoiceNumber);
+            }
+        }
+    }
+
+    function renderPaymentList() {
+        const supplierCode = document.getElementById('payment-supplier-select').value;
+        const container = document.getElementById('payment-invoice-list-container');
+        if (!supplierCode) {
+            container.style.display = 'none';
+            return;
+        }
+        const supplierInvoices = calculateSupplierFinancials()[supplierCode]?.invoices;
+        const tableBody = document.getElementById('table-payment-list').querySelector('tbody');
+        tableBody.innerHTML = '';
+        let total = 0;
+        if (state.invoiceModalSelections.size === 0) {
+            container.style.display = 'none';
+            return;
+        }
+        state.invoiceModalSelections.forEach(invNum => {
+            const invoice = supplierInvoices[invNum];
+            if (!invoice) return;
+            const balance = invoice.balance;
+            total += balance;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${invoice.number}</td><td>${balance.toFixed(2)} EGP</td><td><input type="number" class="table-input payment-amount-input" data-invoice="${invoice.number}" value="${balance.toFixed(2)}" step="0.01" min="0" max="${balance.toFixed(2)}" style="max-width: 150px;"></td>`;
+            tableBody.appendChild(tr);
+        });
+        document.getElementById('payment-total-amount').textContent = `${total.toFixed(2)} EGP`;
+        container.style.display = 'block';
+    }
+
+    function handlePaymentInputChange() {
+        let total = 0;
+        document.querySelectorAll('.payment-amount-input').forEach(input => {
+            total += parseFloat(input.value) || 0;
+        });
+        document.getElementById('payment-total-amount').textContent = `${total.toFixed(2)} EGP`;
+    }
+
+    function confirmModalSelection() {
+        const selectedCodes = state.modalSelections;
+        switch (modalContext) {
+            case 'invoices':
+                renderPaymentList();
+                break;
+            case 'receive':
+                const newReceiveList = [];
+                selectedCodes.forEach(code => {
+                    const existing = state.currentReceiveList.find(i => i.itemCode === code);
+                    if (existing) {
+                        newReceiveList.push(existing);
+                    } else {
+                        const item = findByKey(state.items, 'code', code);
+                        if (item) newReceiveList.push({
+                            itemCode: item.code,
+                            itemName: item.name,
+                            quantity: 1,
+                            cost: item.cost
+                        });
+                    }
+                });
+                state.currentReceiveList = newReceiveList;
+                renderReceiveListTable();
+                break;
+            case 'transfer':
+                const newTransferList = [];
+                selectedCodes.forEach(code => {
+                    const existing = state.currentTransferList.find(i => i.itemCode === code);
+                    if (existing) {
+                        newTransferList.push(existing);
+                    } else {
+                        const item = findByKey(state.items, 'code', code);
+                        if (item) newTransferList.push({
+                            itemCode: item.code,
+                            itemName: item.name,
+                            quantity: 1
+                        });
+                    }
+                });
+                state.currentTransferList = newTransferList;
+                renderTransferListTable();
+                break;
+            case 'issue':
+                const newIssueList = [];
+                selectedCodes.forEach(code => {
+                    const existing = state.currentIssueList.find(i => i.itemCode === code);
+                    if (existing) {
+                        newIssueList.push(existing);
+                    } else {
+                        const item = findByKey(state.items, 'code', code);
+                        if (item) newIssueList.push({
+                            itemCode: item.code,
+                            itemName: item.name,
+                            quantity: 1
+                        });
+                    }
+                });
+                state.currentIssueList = newIssueList;
+                renderIssueListTable();
+                break;
+        }
+        closeModal();
+    }
+
+    function showView(viewId) {
+        Logger.info(`Switching view to: ${viewId}`);
+        document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
+        document.querySelectorAll('#main-nav a').forEach(link => link.classList.remove('active'));
+        document.getElementById(`view-${viewId}`).classList.add('active');
+        const activeLink = document.querySelector(`[data-view="${viewId}"]`);
+        if (activeLink) {
+            activeLink.classList.add('active');
+            document.getElementById('view-title').textContent = activeLink.querySelector('span').textContent;
+        }
+        refreshViewData(viewId);
+    }
+
+    function showToast(message, type = 'success') {
+        if (type === 'error') Logger.error(`User Toast: ${message}`);
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.textContent = message;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 3500);
+    }
+
+    function setButtonLoading(isLoading, buttonEl) {
+        if (!buttonEl) return;
+        if (isLoading) {
+            buttonEl.disabled = true;
+            buttonEl.dataset.originalText = buttonEl.innerHTML;
+            buttonEl.innerHTML = '<div class="button-spinner"></div><span>Processing...</span>';
+        } else {
+            buttonEl.disabled = false;
+            if (buttonEl.dataset.originalText) {
+                buttonEl.innerHTML = buttonEl.dataset.originalText;
+            }
+        }
+    }
+
     // PART 3 OF 4: VIEW RENDERING
+    // This section remains the same as your last correct version, so I'll omit it for brevity and just show the function calls.
     function renderItemsTable(data = state.items) { const tbody = document.getElementById('table-items').querySelector('tbody'); tbody.innerHTML = ''; if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="5">No items found.</td></tr>'; return; } const canEdit = userCan('editItem'); data.forEach(item => { const tr = document.createElement('tr'); tr.innerHTML = `<td>${item.code}</td><td>${item.name}</td><td>${item.unit}</td><td>${parseFloat(item.cost).toFixed(2)} EGP</td><td>${canEdit ? `<button class="secondary small btn-edit" data-type="item" data-id="${item.code}">Edit</button>`: 'N/A'}</td>`; tbody.appendChild(tr); }); }
     function renderSuppliersTable(data = state.suppliers) { const tbody = document.getElementById('table-suppliers').querySelector('tbody'); tbody.innerHTML = ''; if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="5">No suppliers found.</td></tr>'; return; } const financials = calculateSupplierFinancials(); const canEdit = userCan('editSupplier'); data.forEach(supplier => { const balance = financials[supplier.supplierCode]?.balance || 0; const tr = document.createElement('tr'); tr.innerHTML = `<td>${supplier.supplierCode || ''}</td><td>${supplier.name}</td><td>${supplier.contact}</td><td>${balance.toFixed(2)} EGP</td><td>${canEdit ? `<button class="secondary small btn-edit" data-type="supplier" data-id="${supplier.supplierCode}">Edit</button>`: 'N/A'}</td>`; tbody.appendChild(tr); }); }
     function renderBranchesTable(data = state.branches) { const tbody = document.getElementById('table-branches').querySelector('tbody'); tbody.innerHTML = ''; if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="3">No branches found.</td></tr>'; return; } const canEdit = userCan('editBranch'); data.forEach(branch => { const tr = document.createElement('tr'); tr.innerHTML = `<td>${branch.branchCode || ''}</td><td>${branch.name}</td><td>${canEdit ? `<button class="secondary small btn-edit" data-type="branch" data-id="${branch.branchCode}">Edit</button>`: 'N/A'}</td>`; tbody.appendChild(tr); }); }
@@ -108,11 +523,11 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleTransactionSubmit(payload, buttonEl) { const result = await postData('addTransactionBatch', payload, buttonEl); if (result) { showToast(`${payload.type.replace('_',' ').toUpperCase()} processed!`, 'success'); if (payload.type === 'receive') { generateReceiveDocument(result.data); state.currentReceiveList = []; document.getElementById('form-receive-details').reset(); } else if (payload.type === 'transfer_out') { generateTransferDocument(result.data); state.currentTransferList = []; document.getElementById('form-transfer-details').reset(); } else if (payload.type === 'issue') { generateIssueDocument(result.data); state.currentIssueList = []; document.getElementById('form-issue-details').reset(); } await reloadDataAndRefreshUI(); } }
     const findByKey = (array, key, value) => (array || []).find(el => String(el[key]) === String(value));
     const generateId = () => `id_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const printContent = (content) => { document.getElementById('print-area').innerHTML = content; setTimeout(() => window.print(), 100); }
+    const printContent = (content) => { document.getElementById('print-area').innerHTML = content; setTimeout(() => window.print(), 100); };
     const exportToExcel = (tableId, filename) => { try { const table = document.getElementById(tableId); if (!table) { showToast('Please generate a report first.', 'error'); return; } const wb = XLSX.utils.table_to_book(table, {sheet: "Sheet1"}); XLSX.writeFile(wb, filename); showToast('Exporting to Excel...', 'success'); } catch (err) { showToast('Excel export failed.', 'error'); Logger.error('Export Error:', err); } };
-    const calculateStockLevels = () => { const stock = {}; (state.branches || []).forEach(branch => { stock[branch.branchCode] = {}; }); const sortedTransactions = [...(state.transactions || [])].sort((a, b) => new Date(a.date) - new Date(b.date)); const tempAvgCosts = {}; sortedTransactions.forEach(t => { const item = findByKey(state.items, 'code', t.itemCode); if (!item) return; if (t.type === 'receive') { const branchCode = t.branchCode; if (!branchCode || !stock.hasOwnProperty(branchCode)) return; const current = stock[branchCode][t.itemCode] || { quantity: 0, avgCost: 0, itemName: item.name }; const totalValue = (current.quantity * current.avgCost) + (t.quantity * t.cost); const totalQty = current.quantity + t.quantity; const newAvgCost = totalQty > 0 ? totalValue / totalQty : 0; stock[branchCode][t.itemCode] = { itemCode: t.itemCode, quantity: totalQty, avgCost: newAvgCost, itemName: item.name }; if (!tempAvgCosts[branchCode]) tempAvgCosts[branchCode] = {}; tempAvgCosts[branchCode][t.itemCode] = newAvgCost; } else if (t.type === 'transfer_out') { const fromBranchCode = t.fromBranchCode; if (!fromBranchCode || !stock.hasOwnProperty(fromBranchCode) || !stock[fromBranchCode][t.itemCode]) return; stock[fromBranchCode][t.itemCode].quantity -= t.quantity; } else if (t.type === 'transfer_in') { const toBranchCode = t.toBranchCode; const fromBranchCode = t.fromBranchCode; if (!toBranchCode || !stock.hasOwnProperty(toBranchCode)) return; const fromAvgCost = tempAvgCosts[fromBranchCode]?.[t.itemCode] || stock[fromBranchCode]?.[t.itemCode]?.avgCost || findByKey(state.items, 'code', t.itemCode).cost || 0; const toStock = stock[toBranchCode][t.itemCode] || { quantity: 0, avgCost: 0, itemName: item.name }; const newTotalValue = (toStock.quantity * toStock.avgCost) + (t.quantity * fromAvgCost); const newTotalQty = toStock.quantity + t.quantity; const newAvgCost = newTotalQty > 0 ? newTotalValue / newTotalQty : 0; stock[toBranchCode][t.itemCode] = { itemCode: t.itemCode, quantity: newTotalQty, avgCost: newAvgCost, itemName: item.name }; if (!tempAvgCosts[toBranchCode]) tempAvgCosts[toBranchCode] = {}; tempAvgCosts[toBranchCode][t.itemCode] = newAvgCost; } else if (t.type === 'issue') { const fromBranchCode = t.fromBranchCode; if (!fromBranchCode || !stock.hasOwnProperty(fromBranchCode) || !stock[fromBranchCode][t.itemCode]) return; stock[fromBranchCode][t.itemCode].quantity -= t.quantity; } }); return stock; }
+    const calculateStockLevels = () => { const stock = {}; (state.branches || []).forEach(branch => { stock[branch.branchCode] = {}; }); const sortedTransactions = [...(state.transactions || [])].sort((a, b) => new Date(a.date) - new Date(b.date)); const tempAvgCosts = {}; sortedTransactions.forEach(t => { const item = findByKey(state.items, 'code', t.itemCode); if (!item) return; if (t.type === 'receive') { const branchCode = t.branchCode; if (!branchCode || !stock.hasOwnProperty(branchCode)) return; const current = stock[branchCode][t.itemCode] || { quantity: 0, avgCost: 0, itemName: item.name }; const totalValue = (current.quantity * current.avgCost) + (t.quantity * t.cost); const totalQty = current.quantity + t.quantity; const newAvgCost = totalQty > 0 ? totalValue / totalQty : 0; stock[branchCode][t.itemCode] = { itemCode: t.itemCode, quantity: totalQty, avgCost: newAvgCost, itemName: item.name }; if (!tempAvgCosts[branchCode]) tempAvgCosts[branchCode] = {}; tempAvgCosts[branchCode][t.itemCode] = newAvgCost; } else if (t.type === 'transfer_out') { const fromBranchCode = t.fromBranchCode; if (!fromBranchCode || !stock.hasOwnProperty(fromBranchCode) || !stock[fromBranchCode][t.itemCode]) return; stock[fromBranchCode][t.itemCode].quantity -= t.quantity; } else if (t.type === 'transfer_in') { const toBranchCode = t.toBranchCode; const fromBranchCode = t.fromBranchCode; if (!toBranchCode || !stock.hasOwnProperty(toBranchCode)) return; const fromAvgCost = tempAvgCosts[fromBranchCode]?.[t.itemCode] || stock[fromBranchCode]?.[t.itemCode]?.avgCost || findByKey(state.items, 'code', t.itemCode).cost || 0; const toStock = stock[toBranchCode][t.itemCode] || { quantity: 0, avgCost: 0, itemName: item.name }; const newTotalValue = (toStock.quantity * toStock.avgCost) + (t.quantity * fromAvgCost); const newTotalQty = toStock.quantity + t.quantity; const newAvgCost = newTotalQty > 0 ? newTotalValue / newTotalQty : 0; stock[toBranchCode][t.itemCode] = { itemCode: t.itemCode, quantity: newTotalQty, avgCost: newAvgCost, itemName: item.name }; if (!tempAvgCosts[toBranchCode]) tempAvgCosts[toBranchCode] = {}; tempAvgCosts[toBranchCode][t.itemCode] = newAvgCost; } else if (t.type === 'issue') { const fromBranchCode = t.fromBranchCode; if (!fromBranchCode || !stock.hasOwnProperty(fromBranchCode) || !stock[fromBranchCode][t.itemCode]) return; stock[fromBranchCode][t.itemCode].quantity -= t.quantity; } }); return stock; };
     const calculateSupplierFinancials = () => { const financials = {}; state.suppliers.forEach(s => { financials[s.supplierCode] = { supplierCode: s.supplierCode, supplierName: s.name, totalBilled: 0, totalPaid: 0, balance: 0, invoices: {}, events: [] }; }); state.transactions.forEach(t => { if (t.type === 'receive' && financials[t.supplierCode]) { const invoiceValue = t.quantity * t.cost; financials[t.supplierCode].totalBilled += invoiceValue; if (!financials[t.supplierCode].invoices[t.invoiceNumber]) { financials[t.supplierCode].invoices[t.invoiceNumber] = { number: t.invoiceNumber, date: t.date, total: 0, paid: 0 }; } financials[t.supplierCode].invoices[t.invoiceNumber].total += invoiceValue; } }); state.payments.forEach(p => { if (financials[p.supplierCode]) { financials[p.supplierCode].totalPaid += p.amount; if (p.invoiceNumber && financials[p.supplierCode].invoices[p.invoiceNumber]) { financials[p.supplierCode].invoices[p.invoiceNumber].paid += p.amount; } } }); Object.values(financials).forEach(s => { s.balance = s.totalBilled - s.totalPaid; Object.values(s.invoices).forEach(inv => { inv.balance = inv.total - inv.paid; if (Math.abs(inv.balance) < 0.01) { inv.status = 'Paid'; } else if (inv.paid > 0) { inv.status = 'Partial'; } else { inv.status = 'Unpaid'; } }); const allEvents = [ ...Object.values(s.invoices).map(i => ({ date: i.date, type: 'Invoice', ref: i.number, debit: i.total, credit: 0 })), ...state.payments.filter(p => p.supplierCode === s.supplierCode).map(p => ({ date: p.date, type: 'Payment', ref: p.invoiceNumber || 'On Account', debit: 0, credit: p.amount })) ]; s.events = allEvents.sort((a,b) => new Date(a.date) - new Date(b.date)); }); financials.allInvoices = {}; Object.values(financials).forEach(s => { Object.assign(financials.allInvoices, s.invoices); }); return financials; };
-    const populateOptions = (el, data, ph, valueKey, textKey) => { el.innerHTML = `<option value="">${ph}</option>`; (data || []).forEach(item => { el.innerHTML += `<option value="${item[valueKey]}">${item[textKey]}${item[valueKey] ? ' (' + item[valueKey] + ')' : ''}</option>`; }); }
+    const populateOptions = (el, data, ph, valueKey, textKey) => { el.innerHTML = `<option value="">${ph}</option>`; (data || []).forEach(item => { el.innerHTML += `<option value="${item[valueKey]}">${item[textKey]}${item[valueKey] ? ' (' + item[valueKey] + ')' : ''}</option>`; }); };
     function getVisibleBranchesForCurrentUser() { if (!state.currentUser) return []; if (userCan('viewAllBranches')) { return state.branches; } if (state.currentUser.AssignedBranchCode) { return state.branches.filter(b => String(b.branchCode) === String(state.currentUser.AssignedBranchCode)); } return []; }
     function applyBranchUserUIConstraints() { if (!state.currentUser.AssignedBranchCode) return; const assignedBranchCode = String(state.currentUser.AssignedBranchCode); document.getElementById('receive-branch').value = assignedBranchCode; document.getElementById('receive-branch').disabled = true; document.getElementById('issue-from-branch').value = assignedBranchCode; document.getElementById('issue-from-branch').disabled = true; document.getElementById('issue-from-branch').dispatchEvent(new Event('change')); document.getElementById('transfer-from-branch').value = assignedBranchCode; document.getElementById('transfer-from-branch').disabled = true; document.getElementById('transfer-from-branch').dispatchEvent(new Event('change')); const branchStatementSelect = document.getElementById('branch-statement-select'); if (!userCan('viewAllBranches')) { branchStatementSelect.value = assignedBranchCode; branchStatementSelect.disabled = true; } else { branchStatementSelect.disabled = false; } }
     const refreshViewData = async (viewId) => { if (!state.currentUser) return; switch(viewId) { case 'dashboard': const stock = calculateStockLevels(); document.getElementById('dashboard-total-items').textContent = (state.items || []).length; document.getElementById('dashboard-total-suppliers').textContent = (state.suppliers || []).length; document.getElementById('dashboard-total-branches').textContent = (state.branches || []).length; let totalValue = 0; Object.values(stock).forEach(bs => Object.values(bs).forEach(i => totalValue += i.quantity * i.avgCost)); document.getElementById('dashboard-total-value').textContent = `${totalValue.toFixed(2)} EGP`; break; case 'setup': document.getElementById('form-add-item').parentElement.style.display = userCan('createItem') ? 'block' : 'none'; document.getElementById('form-add-supplier').parentElement.style.display = userCan('createSupplier') ? 'block' : 'none'; document.getElementById('form-add-branch').parentElement.style.display = userCan('createBranch') ? 'block' : 'none'; document.getElementById('form-add-section').parentElement.style.display = userCan('createSection') ? 'block' : 'none'; populateOptions(document.getElementById('item-supplier'), state.suppliers, 'Select Supplier', 'supplierCode', 'name'); break; case 'master-data': document.querySelector('[data-subview="items"]').style.display = userCan('editItem') ? 'inline-block' : 'none'; document.querySelector('[data-subview="suppliers"]').style.display = userCan('editSupplier') ? 'inline-block' : 'none'; document.querySelector('[data-subview="branches"]').style.display = userCan('editBranch') ? 'inline-block' : 'none'; document.querySelector('[data-subview="sections"]').style.display = userCan('editSection') ? 'inline-block' : 'none'; renderItemsTable(); renderSuppliersTable(); renderBranchesTable(); renderSectionsTable(); document.querySelector('#view-master-data .sub-nav-item[style*="inline-block"]')?.click(); break; case 'operations': document.querySelector('[data-subview="receive"]').style.display = userCan('opReceive') ? 'inline-block' : 'none'; document.querySelector('[data-subview="issue"]').style.display = userCan('opIssue') ? 'inline-block' : 'none'; document.querySelector('[data-subview="transfer"]').style.display = userCan('opTransfer') ? 'inline-block' : 'none'; populateOptions(document.getElementById('receive-supplier'), state.suppliers, 'Select Supplier', 'supplierCode', 'name'); populateOptions(document.getElementById('receive-branch'), state.branches, 'Select Branch', 'branchCode', 'name'); populateOptions(document.getElementById('transfer-from-branch'), state.branches, 'Select Source', 'branchCode', 'name'); populateOptions(document.getElementById('transfer-to-branch'), state.branches, 'Select Destination', 'branchCode', 'name'); populateOptions(document.getElementById('issue-from-branch'), state.branches, 'Select Source', 'branchCode', 'name'); populateOptions(document.getElementById('issue-to-section'), state.sections, 'Select Destination', 'sectionCode', 'name'); renderReceiveListTable(); renderIssueListTable(); renderTransferListTable(); renderPendingTransfers(); renderInTransitReport(); document.querySelector('#view-operations .sub-nav-item[style*="inline-block"]')?.click(); if (state.currentUser.AssignedBranchCode) applyBranchUserUIConstraints(); break; case 'payments': renderPaymentList(); break; case 'financials': populateOptions(document.getElementById('supplier-statement-select'), state.suppliers, 'Select a Supplier', 'supplierCode', 'name'); populateOptions(document.getElementById('branch-statement-select'), getVisibleBranchesForCurrentUser(), 'Select a Branch', 'branchCode', 'name'); populateOptions(document.getElementById('section-statement-select'), state.sections, 'Select a Section', 'sectionCode', 'name'); document.querySelector('#view-financials .sub-nav-item').click(); if (state.currentUser.AssignedBranchCode) applyBranchUserUIConstraints(); break; case 'stock-levels': document.getElementById('stock-levels-title').textContent = userCan('viewAllBranches') ? 'Stock by Item (All Branches)' : 'Stock by Item (Your Branch)'; renderItemCentricStockView(); document.getElementById('item-inquiry-search').value = ''; renderItemInquiry(''); document.getElementById('stock-levels-search').value = ''; break; case 'transaction-history': renderTransactionHistory(); break; case 'activity-log': renderActivityLog(); break; case 'user-management': const result = await postData('getAllUsersAndRoles', {}, null); if (result) { state.allUsers = result.data.users; state.allRoles = result.data.roles; renderUserManagementUI(); } break;} }
