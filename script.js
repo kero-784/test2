@@ -24,7 +24,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let state = {
         currentUser: null,
-        loginCode: null, // <-- Code will be stored here in memory
+        username: null, // <-- User's username stored here
+        loginCode: null, // <-- User's code/password stored here
         items: [], suppliers: [], branches: [], sections: [], transactions: [], payments: [], activityLog: [],
         currentReceiveList: [], currentTransferList: [], currentIssueList: [],
         modalSelections: new Set(), invoiceModalSelections: new Set()
@@ -34,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- DOM ELEMENT REFERENCES ---
     const loginContainer = document.getElementById('login-container');
     const loginForm = document.getElementById('login-form');
+    const loginUsernameInput = document.getElementById('login-username');
     const loginCodeInput = document.getElementById('login-code');
     const loginError = document.getElementById('login-error');
     const loginLoader = document.getElementById('login-loader');
@@ -49,8 +51,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const editModalTitle = document.getElementById('edit-modal-title');
     const formEditRecord = document.getElementById('form-edit-record');
 
-    async function attemptLogin(loginCode) {
-        if (!loginCode) return;
+    async function attemptLogin(username, loginCode) {
+        if (!username || !loginCode) return;
         
         loginForm.style.display = 'none';
         loginError.textContent = '';
@@ -67,16 +69,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            const response = await fetch(`${SCRIPT_URL}?loginCode=${encodeURIComponent(loginCode)}`);
+            const response = await fetch(`${SCRIPT_URL}?username=${encodeURIComponent(username)}&loginCode=${encodeURIComponent(loginCode)}`);
             if (!response.ok) throw new Error(`Network error: ${response.status} ${response.statusText}`);
             
             const data = await response.json();
             if (data.status === 'error' || !data.user) {
-                throw new Error(data.message || 'Invalid login code.');
+                throw new Error(data.message || 'Invalid username or login code.');
             }
 
             // LOGIN SUCCESSFUL
-            state.loginCode = loginCode; // Store code in memory, not session
+            state.username = username; // Store credentials in memory
+            state.loginCode = loginCode;
             state.currentUser = data.user;
             state.items = data.items || [];
             state.suppliers = data.suppliers || [];
@@ -97,17 +100,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const userMsg = error.message.includes('Network error') ? 'Failed to connect to server.' : error.message;
             Logger.error('Login failed:', error);
             loginError.textContent = userMsg;
-            // No need to clear session storage, just reset the form
             loginLoader.style.display = 'none';
             loginForm.style.display = 'block';
             loginCodeInput.value = '';
+            loginUsernameInput.value = '';
         }
     }
 
     async function postData(action, data, buttonEl) {
         setButtonLoading(true, buttonEl);
-        const loginCode = state.loginCode; // Get code from memory
-        if (!loginCode) {
+        const { username, loginCode } = state; // Get credentials from memory
+        if (!username || !loginCode) {
             showToast('Session expired. Please log in again.', 'error');
             setTimeout(() => location.reload(), 2000);
             return null;
@@ -115,7 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         Logger.info(`POSTing data: ${action}`, data);
         try {
-            const response = await fetch(SCRIPT_URL, { method: 'POST', mode: 'cors', body: JSON.stringify({ loginCode, action, data }) });
+            const response = await fetch(SCRIPT_URL, { method: 'POST', mode: 'cors', body: JSON.stringify({ username, loginCode, action, data }) });
             const result = await response.json();
             if (result.status !== 'success') throw new Error(result.message || 'An unknown error occurred on the server.');
             Logger.info(`POST successful for ${action}`, result);
@@ -319,12 +322,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderItemCentricStockView(itemsToRender = state.items) {
         const container = document.getElementById('item-centric-stock-container');
         const stockByBranch = calculateStockLevels();
-        let branchesToDisplay = state.branches;
-
-        if (state.currentUser.Role === 'branch_user') {
-            const assignedBranchCode = state.currentUser.AssignedBranchCode;
-            branchesToDisplay = state.branches.filter(b => b.branchCode === assignedBranchCode);
-        }
+        const branchesToDisplay = getVisibleBranchesForCurrentUser();
 
         let tableHTML = `<table id="table-stock-levels-by-item"><thead><tr><th>Code</th><th>Item Name</th>`;
         branchesToDisplay.forEach(b => { tableHTML += `<th>${b.name}</th>` });
@@ -351,10 +349,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const filteredItems = state.items.filter(i => i.name.toLowerCase().includes(searchTerm) || i.code.toLowerCase().includes(searchTerm));
         let html = '';
         
-        let branchesToDisplay = state.branches;
-        if (state.currentUser.Role === 'branch_user') {
-            branchesToDisplay = state.branches.filter(b => b.branchCode === state.currentUser.AssignedBranchCode);
-        }
+        const branchesToDisplay = getVisibleBranchesForCurrentUser();
 
         filteredItems.slice(0, 10).forEach(item => {
             html += `<h4>${item.name} (${item.code})</h4><table><thead><tr><th>Branch</th><th>Qty</th><th>Value</th></tr></thead><tbody>`;
@@ -432,30 +427,61 @@ document.addEventListener('DOMContentLoaded', () => {
     const calculateSupplierFinancials = () => { const financials = {}; state.suppliers.forEach(s => { financials[s.supplierCode] = { supplierCode: s.supplierCode, supplierName: s.name, totalBilled: 0, totalPaid: 0, balance: 0, invoices: {}, events: [] }; }); state.transactions.forEach(t => { if (t.type === 'receive' && financials[t.supplierCode]) { const invoiceValue = t.quantity * t.cost; financials[t.supplierCode].totalBilled += invoiceValue; if (!financials[t.supplierCode].invoices[t.invoiceNumber]) { financials[t.supplierCode].invoices[t.invoiceNumber] = { number: t.invoiceNumber, date: t.date, total: 0, paid: 0 }; } financials[t.supplierCode].invoices[t.invoiceNumber].total += invoiceValue; } }); state.payments.forEach(p => { if (financials[p.supplierCode]) { financials[p.supplierCode].totalPaid += p.amount; if (p.invoiceNumber && financials[p.supplierCode].invoices[p.invoiceNumber]) { financials[p.supplierCode].invoices[p.invoiceNumber].paid += p.amount; } } }); Object.values(financials).forEach(s => { s.balance = s.totalBilled - s.totalPaid; Object.values(s.invoices).forEach(inv => { inv.balance = inv.total - inv.paid; if (Math.abs(inv.balance) < 0.01) { inv.status = 'Paid'; } else if (inv.paid > 0) { inv.status = 'Partial'; } else { inv.status = 'Unpaid'; } }); const allEvents = [ ...Object.values(s.invoices).map(i => ({ date: i.date, type: 'Invoice', ref: i.number, debit: i.total, credit: 0 })), ...state.payments.filter(p => p.supplierCode === s.supplierCode).map(p => ({ date: p.date, type: 'Payment', ref: p.invoiceNumber || 'On Account', debit: 0, credit: p.amount })) ]; s.events = allEvents.sort((a,b) => new Date(a.date) - new Date(b.date)); }); financials.allInvoices = {}; Object.values(financials).forEach(s => { Object.assign(financials.allInvoices, s.invoices); }); return financials; };
     const populateOptions = (el, data, ph, valueKey, textKey) => { el.innerHTML = `<option value="">${ph}</option>`; (data || []).forEach(item => { el.innerHTML += `<option value="${item[valueKey]}">${item[textKey]}${item[valueKey] ? ' (' + item[valueKey] + ')' : ''}</option>`; }); }
     
+    /**
+     * Returns an array of branch objects the current user is allowed to see, based on their role and permissions.
+     */
+    function getVisibleBranchesForCurrentUser() {
+        const user = state.currentUser;
+        if (!user) return [];
+        
+        // Admins and users with the explicit permission can see all branches.
+        const canViewAll = user.Role === 'admin' || String(user.ViewAllBranches).toUpperCase() === 'TRUE';
+        if (canViewAll) {
+            return state.branches;
+        }
+    
+        // A standard branch user can only see their assigned branch.
+        if (user.Role === 'branch_user' && user.AssignedBranchCode) {
+            return state.branches.filter(b => String(b.branchCode) === String(user.AssignedBranchCode));
+        }
+        
+        // Fallback for any other case (e.g., new role without rules) is to see nothing.
+        return [];
+    }
+
     function applyBranchUserUIConstraints() {
         if (state.currentUser.Role !== 'branch_user') return;
-
-        const assignedBranchCode = String(state.currentUser.AssignedBranchCode);
-
-        // Lock down operations views
+    
+        const user = state.currentUser;
+        const assignedBranchCode = String(user.AssignedBranchCode);
+    
+        // --- OPERATIONAL CONSTRAINTS ---
+        // These are about *performing actions* and should always be locked to the user's assigned branch.
         const receiveBranchSelect = document.getElementById('receive-branch');
         receiveBranchSelect.value = assignedBranchCode;
         receiveBranchSelect.disabled = true;
-
+    
         const issueBranchSelect = document.getElementById('issue-from-branch');
         issueBranchSelect.value = assignedBranchCode;
         issueBranchSelect.disabled = true;
         issueBranchSelect.dispatchEvent(new Event('change')); // Update available stock
-
+    
         const transferBranchSelect = document.getElementById('transfer-from-branch');
         transferBranchSelect.value = assignedBranchCode;
         transferBranchSelect.disabled = true;
         transferBranchSelect.dispatchEvent(new Event('change')); // Update available stock
         
-        // Lock down financials report
+        // --- REPORTING CONSTRAINTS ---
+        // This is about *viewing* a report and depends on the user's `ViewAllBranches` permission.
+        const canViewAll = String(user.ViewAllBranches).toUpperCase() === 'TRUE';
         const branchStatementSelect = document.getElementById('branch-statement-select');
-        branchStatementSelect.value = assignedBranchCode;
-        branchStatementSelect.disabled = true;
+        if (!canViewAll) {
+            branchStatementSelect.value = assignedBranchCode;
+            branchStatementSelect.disabled = true;
+        } else {
+            // If the user has permission, ensure the dropdown is enabled.
+            branchStatementSelect.disabled = false;
+        }
     }
 
     const refreshViewData = (viewId) => {
@@ -486,7 +512,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 applyBranchUserUIConstraints();
                 break;
             case 'stock-levels':
-                if (state.currentUser.Role === 'branch_user') {
+                if (state.currentUser.Role === 'branch_user' && String(state.currentUser.ViewAllBranches).toUpperCase() !== 'TRUE') {
                     const assignedBranch = findByKey(state.branches, 'branchCode', state.currentUser.AssignedBranchCode);
                     document.getElementById('stock-levels-title').textContent = `Stock for ${assignedBranch?.name || 'Your Branch'}`;
                 } else {
@@ -502,13 +528,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function reloadDataAndRefreshUI() {
         Logger.info('Reloading data...');
-        const loginCode = state.loginCode; // Get code from memory
-        if (!loginCode) { logout(); return; }
+        const { username, loginCode } = state; // Get credentials from memory
+        if (!username || !loginCode) { logout(); return; }
 
         const currentView = document.querySelector('.nav-item a.active')?.dataset.view || 'dashboard';
         
         try {
-            const response = await fetch(`${SCRIPT_URL}?loginCode=${encodeURIComponent(loginCode)}`);
+            const response = await fetch(`${SCRIPT_URL}?username=${encodeURIComponent(username)}&loginCode=${encodeURIComponent(loginCode)}`);
             if (!response.ok) throw new Error('Failed to reload data.');
             const data = await response.json();
             if (data.status === 'error') throw new Error(data.message);
@@ -656,9 +682,10 @@ document.addEventListener('DOMContentLoaded', () => {
         appContainer.style.display = 'none';
         loginForm.addEventListener('submit', (e) => {
             e.preventDefault();
+            const username = loginUsernameInput.value.trim();
             const code = loginCodeInput.value;
-            if (code) {
-                attemptLogin(code);
+            if (username && code) {
+                attemptLogin(username, code);
             }
         });
     }
