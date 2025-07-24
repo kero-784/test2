@@ -789,8 +789,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    init();
-});
     // PART 4 OF 4: CALCULATION ENGINES, EVENT LISTENERS & INITIALIZATION
     function updateReceiveGrandTotal() { let grandTotal = 0; state.currentReceiveList.forEach(item => { grandTotal += (item.quantity || 0) * (item.cost || 0); }); document.getElementById('receive-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; }
     function updateTransferGrandTotal() { let grandTotalQty = 0; state.currentTransferList.forEach(item => { grandTotalQty += item.quantity || 0; }); document.getElementById('transfer-grand-total').textContent = grandTotalQty.toFixed(2); }
@@ -870,9 +868,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         await reloadDataAndRefreshUI();
                     }
                 }
-            }
-        });
-    }
     function setupRoleBasedNav() { const user = state.currentUser; if (!user) return; const userFirstName = user.Name.split(' ')[0]; document.querySelector('.sidebar-header h1').textContent = `Hi, ${userFirstName}`; document.querySelector('[data-view="dashboard"]').parentElement.style.display = userCan('viewDashboard') ? '' : 'none'; document.querySelector('[data-view="operations"]').parentElement.style.display = userCan('viewOperations') ? '' : 'none'; document.querySelector('[data-view="payments"]').parentElement.style.display = userCan('viewPayments') ? '' : 'none'; document.querySelector('[data-view="financials"]').parentElement.style.display = userCan('viewFinancials') ? '' : 'none'; document.querySelector('[data-view="stock-levels"]').parentElement.style.display = userCan('viewStockLevels') ? '' : 'none'; document.querySelector('[data-view="transaction-history"]').parentElement.style.display = userCan('viewTransactionHistory') ? '' : 'none'; document.querySelector('[data-view="setup"]').parentElement.style.display = userCan('viewSetup') ? '' : 'none'; document.querySelector('[data-view="master-data"]').parentElement.style.display = userCan('viewMasterData') ? '' : 'none'; document.querySelector('[data-view="user-management"]').parentElement.style.display = userCan('manageUsers') ? '' : 'none'; document.querySelector('[data-view="activity-log"]').parentElement.style.display = userCan('viewActivityLog') ? '' : 'none'; }
     function logout() { Logger.info('User logging out.'); location.reload(); }
     function initializeAppUI() { Logger.info('Application UI initializing...'); setupRoleBasedNav(); attachEventListeners(); attachSubNavListeners(); setupSearch('search-items', renderItemsTable, 'items', ['name', 'code']); setupSearch('search-suppliers', renderSuppliersTable, 'suppliers', ['name', 'supplierCode']); setupSearch('search-branches', renderBranchesTable, 'branches', ['name', 'branchCode']); setupSearch('search-sections', renderSectionsTable, 'sections', ['name', 'sectionCode']); setupSearch('stock-levels-search', renderItemCentricStockView, 'items', ['name', 'code']); const firstVisibleView = document.querySelector('#main-nav .nav-item[style*="display:"]:not([style*="display: none"]) a')?.dataset.view || 'dashboard'; showView(firstVisibleView); Logger.info('Application initialized successfully.'); }
