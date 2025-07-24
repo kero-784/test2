@@ -14,7 +14,7 @@ window.printReport = function(elementId) {
 
 document.addEventListener('DOMContentLoaded', () => {
     // !!! IMPORTANT: PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyvFcqgsou27lDuMKW00J2K4ygFMYDUMlwawZGAKTin4FGYfdf41zz2HVK5_EKprgI/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzbgj8u7yi_YY5aGtaB95Pkf38MBpuPLrsoKzoJYLZCsErIRFiZyYaDMUHfLLHpOA/exec';
 
     const Logger = {
         info: (message, ...args) => console.log(`[StockWise INFO] ${message}`, ...args),
@@ -24,13 +24,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let state = {
         currentUser: null,
-        username: null, // <-- User's username stored here
-        loginCode: null, // <-- User's code/password stored here
+        username: null,
+        loginCode: null,
         items: [], suppliers: [], branches: [], sections: [], transactions: [], payments: [], activityLog: [],
         currentReceiveList: [], currentTransferList: [], currentIssueList: [],
         modalSelections: new Set(), invoiceModalSelections: new Set()
     };
     let modalContext = null;
+    
+    // Permission helper
+    const userCan = (permission) => {
+        const p = state.currentUser?.permissions?.[permission];
+        return p === true || String(p).toUpperCase() === 'TRUE';
+    };
 
     // --- DOM ELEMENT REFERENCES ---
     const loginContainer = document.getElementById('login-container');
@@ -78,8 +84,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // LOGIN SUCCESSFUL
-            state.username = username; // Store credentials in memory
-            state.loginCode = loginCode;
+            state.username = username;
+            state.loginCode = loginCode; // Stored in memory only for POST requests
             state.currentUser = data.user;
             state.items = data.items || [];
             state.suppliers = data.suppliers || [];
@@ -89,7 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
             state.payments = data.payments || [];
             state.activityLog = data.activityLog || [];
 
-            Logger.info(`Login successful for user: ${state.currentUser.Name} (${state.currentUser.Role})`);
+            Logger.info(`Login successful for user: ${state.currentUser.Name} (Role: ${state.currentUser.RoleName})`);
             
             loginContainer.style.display = 'none';
             appContainer.style.display = 'flex';
@@ -109,7 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function postData(action, data, buttonEl) {
         setButtonLoading(true, buttonEl);
-        const { username, loginCode } = state; // Get credentials from memory
+        const { username, loginCode } = state;
         if (!username || !loginCode) {
             showToast('Session expired. Please log in again.', 'error');
             setTimeout(() => location.reload(), 2000);
@@ -132,354 +138,93 @@ document.addEventListener('DOMContentLoaded', () => {
             setButtonLoading(false, buttonEl);
         }
     }
-    // PART 2 OF 4: MODAL & UI LOGIC
-
-    function openItemSelectorModal() {
-        let currentList;
-        if (document.getElementById('subview-receive').classList.contains('active')) {
-            modalContext = 'receive';
-            currentList = state.currentReceiveList;
-        } else if (document.getElementById('subview-transfer').classList.contains('active')) {
-            modalContext = 'transfer';
-            currentList = state.currentTransferList;
-        } else if (document.getElementById('subview-issue').classList.contains('active')) {
-            modalContext = 'issue';
-            currentList = state.currentIssueList;
-        }
-        state.modalSelections = new Set(currentList.map(item => item.itemCode));
-        renderItemsInModal();
-        itemSelectorModal.classList.add('active');
-    }
-
-    function openInvoiceSelectorModal() {
-        modalContext = 'invoices';
-        renderInvoicesInModal();
-        invoiceSelectorModal.classList.add('active');
-    }
-
-    function closeModal() {
-        itemSelectorModal.classList.remove('active');
-        invoiceSelectorModal.classList.remove('active');
-        editModal.classList.remove('active');
-        modalSearchInput.value = '';
-        modalContext = null;
-    }
-
-    function openEditModal(type, id) {
-        let record, formHtml;
-        formEditRecord.dataset.type = type;
-        formEditRecord.dataset.id = id;
-        switch (type) {
-            case 'item':
-                record = findByKey(state.items, 'code', id); if (!record) return; editModalTitle.textContent = 'Edit Item';
-                formHtml = `<div class="form-grid"><div class="form-group"><label>Item Code</label><input type="text" value="${record.code}" readonly></div><div class="form-group"><label for="edit-item-barcode">Barcode</label><input type="text" id="edit-item-barcode" name="barcode" value="${record.barcode || ''}"></div><div class="form-group"><label for="edit-item-name">Item Name</label><input type="text" id="edit-item-name" name="name" value="${record.name}" required></div><div class="form-group"><label for="edit-item-unit">Unit</label><input type="text" id="edit-item-unit" name="unit" value="${record.unit}" required></div><div class="form-group"><label for="edit-item-supplier">Default Supplier</label><select id="edit-item-supplier" name="supplierCode"></select></div><div class="form-group"><label for="edit-item-cost">Default Cost</label><input type="number" id="edit-item-cost" name="cost" step="0.01" min="0" value="${record.cost}" required></div></div>`;
-                editModalBody.innerHTML = formHtml;
-                const supplierSelect = document.getElementById('edit-item-supplier');
-                populateOptions(supplierSelect, state.suppliers, 'Select Supplier', 'supplierCode', 'name');
-                supplierSelect.value = record.supplierCode;
-                break;
-            case 'supplier':
-                record = findByKey(state.suppliers, 'supplierCode', id); if (!record) return; editModalTitle.textContent = 'Edit Supplier';
-                formHtml = `<div class="form-grid"><div class="form-group"><label>Supplier Code</label><input type="text" value="${record.supplierCode}" readonly></div><div class="form-group"><label for="edit-supplier-name">Supplier Name</label><input type="text" id="edit-supplier-name" name="name" value="${record.name}" required></div><div class="form-group"><label for="edit-supplier-contact">Contact Info</label><input type="text" id="edit-supplier-contact" name="contact" value="${record.contact || ''}"></div></div>`;
-                editModalBody.innerHTML = formHtml;
-                break;
-            case 'branch':
-                record = findByKey(state.branches, 'branchCode', id); if (!record) return; editModalTitle.textContent = 'Edit Branch';
-                formHtml = `<div class="form-grid"><div class="form-group"><label>Branch Code</label><input type="text" value="${record.branchCode}" readonly></div><div class="form-group"><label for="edit-branch-name">Branch Name</label><input type="text" id="edit-branch-name" name="name" value="${record.name}" required></div></div>`;
-                editModalBody.innerHTML = formHtml;
-                break;
-            case 'section':
-                record = findByKey(state.sections, 'sectionCode', id); if (!record) return; editModalTitle.textContent = 'Edit Section';
-                formHtml = `<div class="form-grid"><div class="form-group"><label>Section Code</label><input type="text" value="${record.sectionCode}" readonly></div><div class="form-group"><label for="edit-section-name">Section Name</label><input type="text" id="edit-section-name" name="name" value="${record.name}" required></div></div>`;
-                editModalBody.innerHTML = formHtml;
-                break;
-        }
-        editModal.classList.add('active');
-    }
     
-    async function handleUpdateSubmit(e) {
-        e.preventDefault();
-        const btn = e.target.querySelector('button[type="submit"]');
-        const type = formEditRecord.dataset.type;
-        const id = formEditRecord.dataset.id;
-        const formData = new FormData(formEditRecord);
-        const updates = {};
-        for (let [key, value] of formData.entries()) {
-            updates[key] = value;
-        }
-        const result = await postData('updateData', { type, id, updates }, btn);
-        if (result) {
-            showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} updated successfully!`, 'success');
-            closeModal();
-            await reloadDataAndRefreshUI();
-        }
-    }
-
-    function renderItemsInModal(filter = '') {
-        modalItemList.innerHTML = ''; const lowercasedFilter = filter.toLowerCase();
-        state.items.filter(item => item.name.toLowerCase().includes(lowercasedFilter) || item.code.toLowerCase().includes(lowercasedFilter))
-            .forEach(item => {
-                const isChecked = state.modalSelections.has(item.code);
-                const itemDiv = document.createElement('div');
-                itemDiv.className = 'modal-item';
-                itemDiv.innerHTML = `<input type="checkbox" id="modal-item-${item.code}" data-code="${item.code}" ${isChecked ? 'checked' : ''}><label for="modal-item-${item.code}"><strong>${item.name}</strong><br><small style="color:var(--text-light-color)">Code: ${item.code} | Barcode: ${item.barcode || 'N/A'}</small></label>`;
-                modalItemList.appendChild(itemDiv);
-            });
-    }
-
-    function renderInvoicesInModal() {
-        const modalInvoiceList = document.getElementById('modal-invoice-list');
-        const supplierCode = document.getElementById('payment-supplier-select').value;
-        const supplierFinancials = calculateSupplierFinancials();
-        const supplierInvoices = supplierFinancials[supplierCode]?.invoices;
-        modalInvoiceList.innerHTML = '';
-        if (!supplierInvoices || Object.keys(supplierInvoices).length === 0) { modalInvoiceList.innerHTML = '<p>No invoices found for this supplier.</p>'; return; }
-        const unpaidInvoices = Object.values(supplierInvoices).filter(inv => inv.status !== 'Paid');
-        if (unpaidInvoices.length === 0) { modalInvoiceList.innerHTML = '<p>No unpaid invoices for this supplier.</p>'; return; }
-        unpaidInvoices.sort((a,b) => new Date(a.date) - new Date(b.date)).forEach(invoice => {
-            const isChecked = state.invoiceModalSelections.has(invoice.number);
-            const itemDiv = document.createElement('div');
-            itemDiv.className = 'modal-item';
-            itemDiv.innerHTML = `<input type="checkbox" id="modal-invoice-${invoice.number}" data-number="${invoice.number}" ${isChecked ? 'checked' : ''}><label for="modal-invoice-${invoice.number}"><strong>Invoice #: ${invoice.number}</strong><br><small style="color:var(--text-light-color)">Date: ${new Date(invoice.date).toLocaleDateString()} | Amount Due: ${invoice.balance.toFixed(2)} EGP</small></label>`;
-            modalInvoiceList.appendChild(itemDiv);
-        });
-    }
-
+    // PART 2 OF 4: MODAL & UI LOGIC (No changes in this section)
+    function openItemSelectorModal() { let currentList; if (document.getElementById('subview-receive').classList.contains('active')) { modalContext = 'receive'; currentList = state.currentReceiveList; } else if (document.getElementById('subview-transfer').classList.contains('active')) { modalContext = 'transfer'; currentList = state.currentTransferList; } else if (document.getElementById('subview-issue').classList.contains('active')) { modalContext = 'issue'; currentList = state.currentIssueList; } state.modalSelections = new Set(currentList.map(item => item.itemCode)); renderItemsInModal(); itemSelectorModal.classList.add('active'); }
+    function openInvoiceSelectorModal() { modalContext = 'invoices'; renderInvoicesInModal(); invoiceSelectorModal.classList.add('active'); }
+    function closeModal() { itemSelectorModal.classList.remove('active'); invoiceSelectorModal.classList.remove('active'); editModal.classList.remove('active'); modalSearchInput.value = ''; modalContext = null; }
+    function openEditModal(type, id) { let record, formHtml; formEditRecord.dataset.type = type; formEditRecord.dataset.id = id; switch (type) { case 'item': record = findByKey(state.items, 'code', id); if (!record) return; editModalTitle.textContent = 'Edit Item'; formHtml = `<div class="form-grid"><div class="form-group"><label>Item Code</label><input type="text" value="${record.code}" readonly></div><div class="form-group"><label for="edit-item-barcode">Barcode</label><input type="text" id="edit-item-barcode" name="barcode" value="${record.barcode || ''}"></div><div class="form-group"><label for="edit-item-name">Item Name</label><input type="text" id="edit-item-name" name="name" value="${record.name}" required></div><div class="form-group"><label for="edit-item-unit">Unit</label><input type="text" id="edit-item-unit" name="unit" value="${record.unit}" required></div><div class="form-group"><label for="edit-item-supplier">Default Supplier</label><select id="edit-item-supplier" name="supplierCode"></select></div><div class="form-group"><label for="edit-item-cost">Default Cost</label><input type="number" id="edit-item-cost" name="cost" step="0.01" min="0" value="${record.cost}" required></div></div>`; editModalBody.innerHTML = formHtml; const supplierSelect = document.getElementById('edit-item-supplier'); populateOptions(supplierSelect, state.suppliers, 'Select Supplier', 'supplierCode', 'name'); supplierSelect.value = record.supplierCode; break; case 'supplier': record = findByKey(state.suppliers, 'supplierCode', id); if (!record) return; editModalTitle.textContent = 'Edit Supplier'; formHtml = `<div class="form-grid"><div class="form-group"><label>Supplier Code</label><input type="text" value="${record.supplierCode}" readonly></div><div class="form-group"><label for="edit-supplier-name">Supplier Name</label><input type="text" id="edit-supplier-name" name="name" value="${record.name}" required></div><div class="form-group"><label for="edit-supplier-contact">Contact Info</label><input type="text" id="edit-supplier-contact" name="contact" value="${record.contact || ''}"></div></div>`; editModalBody.innerHTML = formHtml; break; case 'branch': record = findByKey(state.branches, 'branchCode', id); if (!record) return; editModalTitle.textContent = 'Edit Branch'; formHtml = `<div class="form-grid"><div class="form-group"><label>Branch Code</label><input type="text" value="${record.branchCode}" readonly></div><div class="form-group"><label for="edit-branch-name">Branch Name</label><input type="text" id="edit-branch-name" name="name" value="${record.name}" required></div></div>`; editModalBody.innerHTML = formHtml; break; case 'section': record = findByKey(state.sections, 'sectionCode', id); if (!record) return; editModalTitle.textContent = 'Edit Section'; formHtml = `<div class="form-grid"><div class="form-group"><label>Section Code</label><input type="text" value="${record.sectionCode}" readonly></div><div class="form-group"><label for="edit-section-name">Section Name</label><input type="text" id="edit-section-name" name="name" value="${record.name}" required></div></div>`; editModalBody.innerHTML = formHtml; break; } editModal.classList.add('active'); }
+    async function handleUpdateSubmit(e) { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const type = formEditRecord.dataset.type; const id = formEditRecord.dataset.id; const formData = new FormData(formEditRecord); const updates = {}; for (let [key, value] of formData.entries()) { updates[key] = value; } const result = await postData('updateData', { type, id, updates }, btn); if (result) { showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} updated successfully!`, 'success'); closeModal(); await reloadDataAndRefreshUI(); } }
+    function renderItemsInModal(filter = '') { modalItemList.innerHTML = ''; const lowercasedFilter = filter.toLowerCase(); state.items.filter(item => item.name.toLowerCase().includes(lowercasedFilter) || item.code.toLowerCase().includes(lowercasedFilter)).forEach(item => { const isChecked = state.modalSelections.has(item.code); const itemDiv = document.createElement('div'); itemDiv.className = 'modal-item'; itemDiv.innerHTML = `<input type="checkbox" id="modal-item-${item.code}" data-code="${item.code}" ${isChecked ? 'checked' : ''}><label for="modal-item-${item.code}"><strong>${item.name}</strong><br><small style="color:var(--text-light-color)">Code: ${item.code} | Barcode: ${item.barcode || 'N/A'}</small></label>`; modalItemList.appendChild(itemDiv); }); }
+    function renderInvoicesInModal() { const modalInvoiceList = document.getElementById('modal-invoice-list'); const supplierCode = document.getElementById('payment-supplier-select').value; const supplierFinancials = calculateSupplierFinancials(); const supplierInvoices = supplierFinancials[supplierCode]?.invoices; modalInvoiceList.innerHTML = ''; if (!supplierInvoices || Object.keys(supplierInvoices).length === 0) { modalInvoiceList.innerHTML = '<p>No invoices found for this supplier.</p>'; return; } const unpaidInvoices = Object.values(supplierInvoices).filter(inv => inv.status !== 'Paid'); if (unpaidInvoices.length === 0) { modalInvoiceList.innerHTML = '<p>No unpaid invoices for this supplier.</p>'; return; } unpaidInvoices.sort((a,b) => new Date(a.date) - new Date(b.date)).forEach(invoice => { const isChecked = state.invoiceModalSelections.has(invoice.number); const itemDiv = document.createElement('div'); itemDiv.className = 'modal-item'; itemDiv.innerHTML = `<input type="checkbox" id="modal-invoice-${invoice.number}" data-number="${invoice.number}" ${isChecked ? 'checked' : ''}><label for="modal-invoice-${invoice.number}"><strong>Invoice #: ${invoice.number}</strong><br><small style="color:var(--text-light-color)">Date: ${new Date(invoice.date).toLocaleDateString()} | Amount Due: ${invoice.balance.toFixed(2)} EGP</small></label>`; modalInvoiceList.appendChild(itemDiv); }); }
     function handleModalCheckboxChange(e) { if (e.target.type === 'checkbox') { const itemCode = e.target.dataset.code; if (e.target.checked) { state.modalSelections.add(itemCode); } else { state.modalSelections.delete(itemCode); } } }
     function handleInvoiceModalCheckboxChange(e) { if (e.target.type === 'checkbox') { const invoiceNumber = e.target.dataset.number; if (e.target.checked) { state.invoiceModalSelections.add(invoiceNumber); } else { state.invoiceModalSelections.delete(invoiceNumber); } } }
-
-    function renderPaymentList() {
-        const supplierCode = document.getElementById('payment-supplier-select').value;
-        const container = document.getElementById('payment-invoice-list-container');
-        if (!supplierCode) { container.style.display = 'none'; return; } 
-        const supplierInvoices = calculateSupplierFinancials()[supplierCode]?.invoices;
-        const tableBody = document.getElementById('table-payment-list').querySelector('tbody');
-        tableBody.innerHTML = ''; let total = 0;
-        if (state.invoiceModalSelections.size === 0) { container.style.display = 'none'; return; }
-        state.invoiceModalSelections.forEach(invNum => {
-            const invoice = supplierInvoices[invNum];
-            if (!invoice) return;
-            const balance = invoice.balance; total += balance;
-            const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${invoice.number}</td><td>${balance.toFixed(2)} EGP</td><td><input type="number" class="table-input payment-amount-input" data-invoice="${invoice.number}" value="${balance.toFixed(2)}" step="0.01" min="0" max="${balance.toFixed(2)}" style="max-width: 150px;"></td>`;
-            tableBody.appendChild(tr);
-        });
-        document.getElementById('payment-total-amount').textContent = `${total.toFixed(2)} EGP`;
-        container.style.display = 'block';
-    }
-
+    function renderPaymentList() { const supplierCode = document.getElementById('payment-supplier-select').value; const container = document.getElementById('payment-invoice-list-container'); if (!supplierCode) { container.style.display = 'none'; return; } const supplierInvoices = calculateSupplierFinancials()[supplierCode]?.invoices; const tableBody = document.getElementById('table-payment-list').querySelector('tbody'); tableBody.innerHTML = ''; let total = 0; if (state.invoiceModalSelections.size === 0) { container.style.display = 'none'; return; } state.invoiceModalSelections.forEach(invNum => { const invoice = supplierInvoices[invNum]; if (!invoice) return; const balance = invoice.balance; total += balance; const tr = document.createElement('tr'); tr.innerHTML = `<td>${invoice.number}</td><td>${balance.toFixed(2)} EGP</td><td><input type="number" class="table-input payment-amount-input" data-invoice="${invoice.number}" value="${balance.toFixed(2)}" step="0.01" min="0" max="${balance.toFixed(2)}" style="max-width: 150px;"></td>`; tableBody.appendChild(tr); }); document.getElementById('payment-total-amount').textContent = `${total.toFixed(2)} EGP`; container.style.display = 'block'; }
     function handlePaymentInputChange() { let total = 0; document.querySelectorAll('.payment-amount-input').forEach(input => { total += parseFloat(input.value) || 0; }); document.getElementById('payment-total-amount').textContent = `${total.toFixed(2)} EGP`; }
-
-    function confirmModalSelection() {
-        const selectedCodes = state.modalSelections;
-        switch(modalContext) {
-            case 'invoices':
-                renderPaymentList();
-                break;
-            case 'receive':
-                const newReceiveList = [];
-                selectedCodes.forEach(code => { const existing = state.currentReceiveList.find(i => i.itemCode === code); if (existing) { newReceiveList.push(existing); } else { const item = findByKey(state.items, 'code', code); if(item) newReceiveList.push({ itemCode: item.code, itemName: item.name, quantity: 1, cost: item.cost }); }});
-                state.currentReceiveList = newReceiveList; renderReceiveListTable();
-                break;
-            case 'transfer':
-                const newTransferList = [];
-                selectedCodes.forEach(code => { const existing = state.currentTransferList.find(i => i.itemCode === code); if (existing) { newTransferList.push(existing); } else { const item = findByKey(state.items, 'code', code); if (item) newTransferList.push({ itemCode: item.code, itemName: item.name, quantity: 1 }); }});
-                state.currentTransferList = newTransferList; renderTransferListTable();
-                break;
-            case 'issue':
-                const newIssueList = [];
-                selectedCodes.forEach(code => { const existing = state.currentIssueList.find(i => i.itemCode === code); if (existing) { newIssueList.push(existing); } else { const item = findByKey(state.items, 'code', code); if (item) newIssueList.push({ itemCode: item.code, itemName: item.name, quantity: 1 }); }});
-                state.currentIssueList = newIssueList; renderIssueListTable();
-                break;
-        }
-        closeModal();
-    }
-    
-    function showView(viewId) {
-        Logger.info(`Switching view to: ${viewId}`);
-        document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
-        document.querySelectorAll('#main-nav a').forEach(link => link.classList.remove('active'));
-        document.getElementById(`view-${viewId}`).classList.add('active');
-        const activeLink = document.querySelector(`[data-view="${viewId}"]`);
-        if (activeLink) { activeLink.classList.add('active'); document.getElementById('view-title').textContent = activeLink.querySelector('span').textContent; }
-        
-        refreshViewData(viewId);
-    }
-
+    function confirmModalSelection() { const selectedCodes = state.modalSelections; switch(modalContext) { case 'invoices': renderPaymentList(); break; case 'receive': const newReceiveList = []; selectedCodes.forEach(code => { const existing = state.currentReceiveList.find(i => i.itemCode === code); if (existing) { newReceiveList.push(existing); } else { const item = findByKey(state.items, 'code', code); if(item) newReceiveList.push({ itemCode: item.code, itemName: item.name, quantity: 1, cost: item.cost }); }}); state.currentReceiveList = newReceiveList; renderReceiveListTable(); break; case 'transfer': const newTransferList = []; selectedCodes.forEach(code => { const existing = state.currentTransferList.find(i => i.itemCode === code); if (existing) { newTransferList.push(existing); } else { const item = findByKey(state.items, 'code', code); if (item) newTransferList.push({ itemCode: item.code, itemName: item.name, quantity: 1 }); }}); state.currentTransferList = newTransferList; renderTransferListTable(); break; case 'issue': const newIssueList = []; selectedCodes.forEach(code => { const existing = state.currentIssueList.find(i => i.itemCode === code); if (existing) { newIssueList.push(existing); } else { const item = findByKey(state.items, 'code', code); if (item) newIssueList.push({ itemCode: item.code, itemName: item.name, quantity: 1 }); }}); state.currentIssueList = newIssueList; renderIssueListTable(); break; } closeModal(); }
+    function showView(viewId) { Logger.info(`Switching view to: ${viewId}`); document.querySelectorAll('.view').forEach(view => view.classList.remove('active')); document.querySelectorAll('#main-nav a').forEach(link => link.classList.remove('active')); document.getElementById(`view-${viewId}`).classList.add('active'); const activeLink = document.querySelector(`[data-view="${viewId}"]`); if (activeLink) { activeLink.classList.add('active'); document.getElementById('view-title').textContent = activeLink.querySelector('span').textContent; } refreshViewData(viewId); }
     function showToast(message, type = 'success') { if (type === 'error') Logger.error(`User Toast: ${message}`); const container = document.getElementById('toast-container'); const toast = document.createElement('div'); toast.className = `toast ${type}`; toast.textContent = message; container.appendChild(toast); setTimeout(() => toast.remove(), 3500); }
     function setButtonLoading(isLoading, buttonEl) { if (!buttonEl) return; if (isLoading) { buttonEl.disabled = true; buttonEl.dataset.originalText = buttonEl.innerHTML; buttonEl.innerHTML = '<div class="button-spinner"></div><span>Processing...</span>'; } else { buttonEl.disabled = false; if (buttonEl.dataset.originalText) { buttonEl.innerHTML = buttonEl.dataset.originalText; } } }
-    // PART 3 OF 4: VIEW RENDERING & DOCUMENT GENERATION
-
-    function renderItemsTable(data = state.items) { const tbody = document.getElementById('table-items').querySelector('tbody'); tbody.innerHTML = ''; if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="5">No items found.</td></tr>'; return; } data.forEach(item => { const tr = document.createElement('tr'); tr.innerHTML = `<td>${item.code}</td><td>${item.name}</td><td>${item.unit}</td><td>${parseFloat(item.cost).toFixed(2)} EGP</td><td><button class="secondary small btn-edit" data-type="item" data-id="${item.code}">Edit</button></td>`; tbody.appendChild(tr); }); }
-    function renderSuppliersTable(data = state.suppliers) { const tbody = document.getElementById('table-suppliers').querySelector('tbody'); tbody.innerHTML = ''; if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="5">No suppliers found.</td></tr>'; return; } const financials = calculateSupplierFinancials(); data.forEach(supplier => { const balance = financials[supplier.supplierCode]?.balance || 0; const tr = document.createElement('tr'); tr.innerHTML = `<td>${supplier.supplierCode || ''}</td><td>${supplier.name}</td><td>${supplier.contact}</td><td>${balance.toFixed(2)} EGP</td><td><button class="secondary small btn-edit" data-type="supplier" data-id="${supplier.supplierCode}">Edit</button></td>`; tbody.appendChild(tr); }); }
-    function renderBranchesTable(data = state.branches) { const tbody = document.getElementById('table-branches').querySelector('tbody'); tbody.innerHTML = ''; if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="3">No branches found.</td></tr>'; return; } data.forEach(branch => { const tr = document.createElement('tr'); tr.innerHTML = `<td>${branch.branchCode || ''}</td><td>${branch.name}</td><td><button class="secondary small btn-edit" data-type="branch" data-id="${branch.branchCode}">Edit</button></td>`; tbody.appendChild(tr); }); }
-    function renderSectionsTable(data = state.sections) { const tbody = document.getElementById('table-sections').querySelector('tbody'); tbody.innerHTML = ''; if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="3">No sections found.</td></tr>'; return; } data.forEach(section => { const tr = document.createElement('tr'); tr.innerHTML = `<td>${section.sectionCode || ''}</td><td>${section.name}</td><td><button class="secondary small btn-edit" data-type="section" data-id="${section.sectionCode}">Edit</button></td>`; tbody.appendChild(tr); }); }
     
+    // PART 3 OF 4: VIEW RENDERING & DOCUMENT GENERATION
+    function renderItemsTable(data = state.items) { const tbody = document.getElementById('table-items').querySelector('tbody'); tbody.innerHTML = ''; if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="5">No items found.</td></tr>'; return; } const canEdit = userCan('editItem'); data.forEach(item => { const tr = document.createElement('tr'); tr.innerHTML = `<td>${item.code}</td><td>${item.name}</td><td>${item.unit}</td><td>${parseFloat(item.cost).toFixed(2)} EGP</td><td>${canEdit ? `<button class="secondary small btn-edit" data-type="item" data-id="${item.code}">Edit</button>`: 'N/A'}</td>`; tbody.appendChild(tr); }); }
+    function renderSuppliersTable(data = state.suppliers) { const tbody = document.getElementById('table-suppliers').querySelector('tbody'); tbody.innerHTML = ''; if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="5">No suppliers found.</td></tr>'; return; } const financials = calculateSupplierFinancials(); const canEdit = userCan('editSupplier'); data.forEach(supplier => { const balance = financials[supplier.supplierCode]?.balance || 0; const tr = document.createElement('tr'); tr.innerHTML = `<td>${supplier.supplierCode || ''}</td><td>${supplier.name}</td><td>${supplier.contact}</td><td>${balance.toFixed(2)} EGP</td><td>${canEdit ? `<button class="secondary small btn-edit" data-type="supplier" data-id="${supplier.supplierCode}">Edit</button>`: 'N/A'}</td>`; tbody.appendChild(tr); }); }
+    function renderBranchesTable(data = state.branches) { const tbody = document.getElementById('table-branches').querySelector('tbody'); tbody.innerHTML = ''; if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="3">No branches found.</td></tr>'; return; } const canEdit = userCan('editBranch'); data.forEach(branch => { const tr = document.createElement('tr'); tr.innerHTML = `<td>${branch.branchCode || ''}</td><td>${branch.name}</td><td>${canEdit ? `<button class="secondary small btn-edit" data-type="branch" data-id="${branch.branchCode}">Edit</button>`: 'N/A'}</td>`; tbody.appendChild(tr); }); }
+    function renderSectionsTable(data = state.sections) { const tbody = document.getElementById('table-sections').querySelector('tbody'); tbody.innerHTML = ''; if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="3">No sections found.</td></tr>'; return; } const canEdit = userCan('editSection'); data.forEach(section => { const tr = document.createElement('tr'); tr.innerHTML = `<td>${section.sectionCode || ''}</td><td>${section.name}</td><td>${canEdit ? `<button class="secondary small btn-edit" data-type="section" data-id="${section.sectionCode}">Edit</button>`: 'N/A'}</td>`; tbody.appendChild(tr); }); }
     function renderReceiveListTable() { const tbody = document.getElementById('table-receive-list').querySelector('tbody'); tbody.innerHTML = ''; if (state.currentReceiveList.length === 0) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No items selected. Click "Select Items".</td></tr>'; updateReceiveGrandTotal(); return; } state.currentReceiveList.forEach((item, index) => { const tr = document.createElement('tr'); tr.innerHTML = `<td>${item.itemCode}</td><td>${item.itemName}</td><td><input type="number" class="table-input" value="${item.quantity}" min="0.01" step="0.01" data-index="${index}" data-field="quantity"></td><td><input type="number" class="table-input" value="${item.cost.toFixed(2)}" min="0" step="0.01" data-index="${index}" data-field="cost"></td><td id="total-cost-${index}">${(item.quantity * item.cost).toFixed(2)} EGP</td><td><button class="danger small" data-index="${index}">X</button></td>`; tbody.appendChild(tr); }); updateReceiveGrandTotal(); }
     function renderTransferListTable() { const tbody = document.getElementById('table-transfer-list').querySelector('tbody'); const fromBranchCode = document.getElementById('transfer-from-branch').value; const stock = calculateStockLevels(); tbody.innerHTML = ''; if (state.currentTransferList.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No items selected. Click "Select Items".</td></tr>'; updateTransferGrandTotal(); return; } state.currentTransferList.forEach((item, index) => { const availableStock = stock[fromBranchCode]?.[item.itemCode]?.quantity || 0; const tr = document.createElement('tr'); tr.innerHTML = `<td>${item.itemCode}</td><td>${item.itemName}</td><td>${availableStock.toFixed(2)}</td><td><input type="number" class="table-input" value="${item.quantity}" min="0.01" max="${availableStock}" step="0.01" data-index="${index}" data-field="quantity"></td><td><button class="danger small" data-index="${index}">X</button></td>`; tbody.appendChild(tr); }); updateTransferGrandTotal(); }
     function renderIssueListTable() { const tbody = document.getElementById('table-issue-list').querySelector('tbody'); const fromBranchCode = document.getElementById('issue-from-branch').value; const stock = calculateStockLevels(); tbody.innerHTML = ''; if (state.currentIssueList.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No items selected. Click "Select Items".</td></tr>'; updateIssueGrandTotal(); return; } state.currentIssueList.forEach((item, index) => { const availableStock = stock[fromBranchCode]?.[item.itemCode]?.quantity || 0; const tr = document.createElement('tr'); tr.innerHTML = `<td>${item.itemCode}</td><td>${item.itemName}</td><td>${availableStock.toFixed(2)}</td><td><input type="number" class="table-input" value="${item.quantity}" min="0.01" max="${availableStock}" step="0.01" data-index="${index}" data-field="quantity"></td><td><button class="danger small" data-index="${index}">X</button></td>`; tbody.appendChild(tr); }); updateIssueGrandTotal(); }
-    
-    function renderItemCentricStockView(itemsToRender = state.items) {
-        const container = document.getElementById('item-centric-stock-container');
-        const stockByBranch = calculateStockLevels();
-        const branchesToDisplay = getVisibleBranchesForCurrentUser();
-
-        let tableHTML = `<table id="table-stock-levels-by-item"><thead><tr><th>Code</th><th>Item Name</th>`;
-        branchesToDisplay.forEach(b => { tableHTML += `<th>${b.name}</th>` });
-        tableHTML += `<th>Total</th></tr></thead><tbody>`;
-
-        itemsToRender.forEach(item => {
-            tableHTML += `<tr><td>${item.code}</td><td>${item.name}</td>`;
-            let total = 0;
-            branchesToDisplay.forEach(branch => {
-                const qty = stockByBranch[branch.branchCode]?.[item.code]?.quantity || 0;
-                total += qty;
-                tableHTML += `<td>${qty > 0 ? qty.toFixed(2) : '-'}</td>`;
-            });
-            tableHTML += `<td><strong>${total.toFixed(2)}</strong></td></tr>`;
-        });
-        tableHTML += `</tbody></table>`;
-        container.innerHTML = tableHTML;
-    }
-
-    function renderItemInquiry(searchTerm) {
-        const resultsContainer = document.getElementById('item-inquiry-results');
-        if (!searchTerm) { resultsContainer.innerHTML = ''; return; }
-        const stockByBranch = calculateStockLevels();
-        const filteredItems = state.items.filter(i => i.name.toLowerCase().includes(searchTerm) || i.code.toLowerCase().includes(searchTerm));
-        let html = '';
-        
-        const branchesToDisplay = getVisibleBranchesForCurrentUser();
-
-        filteredItems.slice(0, 10).forEach(item => {
-            html += `<h4>${item.name} (${item.code})</h4><table><thead><tr><th>Branch</th><th>Qty</th><th>Value</th></tr></thead><tbody>`;
-            let found = false;
-            let totalQty = 0;
-            let totalValue = 0;
-            branchesToDisplay.forEach(branch => {
-                const itemStock = stockByBranch[branch.branchCode]?.[item.code];
-                if (itemStock && itemStock.quantity > 0) {
-                    const value = itemStock.quantity * itemStock.avgCost;
-                    html += `<tr><td>${branch.name} (${branch.branchCode || ''})</td><td>${itemStock.quantity.toFixed(2)}</td><td>${value.toFixed(2)} EGP</td></tr>`;
-                    totalQty += itemStock.quantity;
-                    totalValue += value;
-                    found = true;
-                }
-            });
-            if (!found) {
-                html += `<tr><td colspan="3">No stock for this item.</td></tr>`;
-            } else {
-                html += `<tr style="font-weight:bold; background-color: var(--bg-color);"><td>Total</td><td>${totalQty.toFixed(2)}</td><td>${totalValue.toFixed(2)} EGP</td></tr>`
-            }
-            html += `</tbody></table><hr>`;
-        });
-        resultsContainer.innerHTML = html;
-    }
-
+    function renderItemCentricStockView(itemsToRender = state.items) { const container = document.getElementById('item-centric-stock-container'); const stockByBranch = calculateStockLevels(); const branchesToDisplay = getVisibleBranchesForCurrentUser(); let tableHTML = `<table id="table-stock-levels-by-item"><thead><tr><th>Code</th><th>Item Name</th>`; branchesToDisplay.forEach(b => { tableHTML += `<th>${b.name}</th>` }); tableHTML += `<th>Total</th></tr></thead><tbody>`; itemsToRender.forEach(item => { tableHTML += `<tr><td>${item.code}</td><td>${item.name}</td>`; let total = 0; branchesToDisplay.forEach(branch => { const qty = stockByBranch[branch.branchCode]?.[item.code]?.quantity || 0; total += qty; tableHTML += `<td>${qty > 0 ? qty.toFixed(2) : '-'}</td>`; }); tableHTML += `<td><strong>${total.toFixed(2)}</strong></td></tr>`; }); tableHTML += `</tbody></table>`; container.innerHTML = tableHTML; }
+    function renderItemInquiry(searchTerm) { const resultsContainer = document.getElementById('item-inquiry-results'); if (!searchTerm) { resultsContainer.innerHTML = ''; return; } const stockByBranch = calculateStockLevels(); const filteredItems = state.items.filter(i => i.name.toLowerCase().includes(searchTerm) || i.code.toLowerCase().includes(searchTerm)); let html = ''; const branchesToDisplay = getVisibleBranchesForCurrentUser(); filteredItems.slice(0, 10).forEach(item => { html += `<h4>${item.name} (${item.code})</h4><table><thead><tr><th>Branch</th><th>Qty</th><th>Value</th></tr></thead><tbody>`; let found = false; let totalQty = 0; let totalValue = 0; branchesToDisplay.forEach(branch => { const itemStock = stockByBranch[branch.branchCode]?.[item.code]; if (itemStock && itemStock.quantity > 0) { const value = itemStock.quantity * itemStock.avgCost; html += `<tr><td>${branch.name} (${branch.branchCode || ''})</td><td>${itemStock.quantity.toFixed(2)}</td><td>${value.toFixed(2)} EGP</td></tr>`; totalQty += itemStock.quantity; totalValue += value; found = true; } }); if (!found) { html += `<tr><td colspan="3">No stock for this item.</td></tr>`; } else { html += `<tr style="font-weight:bold; background-color: var(--bg-color);"><td>Total</td><td>${totalQty.toFixed(2)}</td><td>${totalValue.toFixed(2)} EGP</td></tr>` } html += `</tbody></table><hr>`; }); resultsContainer.innerHTML = html; }
     function renderSupplierStatement(supplierCode, startDateStr, endDateStr) { const resultsContainer = document.getElementById('supplier-statement-results'); const exportBtn = document.getElementById('btn-export-supplier-statement'); const supplier = findByKey(state.suppliers, 'supplierCode', supplierCode); if (!supplier) { exportBtn.disabled = true; return; } const financials = calculateSupplierFinancials(); const supplierData = financials[supplierCode]; const sDate = startDateStr ? new Date(startDateStr) : null; const eDate = endDateStr ? new Date(endDateStr) : null; if(eDate) eDate.setHours(23, 59, 59, 999); let openingBalance = 0; if (sDate) { supplierData.events.forEach(event => { if (new Date(event.date) < sDate) { openingBalance += event.debit - event.credit; } }); } const filteredEvents = supplierData.events.filter(event => { const eventDate = new Date(event.date); return (!sDate || eventDate >= sDate) && (!eDate || eventDate <= eDate); }); let balance = openingBalance; let tableBodyHtml = ''; if (sDate) { tableBodyHtml += `<tr style="background-color: var(--bg-color);"><td colspan="3"><strong>Opening Balance as of ${sDate.toLocaleDateString()}</strong></td><td>-</td><td>-</td><td><strong>${openingBalance.toFixed(2)} EGP</strong></td></tr>`; } filteredEvents.forEach(event => { balance += event.debit - event.credit; tableBodyHtml += `<tr><td>${new Date(event.date).toLocaleDateString()}</td><td>${event.type}</td><td>${event.ref}</td><td>${event.debit > 0 ? event.debit.toFixed(2) : '-'}</td><td>${event.credit > 0 ? event.credit.toFixed(2) : '-'}</td><td>${balance.toFixed(2)} EGP</td></tr>`; }); let dateHeader = `for all time`; if (sDate && eDate) { dateHeader = `from ${sDate.toLocaleDateString()} to ${eDate.toLocaleDateString()}`; } else if (sDate) { dateHeader = `from ${sDate.toLocaleDateString()}`; } else if (eDate) { dateHeader = `until ${eDate.toLocaleDateString()}`; } resultsContainer.innerHTML = `<div class="printable-document"><div class="printable-header"><div><h2>Supplier Statement: ${supplier.name}</h2><p style="margin:0; color: var(--text-light-color);">For period: ${dateHeader}</p></div><button class="secondary no-print" onclick="printReport('supplier-statement-results')">Print</button></div><p><strong>Date Generated:</strong> ${new Date().toLocaleString()}</p><div class="report-area"><table id="table-supplier-statement-report"><thead><tr><th>Date</th><th>Type</th><th>Reference</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead><tbody>${tableBodyHtml}</tbody><tfoot><tr style="font-weight:bold; background-color: var(--bg-color);"><td colspan="5" style="text-align:right;">Closing Balance:</td><td>${balance.toFixed(2)} EGP</td></tr></tfoot></table></div></div>`; resultsContainer.style.display = 'block'; exportBtn.disabled = false;}
     function renderBranchStatement(branchCode, startDateStr, endDateStr) { const resultsContainer = document.getElementById('branch-statement-results'); const exportBtn = document.getElementById('btn-export-branch-statement'); const branch = findByKey(state.branches, 'branchCode', branchCode); if (!branch) { exportBtn.disabled = true; return; } const sDate = startDateStr ? new Date(startDateStr) : null; const eDate = endDateStr ? new Date(endDateStr) : null; if(eDate) eDate.setHours(23, 59, 59, 999); const filteredTransactions = state.transactions.filter(t => { const eventDate = new Date(t.date); const isInvolved = t.branchCode === branchCode || t.fromBranchCode === branchCode || t.toBranchCode === branchCode; return isInvolved && (!sDate || eventDate >= sDate) && (!eDate || eventDate <= eDate); }).sort((a,b) => new Date(a.date) - new Date(b.date)); let tableBodyHtml = ''; filteredTransactions.forEach(t => { const item = findByKey(state.items, 'code', t.itemCode) || {name: 'N/A'}; let type = '', details = '', qtyIn = '-', qtyOut = '-'; if (t.type === 'receive' && t.branchCode === branchCode) { type = 'Receive'; details = `From: ${findByKey(state.suppliers, 'supplierCode', t.supplierCode)?.name || 'N/A'} (Ref: ${t.invoiceNumber})`; qtyIn = t.quantity.toFixed(2); } else if (t.type === 'issue' && t.fromBranchCode === branchCode) { type = 'Issue'; details = `To: ${findByKey(state.sections, 'sectionCode', t.sectionCode)?.name || 'N/A'} (Ref: ${t.invoiceNumber})`; qtyOut = t.quantity.toFixed(2); } else if (t.type === 'transfer' && t.fromBranchCode === branchCode) { type = 'Transfer Out'; details = `To: ${findByKey(state.branches, 'branchCode', t.toBranchCode)?.name || 'N/A'}`; qtyOut = t.quantity.toFixed(2); } else if (t.type === 'transfer' && t.toBranchCode === branchCode) { type = 'Transfer In'; details = `From: ${findByKey(state.branches, 'branchCode', t.fromBranchCode)?.name || 'N/A'}`; qtyIn = t.quantity.toFixed(2); } else { return; } tableBodyHtml += `<tr><td>${new Date(t.date).toLocaleString()}</td><td>${item.code}</td><td>${item.name}</td><td>${type}</td><td>${details}</td><td style="text-align:right;">${qtyIn}</td><td style="text-align:right;">${qtyOut}</td></tr>`; }); let dateHeader = "for all time"; if (sDate && eDate) { dateHeader = `from ${sDate.toLocaleDateString()} to ${eDate.toLocaleDateString()}`; } else if (sDate) { dateHeader = `from ${sDate.toLocaleDateString()}`; } else if (eDate) { dateHeader = `until ${eDate.toLocaleDateString()}`; } resultsContainer.innerHTML = `<div class="printable-document"><div class="printable-header"><div><h2>Branch Activity: ${branch.name}</h2><p style="margin:0; color: var(--text-light-color);">For period: ${dateHeader}</p></div><button class="secondary no-print" onclick="printReport('branch-statement-results')">Print</button></div><div class="report-area"><table id="table-branch-statement-report"><thead><tr><th>Date</th><th>Item Code</th><th>Item Name</th><th>Type</th><th>Details</th><th style="text-align:right;">Qty In</th><th style="text-align:right;">Qty Out</th></tr></thead><tbody>${tableBodyHtml}</tbody></table></div></div>`; resultsContainer.style.display = 'block'; exportBtn.disabled = false;}
     function renderSectionStatement(sectionCode, startDateStr, endDateStr) { const resultsContainer = document.getElementById('section-statement-results'); const exportBtn = document.getElementById('btn-export-section-statement'); const section = findByKey(state.sections, 'sectionCode', sectionCode); if (!section) { exportBtn.disabled = true; return; } const sDate = startDateStr ? new Date(startDateStr) : null; const eDate = endDateStr ? new Date(endDateStr) : null; if(eDate) eDate.setHours(23, 59, 59, 999); const filteredTransactions = state.transactions.filter(t => { const eventDate = new Date(t.date); return t.type === 'issue' && t.sectionCode === sectionCode && (!sDate || eventDate >= sDate) && (!eDate || eventDate <= eDate); }).sort((a,b) => new Date(a.date) - new Date(b.date)); let tableBodyHtml = ''; let totalItems = 0; filteredTransactions.forEach(t => { const item = findByKey(state.items, 'code', t.itemCode) || {name: 'N/A', unit: 'N/A'}; const fromBranch = findByKey(state.branches, 'branchCode', t.fromBranchCode) || {name: 'N/A'}; totalItems += t.quantity; tableBodyHtml += `<tr><td>${new Date(t.date).toLocaleString()}</td><td>${t.invoiceNumber}</td><td>${item.code}</td><td>${item.name}</td><td>${fromBranch.name}</td><td style="text-align:right;">${t.quantity.toFixed(2)} ${item.unit}</td></tr>`; }); let dateHeader = "for all time"; if (sDate && eDate) { dateHeader = `from ${sDate.toLocaleDateString()} to ${eDate.toLocaleDateString()}`; } else if (sDate) { dateHeader = `from ${sDate.toLocaleDateString()}`; } else if (eDate) { dateHeader = `until ${eDate.toLocaleDateString()}`; } resultsContainer.innerHTML = `<div class="printable-document"><div class="printable-header"><div><h2>Section Usage: ${section.name}</h2><p style="margin:0; color: var(--text-light-color);">For period: ${dateHeader}</p></div><button class="secondary no-print" onclick="printReport('section-statement-results')">Print</button></div><div class="report-area"><table id="table-section-statement-report"><thead><tr><th>Date</th><th>Ref #</th><th>Item Code</th><th>Item Name</th><th>From Branch</th><th style="text-align:right;">Quantity Issued</th></tr></thead><tbody>${tableBodyHtml}</tbody><tfoot><tr style="font-weight:bold; background-color: var(--bg-color);"><td colspan="5" style="text-align:right;">Total Items:</td><td style="text-align:right;">${totalItems.toFixed(2)}</td></tr></tfoot></table></div></div>`; resultsContainer.style.display = 'block'; exportBtn.disabled = false;}
     function renderTransactionHistory(filter = '') { const tbody = document.getElementById('table-transaction-history').querySelector('tbody'); tbody.innerHTML = ''; const lowerFilter = filter.toLowerCase(); const invoiceFinances = calculateSupplierFinancials().allInvoices; const grouped = {}; state.transactions.forEach(t => { const key = t.batchId; if (!grouped[key]) { grouped[key] = { date: t.date, type: t.type, batchId: key, invoiceNumber: t.invoiceNumber, transactions: [] }; } grouped[key].transactions.push(t); }); Object.values(grouped).sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(group => { const first = group.transactions[0]; let details = '', searchableText = `${group.batchId} ${first.invoiceNumber || ''} ${first.type}`, statusTag = '', refNum = first.invoiceNumber || first.batchId; if (first.type === 'receive') { const status = invoiceFinances[first.invoiceNumber]?.status || 'Unpaid'; statusTag = `<span class="status-tag status-${status.toLowerCase()}">${status}</span>`; const supplier = findByKey(state.suppliers, 'supplierCode', first.supplierCode); const branch = findByKey(state.branches, 'branchCode', first.branchCode); details = `Received ${group.transactions.length} item(s) from <strong>${supplier?.name || 'N/A'}</strong> to <strong>${branch?.name || 'N/A'}</strong>`; searchableText += ` ${supplier?.name} ${branch?.name}`; } else if (first.type === 'transfer') { const from = findByKey(state.branches, 'branchCode', first.fromBranchCode); const to = findByKey(state.branches, 'branchCode', first.toBranchCode); details = `Transferred ${group.transactions.length} item(s) from <strong>${from?.name || 'N/A'}</strong> to <strong>${to?.name || 'N/A'}</strong>`; searchableText += ` ${from?.name} ${to?.name}`; } else if (first.type === 'issue') { const from = findByKey(state.branches, 'branchCode', first.fromBranchCode); const to = findByKey(state.sections, 'sectionCode', first.sectionCode); details = `Issued ${group.transactions.length} item(s) from <strong>${from?.name || 'N/A'}</strong> to <strong>${to?.name || 'N/A'}</strong>`; searchableText += ` ${from?.name} ${to?.name}`; refNum = first.invoiceNumber; } if (filter && !searchableText.toLowerCase().includes(lowerFilter)) return; const tr = document.createElement('tr'); tr.innerHTML = `<td>${new Date(first.date).toLocaleString()}</td><td>${first.type.charAt(0).toUpperCase() + first.type.slice(1)}</td><td>${refNum}</td><td>${details}</td><td>${statusTag}</td><td><button class="secondary small no-print" data-batch-id="${group.batchId}" data-type="${first.type}">View/Print</button></td>`; tbody.appendChild(tr); }); }
     function renderActivityLog() { const tbody = document.getElementById('table-activity-log').querySelector('tbody'); tbody.innerHTML = ''; state.activityLog.slice().reverse().forEach(log => { const tr = document.createElement('tr'); tr.innerHTML = `<td>${new Date(log.timestamp).toLocaleString()}</td><td>${log.action}</td><td>${log.description}</td>`; tbody.appendChild(tr); }); }
-    
-    // Document Generation
     const generateReceiveDocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; const branch = findByKey(state.branches, 'branchCode', data.branchCode) || { name: 'DELETED' }; let itemsHtml = '', totalValue = 0; data.items.forEach(item => { const itemTotal = item.quantity * item.cost; totalValue += itemTotal; itemsHtml += `<tr><td>${item.itemCode}</td><td>${item.itemName}</td><td>${item.quantity.toFixed(2)}</td><td>${item.cost.toFixed(2)} EGP</td><td>${itemTotal.toFixed(2)} EGP</td></tr>`; }); const content = `<div class="printable-document card"><h2>Goods Received Note</h2><p><strong>GRN No:</strong> ${data.batchId}</p><p><strong>Invoice #:</strong> ${data.invoiceNumber}</p><p><strong>Date:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>Supplier:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><p><strong>Received at:</strong> ${branch.name} (${branch.branchCode || ''})</p><hr><h3>Items Received</h3><table><thead><tr><th>Code</th><th>Item</th><th>Qty</th><th>Cost/Unit</th><th>Total</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">Total Value</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>Notes:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Signature:</strong> _________________________</p></div>`; printContent(content); }
     const generateTransferDocument = (data) => { const fromBranch = findByKey(state.branches, 'branchCode', data.fromBranchCode) || { name: 'DELETED' }; const toBranch = findByKey(state.branches, 'branchCode', data.toBranchCode) || { name: 'DELETED' }; let itemsHtml = ''; data.items.forEach(item => { const fullItem = findByKey(state.items, 'code', item.itemCode) || { code: 'N/A', name: 'DELETED', unit: 'N/A' }; itemsHtml += `<tr><td>${fullItem.code}</td><td>${fullItem.name}</td><td>${item.quantity.toFixed(2)}</td><td>${fullItem.unit}</td></tr>`; }); const content = `<div class="printable-document card"><h2>Internal Transfer Order</h2><p><strong>Order ID:</strong> ${data.batchId}</p><p><strong>Date:</strong> ${new Date(data.date).toLocaleString()}</p><hr><p><strong>From:</strong> ${fromBranch.name} (${fromBranch.branchCode || ''})</p><p><strong>To:</strong> ${toBranch.name} (${toBranch.branchCode || ''})</p><hr><h3>Items Transferred</h3><table><thead><tr><th>Code</th><th>Item</th><th>Qty</th><th>Unit</th></tr></thead><tbody>${itemsHtml}</tbody></table><hr><p><strong>Notes:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Sender:</strong> _________________</p><p><strong>Receiver:</strong> _________________</p></div>`; printContent(content); }
     const generateIssueDocument = (data) => { const fromBranch = findByKey(state.branches, 'branchCode', data.fromBranchCode) || { name: 'DELETED' }; const toSection = findByKey(state.sections, 'sectionCode', data.sectionCode) || { name: 'DELETED' }; let itemsHtml = ''; data.items.forEach(item => { const fullItem = findByKey(state.items, 'code', item.itemCode) || { name: 'DELETED', unit: 'N/A' }; itemsHtml += `<tr><td>${item.itemCode}</td><td>${item.itemName || fullItem.name}</td><td>${item.quantity.toFixed(2)}</td><td>${fullItem.unit}</td></tr>`; }); const content = `<div class="printable-document card"><h2>Stock Issue Note</h2><p><strong>Issue Ref #:</strong> ${data.ref}</p><p><strong>Batch ID:</strong> ${data.batchId}</p><p><strong>Date:</strong> ${new Date(data.date).toLocaleString()}</p><hr><p><strong>From Branch:</strong> ${fromBranch.name} (${fromBranch.branchCode || ''})</p><p><strong>To Section:</strong> ${toSection.name} (${toSection.sectionCode || ''})</p><hr><h3>Items Issued</h3><table><thead><tr><th>Code</th><th>Item</th><th>Qty</th><th>Unit</th></tr></thead><tbody>${itemsHtml}</tbody></table><hr><p><strong>Notes:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Issued By:</strong> _________________</p><p><strong>Received By:</strong> _________________</p></div>`; printContent(content); }
     const generatePaymentVoucher = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; let invoicesHtml = ''; data.payments.forEach(p => { invoicesHtml += `<tr><td>${p.invoiceNumber}</td><td>${p.amount.toFixed(2)} EGP</td></tr>`; }); const content = `<div class="printable-document card"><h2>Payment Voucher</h2><p><strong>Voucher ID:</strong> ${data.payments[0].paymentId}</p><p><strong>Date:</strong> ${new Date(data.date).toLocaleString()}</p><hr><p><strong>Paid To:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><p><strong>Amount:</strong> ${data.totalAmount.toFixed(2)} EGP</p><p><strong>Method:</strong> ${data.method}</p><hr><h3>Payment Allocation</h3><table><thead><tr><th>Invoice #</th><th>Amount Paid</th></tr></thead><tbody>${invoicesHtml}</tbody></table><br><p><strong>Signature:</strong> _________________</p></div>`; printContent(content); }
+    
     // PART 4 OF 4: CALCULATION ENGINES, EVENT LISTENERS & INITIALIZATION
-
     function updateReceiveGrandTotal() { let grandTotal = 0; state.currentReceiveList.forEach(item => { grandTotal += (item.quantity || 0) * (item.cost || 0); }); document.getElementById('receive-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; }
     function updateTransferGrandTotal() { let grandTotalQty = 0; state.currentTransferList.forEach(item => { grandTotalQty += item.quantity || 0; }); document.getElementById('transfer-grand-total').textContent = grandTotalQty.toFixed(2); }
     function updateIssueGrandTotal() { let grandTotalQty = 0; state.currentIssueList.forEach(item => { grandTotalQty += item.quantity || 0; }); document.getElementById('issue-grand-total').textContent = grandTotalQty.toFixed(2); }
-    
-    async function handleTransactionSubmit(payload, buttonEl) {
-        const result = await postData('addTransactionBatch', payload, buttonEl);
-        if (result) {
-            showToast(`${payload.type.charAt(0).toUpperCase() + payload.type.slice(1)} processed!`, 'success');
-            
-            if (payload.type === 'receive') {
-                generateReceiveDocument(result.data);
-                state.currentReceiveList = [];
-                document.getElementById('form-receive-details').reset();
-                document.getElementById('receive-invoice').value = `GRN-${Date.now()}`;
-            } else if (payload.type === 'transfer') {
-                generateTransferDocument(result.data);
-                state.currentTransferList = [];
-                document.getElementById('form-transfer-details').reset();
-            } else if (payload.type === 'issue') {
-                generateIssueDocument(result.data);
-                state.currentIssueList = [];
-                document.getElementById('form-issue-details').reset();
-                document.getElementById('issue-ref').value = `ISN-${Date.now()}`;
-            }
-
-            await reloadDataAndRefreshUI();
-        }
-    }
-
+    async function handleTransactionSubmit(payload, buttonEl) { const result = await postData('addTransactionBatch', payload, buttonEl); if (result) { showToast(`${payload.type.charAt(0).toUpperCase() + payload.type.slice(1)} processed!`, 'success'); if (payload.type === 'receive') { generateReceiveDocument(result.data); state.currentReceiveList = []; document.getElementById('form-receive-details').reset(); document.getElementById('receive-invoice').value = `GRN-${Date.now()}`; } else if (payload.type === 'transfer') { generateTransferDocument(result.data); state.currentTransferList = []; document.getElementById('form-transfer-details').reset(); } else if (payload.type === 'issue') { generateIssueDocument(result.data); state.currentIssueList = []; document.getElementById('form-issue-details').reset(); document.getElementById('issue-ref').value = `ISN-${Date.now()}`; } await reloadDataAndRefreshUI(); } }
     const findByKey = (array, key, value) => (array || []).find(el => String(el[key]) === String(value));
     const generateId = () => `id_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const printContent = (content) => { document.getElementById('print-area').innerHTML = content; setTimeout(() => window.print(), 100); }
     const exportToExcel = (tableId, filename) => { try { const table = document.getElementById(tableId); if (!table) { showToast('Please generate a report first.', 'error'); return; } const wb = XLSX.utils.table_to_book(table, {sheet: "Sheet1"}); XLSX.writeFile(wb, filename); showToast('Exporting to Excel...', 'success'); } catch (err) { showToast('Excel export failed.', 'error'); Logger.error('Export Error:', err); } };
-    
     const calculateStockLevels = () => { const stock = {}; (state.branches || []).forEach(branch => { stock[branch.branchCode] = {}; }); const sortedTransactions = [...(state.transactions || [])].sort((a, b) => new Date(a.date) - new Date(b.date)); sortedTransactions.forEach(t => { const item = findByKey(state.items, 'code', t.itemCode); if (!item) return; if (t.type === 'receive') { const branchCode = t.branchCode; if (!branchCode || !stock.hasOwnProperty(branchCode)) return; const current = stock[branchCode][t.itemCode] || { quantity: 0, avgCost: 0, itemName: item.name }; const totalValue = (current.quantity * current.avgCost) + (t.quantity * t.cost); const totalQty = current.quantity + t.quantity; stock[branchCode][t.itemCode] = { itemCode: t.itemCode, quantity: totalQty, avgCost: totalQty > 0 ? totalValue / totalQty : 0, itemName: item.name }; } else if (t.type === 'transfer') { const fromBranchCode = t.fromBranchCode; const toBranchCode = t.toBranchCode; if (!fromBranchCode || !toBranchCode || !stock.hasOwnProperty(fromBranchCode) || !stock.hasOwnProperty(toBranchCode)) return; if (stock[fromBranchCode][t.itemCode]) { const fromStock = stock[fromBranchCode][t.itemCode]; fromStock.quantity -= t.quantity; const toStock = stock[toBranchCode][t.itemCode] || { quantity: 0, avgCost: 0, itemName: item.name }; const newTotalValue = (toStock.quantity * toStock.avgCost) + (t.quantity * fromStock.avgCost); const newTotalQty = toStock.quantity + t.quantity; stock[toBranchCode][t.itemCode] = { itemCode: t.itemCode, quantity: newTotalQty, avgCost: newTotalQty > 0 ? newTotalValue / newTotalQty : 0, itemName: item.name }; } } else if (t.type === 'issue') { const fromBranchCode = t.fromBranchCode; if (!fromBranchCode || !stock.hasOwnProperty(fromBranchCode)) return; if (stock[fromBranchCode][t.itemCode]) { stock[fromBranchCode][t.itemCode].quantity -= t.quantity; } } }); return stock; }
     const calculateSupplierFinancials = () => { const financials = {}; state.suppliers.forEach(s => { financials[s.supplierCode] = { supplierCode: s.supplierCode, supplierName: s.name, totalBilled: 0, totalPaid: 0, balance: 0, invoices: {}, events: [] }; }); state.transactions.forEach(t => { if (t.type === 'receive' && financials[t.supplierCode]) { const invoiceValue = t.quantity * t.cost; financials[t.supplierCode].totalBilled += invoiceValue; if (!financials[t.supplierCode].invoices[t.invoiceNumber]) { financials[t.supplierCode].invoices[t.invoiceNumber] = { number: t.invoiceNumber, date: t.date, total: 0, paid: 0 }; } financials[t.supplierCode].invoices[t.invoiceNumber].total += invoiceValue; } }); state.payments.forEach(p => { if (financials[p.supplierCode]) { financials[p.supplierCode].totalPaid += p.amount; if (p.invoiceNumber && financials[p.supplierCode].invoices[p.invoiceNumber]) { financials[p.supplierCode].invoices[p.invoiceNumber].paid += p.amount; } } }); Object.values(financials).forEach(s => { s.balance = s.totalBilled - s.totalPaid; Object.values(s.invoices).forEach(inv => { inv.balance = inv.total - inv.paid; if (Math.abs(inv.balance) < 0.01) { inv.status = 'Paid'; } else if (inv.paid > 0) { inv.status = 'Partial'; } else { inv.status = 'Unpaid'; } }); const allEvents = [ ...Object.values(s.invoices).map(i => ({ date: i.date, type: 'Invoice', ref: i.number, debit: i.total, credit: 0 })), ...state.payments.filter(p => p.supplierCode === s.supplierCode).map(p => ({ date: p.date, type: 'Payment', ref: p.invoiceNumber || 'On Account', debit: 0, credit: p.amount })) ]; s.events = allEvents.sort((a,b) => new Date(a.date) - new Date(b.date)); }); financials.allInvoices = {}; Object.values(financials).forEach(s => { Object.assign(financials.allInvoices, s.invoices); }); return financials; };
     const populateOptions = (el, data, ph, valueKey, textKey) => { el.innerHTML = `<option value="">${ph}</option>`; (data || []).forEach(item => { el.innerHTML += `<option value="${item[valueKey]}">${item[textKey]}${item[valueKey] ? ' (' + item[valueKey] + ')' : ''}</option>`; }); }
     
-    /**
-     * Returns an array of branch objects the current user is allowed to see, based on their role and permissions.
-     */
     function getVisibleBranchesForCurrentUser() {
-        const user = state.currentUser;
-        if (!user) return [];
-        
-        // Admins and users with the explicit permission can see all branches.
-        const canViewAll = user.Role === 'admin' || String(user.ViewAllBranches).toUpperCase() === 'TRUE';
-        if (canViewAll) {
+        if (!state.currentUser) return [];
+        if (userCan('viewAllBranches')) {
             return state.branches;
         }
-    
-        // A standard branch user can only see their assigned branch.
-        if (user.Role === 'branch_user' && user.AssignedBranchCode) {
-            return state.branches.filter(b => String(b.branchCode) === String(user.AssignedBranchCode));
+        if (state.currentUser.AssignedBranchCode) {
+            return state.branches.filter(b => String(b.branchCode) === String(state.currentUser.AssignedBranchCode));
         }
-        
-        // Fallback for any other case (e.g., new role without rules) is to see nothing.
         return [];
     }
 
     function applyBranchUserUIConstraints() {
-        if (state.currentUser.Role !== 'branch_user') return;
-    
-        const user = state.currentUser;
-        const assignedBranchCode = String(user.AssignedBranchCode);
-    
-        // --- OPERATIONAL CONSTRAINTS ---
-        // These are about *performing actions* and should always be locked to the user's assigned branch.
+        if (!state.currentUser.AssignedBranchCode) return;
+        const assignedBranchCode = String(state.currentUser.AssignedBranchCode);
+
+        // Lock down operations views
         const receiveBranchSelect = document.getElementById('receive-branch');
         receiveBranchSelect.value = assignedBranchCode;
         receiveBranchSelect.disabled = true;
-    
+
         const issueBranchSelect = document.getElementById('issue-from-branch');
         issueBranchSelect.value = assignedBranchCode;
         issueBranchSelect.disabled = true;
-        issueBranchSelect.dispatchEvent(new Event('change')); // Update available stock
-    
+        issueBranchSelect.dispatchEvent(new Event('change'));
+
         const transferBranchSelect = document.getElementById('transfer-from-branch');
         transferBranchSelect.value = assignedBranchCode;
         transferBranchSelect.disabled = true;
-        transferBranchSelect.dispatchEvent(new Event('change')); // Update available stock
+        transferBranchSelect.dispatchEvent(new Event('change'));
         
-        // --- REPORTING CONSTRAINTS ---
-        // This is about *viewing* a report and depends on the user's `ViewAllBranches` permission.
-        const canViewAll = String(user.ViewAllBranches).toUpperCase() === 'TRUE';
+        // Lock down financials report if user cannot view all branches
         const branchStatementSelect = document.getElementById('branch-statement-select');
-        if (!canViewAll) {
+        if (!userCan('viewAllBranches')) {
             branchStatementSelect.value = assignedBranchCode;
             branchStatementSelect.disabled = true;
         } else {
-            // If the user has permission, ensure the dropdown is enabled.
             branchStatementSelect.disabled = false;
         }
     }
@@ -487,12 +232,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const refreshViewData = (viewId) => {
         if (!state.currentUser) return;
         switch(viewId) {
-            case 'dashboard': const stock = calculateStockLevels(); document.getElementById('dashboard-total-items').textContent = (state.items || []).length; document.getElementById('dashboard-total-suppliers').textContent = (state.suppliers || []).length; document.getElementById('dashboard-total-branches').textContent = (state.branches || []).length; let totalValue = 0; Object.values(stock).forEach(bs => Object.values(bs).forEach(i => totalValue += i.quantity * i.avgCost)); document.getElementById('dashboard-total-value').textContent = `${totalValue.toFixed(2)} EGP`; break;
-            case 'setup': populateOptions(document.getElementById('item-supplier'), state.suppliers, 'Select Supplier', 'supplierCode', 'name'); break;
-            case 'master-data': renderItemsTable(); renderSuppliersTable(); renderBranchesTable(); renderSectionsTable(); document.querySelector('#view-master-data .sub-nav-item').click(); break;
+            case 'dashboard': renderItemCentricStockView(); /* Dashboard now uses this */ break;
+            case 'setup': 
+                document.getElementById('form-add-item').parentElement.style.display = userCan('createItem') ? 'block' : 'none';
+                document.getElementById('form-add-supplier').parentElement.style.display = userCan('createSupplier') ? 'block' : 'none';
+                document.getElementById('form-add-branch').parentElement.style.display = userCan('createBranch') ? 'block' : 'none';
+                document.getElementById('form-add-section').parentElement.style.display = userCan('createSection') ? 'block' : 'none';
+                populateOptions(document.getElementById('item-supplier'), state.suppliers, 'Select Supplier', 'supplierCode', 'name'); 
+                break;
+            case 'master-data': 
+                document.querySelector('[data-subview="items"]').style.display = userCan('editItem') ? 'inline-block' : 'none';
+                document.querySelector('[data-subview="suppliers"]').style.display = userCan('editSupplier') ? 'inline-block' : 'none';
+                document.querySelector('[data-subview="branches"]').style.display = userCan('editBranch') ? 'inline-block' : 'none';
+                document.querySelector('[data-subview="sections"]').style.display = userCan('editSection') ? 'inline-block' : 'none';
+                renderItemsTable(); renderSuppliersTable(); renderBranchesTable(); renderSectionsTable(); 
+                document.querySelector('#view-master-data .sub-nav-item[style*="inline-block"]')?.click();
+                break;
             case 'operations': 
-                document.getElementById('receive-invoice').value = `GRN-${Date.now()}`; 
-                document.getElementById('issue-ref').value = `ISN-${Date.now()}`;
+                document.querySelector('[data-subview="receive"]').style.display = userCan('opReceive') ? 'inline-block' : 'none';
+                document.querySelector('[data-subview="issue"]').style.display = userCan('opIssue') ? 'inline-block' : 'none';
+                document.querySelector('[data-subview="transfer"]').style.display = userCan('opTransfer') ? 'inline-block' : 'none';
+                document.getElementById('receive-invoice').value = `GRN-${Date.now()}`; document.getElementById('issue-ref').value = `ISN-${Date.now()}`;
                 populateOptions(document.getElementById('receive-supplier'), state.suppliers, 'Select Supplier', 'supplierCode', 'name'); 
                 populateOptions(document.getElementById('receive-branch'), state.branches, 'Select Branch', 'branchCode', 'name'); 
                 populateOptions(document.getElementById('transfer-from-branch'), state.branches, 'Select Source', 'branchCode', 'name'); 
@@ -500,24 +260,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 populateOptions(document.getElementById('issue-from-branch'), state.branches, 'Select Source', 'branchCode', 'name'); 
                 populateOptions(document.getElementById('issue-to-section'), state.sections, 'Select Destination', 'sectionCode', 'name'); 
                 renderReceiveListTable(); renderIssueListTable(); renderTransferListTable();
-                document.querySelector('#view-operations .sub-nav-item').click();
-                applyBranchUserUIConstraints();
+                document.querySelector('#view-operations .sub-nav-item[style*="inline-block"]')?.click();
+                if (state.currentUser.AssignedBranchCode) applyBranchUserUIConstraints();
                 break;
-            case 'payments': populateOptions(document.getElementById('payment-supplier-select'), state.suppliers, 'Select Supplier', 'supplierCode', 'name'); renderPaymentList(); break;
+            case 'payments': renderPaymentList(); break;
             case 'financials': 
                 populateOptions(document.getElementById('supplier-statement-select'), state.suppliers, 'Select a Supplier', 'supplierCode', 'name');
-                populateOptions(document.getElementById('branch-statement-select'), state.branches, 'Select a Branch', 'branchCode', 'name');
+                populateOptions(document.getElementById('branch-statement-select'), getVisibleBranchesForCurrentUser(), 'Select a Branch', 'branchCode', 'name');
                 populateOptions(document.getElementById('section-statement-select'), state.sections, 'Select a Section', 'sectionCode', 'name');
                 document.querySelector('#view-financials .sub-nav-item').click();
-                applyBranchUserUIConstraints();
+                if (state.currentUser.AssignedBranchCode) applyBranchUserUIConstraints();
                 break;
             case 'stock-levels':
-                if (state.currentUser.Role === 'branch_user' && String(state.currentUser.ViewAllBranches).toUpperCase() !== 'TRUE') {
-                    const assignedBranch = findByKey(state.branches, 'branchCode', state.currentUser.AssignedBranchCode);
-                    document.getElementById('stock-levels-title').textContent = `Stock for ${assignedBranch?.name || 'Your Branch'}`;
-                } else {
-                    document.getElementById('stock-levels-title').textContent = `Stock by Item`;
-                }
+                document.getElementById('stock-levels-title').textContent = userCan('viewAllBranches') ? 'Stock by Item (All Branches)' : 'Stock by Item (Your Branch)';
                 renderItemCentricStockView(); 
                 document.getElementById('item-inquiry-search').value = ''; renderItemInquiry(''); document.getElementById('stock-levels-search').value = ''; 
                 break;
@@ -528,7 +283,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function reloadDataAndRefreshUI() {
         Logger.info('Reloading data...');
-        const { username, loginCode } = state; // Get credentials from memory
+        const { username, loginCode } = state;
         if (!username || !loginCode) { logout(); return; }
 
         const currentView = document.querySelector('.nav-item a.active')?.dataset.view || 'dashboard';
@@ -539,9 +294,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             if (data.status === 'error') throw new Error(data.message);
             
-            Object.keys(data).forEach(key => {
-                if(key !== 'user') state[key] = data[key];
-            });
+            Object.keys(data).forEach(key => { state[key] = data[key] || state[key]; });
 
             refreshViewData(currentView);
             Logger.info('Reload complete.');
@@ -568,10 +321,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!e.target.classList.contains('sub-nav-item')) return;
                 const subviewId = e.target.dataset.subview;
                 const parentView = e.target.closest('.view');
-                
                 parentView.querySelectorAll('.sub-nav-item').forEach(btn => btn.classList.remove('active'));
                 e.target.classList.add('active');
-
                 parentView.querySelectorAll('.sub-view').forEach(view => view.classList.remove('active'));
                 parentView.querySelector(`#subview-${subviewId}`).classList.add('active');
             });
@@ -638,30 +389,28 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const userFirstName = user.Name.split(' ')[0];
         document.querySelector('.sidebar-header h1').textContent = `Hi, ${userFirstName}`;
-
-        if (user.Role === 'branch_user') {
-            Logger.info('Setting up Nav for branch_user');
-            document.querySelector('[data-view="setup"]').parentElement.style.display = 'none';
-            document.querySelector('[data-view="master-data"]').parentElement.style.display = 'none';
-            document.querySelector('[data-view="activity-log"]').parentElement.style.display = 'none';
-            document.querySelector('[data-view="payments"]').parentElement.style.display = 'none';
-        } else {
-            Logger.info('Setting up Nav for admin');
-             document.querySelector('.sidebar-header h1').textContent = 'Packing Stock';
-             document.querySelectorAll('#main-nav .nav-item').forEach(item => item.style.display = '');
-        }
+        
+        // Hide/show nav links based on permissions
+        document.querySelector('[data-view="dashboard"]').parentElement.style.display = userCan('viewDashboard') ? '' : 'none';
+        document.querySelector('[data-view="operations"]').parentElement.style.display = userCan('viewOperations') ? '' : 'none';
+        document.querySelector('[data-view="payments"]').parentElement.style.display = userCan('viewPayments') ? '' : 'none';
+        document.querySelector('[data-view="financials"]').parentElement.style.display = userCan('viewFinancials') ? '' : 'none';
+        document.querySelector('[data-view="stock-levels"]').parentElement.style.display = userCan('viewStockLevels') ? '' : 'none';
+        document.querySelector('[data-view="transaction-history"]').parentElement.style.display = userCan('viewTransactionHistory') ? '' : 'none';
+        document.querySelector('[data-view="setup"]').parentElement.style.display = userCan('viewSetup') ? '' : 'none';
+        document.querySelector('[data-view="master-data"]').parentElement.style.display = userCan('viewMasterData') ? '' : 'none';
+        document.querySelector('[data-view="activity-log"]').parentElement.style.display = userCan('viewActivityLog') ? '' : 'none';
     }
 
     function logout() {
         Logger.info('User logging out.');
-        // No need to remove from storage, just reload to go to login screen
         location.reload();
     }
     
-    // This function runs AFTER a successful login
     function initializeAppUI() {
         Logger.info('Application UI initializing...');
         
+        setupRoleBasedNav();
         attachEventListeners();
         attachSubNavListeners(); 
         setupSearch('search-items', renderItemsTable, 'items', ['name', 'code']);
@@ -670,14 +419,14 @@ document.addEventListener('DOMContentLoaded', () => {
         setupSearch('search-sections', renderSectionsTable, 'sections', ['name', 'sectionCode']);
         setupSearch('stock-levels-search', renderItemCentricStockView, 'items', ['name', 'code']);
         
-        setupRoleBasedNav();
-        
-        showView('dashboard');
+        // Show the first available view based on user permissions
+        const firstVisibleView = document.querySelector('#main-nav .nav-item[style*="display:"]:not([style*="display: none"]) a')?.dataset.view || 'dashboard';
+        showView(firstVisibleView);
+
         Logger.info('Application initialized successfully.');
     }
 
     async function init() {
-        // Always start with the login screen
         loginContainer.style.display = 'flex';
         appContainer.style.display = 'none';
         loginForm.addEventListener('submit', (e) => {
