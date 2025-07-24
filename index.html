@@ -55,9 +55,16 @@
         </aside>
 
         <main class="main-content">
-            <header class="main-header"><h2 id="view-title">Summary</h2></header>
+            <header class="main-header"><h2 id="view-title">Dashboard</h2></header>
 
-            <div id="view-dashboard" class="view active"><div class="kpi-grid"><div class="card"><div class="kpi-label">Total Items</div><div id="dashboard-total-items" class="kpi-value">0</div></div><div class="card"><div class="kpi-label">Total Stock Value</div><div id="dashboard-total-value" class="kpi-value">0.00 EGP</div></div><div class="card"><div class="kpi-label">Total Suppliers</div><div id="dashboard-total-suppliers" class="kpi-value">0</div></div><div class="card"><div class="kpi-label">Total Branches</div><div id="dashboard-total-branches" class="kpi-value">0</div></div></div></div>
+            <!-- Dashboard View - now shows the stock report -->
+            <div id="view-dashboard" class="view active">
+                <div class="card">
+                    <div id="item-centric-stock-container" class="report-area">
+                        <!-- Stock levels table will be rendered here by script.js -->
+                    </div>
+                </div>
+            </div>
             
             <div id="view-setup" class="view">
                 <div class="grid">
