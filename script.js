@@ -14,7 +14,7 @@ window.printReport = function(elementId) {
 
 document.addEventListener('DOMContentLoaded', () => {
     // !!! IMPORTANT: PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxvX_sYOa-K-578QP_MVLCz0oE8rKzq8geqmS4VClBcvVOv66U7qym5CAyRSN8_BSd6/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyorkd-E1h-prnRQq8sa_uNSSaOE4g0ZbyudJFLyLDUVc0TKH5FJiuQrUh1MukG3anC/exec';
 
     const Logger = {
         info: (message, ...args) => console.log(`[StockWise INFO] ${message}`, ...args),
