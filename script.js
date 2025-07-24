@@ -150,38 +150,24 @@ document.addEventListener('DOMContentLoaded', () => {
         formEditRecord.dataset.type = type;
         formEditRecord.dataset.id = id;
         switch (type) {
-            // Existing cases...
             case 'item': record = findByKey(state.items, 'code', id); if (!record) return; editModalTitle.textContent = 'Edit Item'; formHtml = `<div class="form-grid"><div class="form-group"><label>Item Code</label><input type="text" value="${record.code}" readonly></div><div class="form-group"><label for="edit-item-barcode">Barcode</label><input type="text" id="edit-item-barcode" name="barcode" value="${record.barcode || ''}"></div><div class="form-group"><label for="edit-item-name">Item Name</label><input type="text" id="edit-item-name" name="name" value="${record.name}" required></div><div class="form-group"><label for="edit-item-unit">Unit</label><input type="text" id="edit-item-unit" name="unit" value="${record.unit}" required></div><div class="form-group"><label for="edit-item-supplier">Default Supplier</label><select id="edit-item-supplier" name="supplierCode"></select></div><div class="form-group"><label for="edit-item-cost">Default Cost</label><input type="number" id="edit-item-cost" name="cost" step="0.01" min="0" value="${record.cost}" required></div></div>`; editModalBody.innerHTML = formHtml; const supplierSelect = document.getElementById('edit-item-supplier'); populateOptions(supplierSelect, state.suppliers, 'Select Supplier', 'supplierCode', 'name'); supplierSelect.value = record.supplierCode; break;
             case 'supplier': record = findByKey(state.suppliers, 'supplierCode', id); if (!record) return; editModalTitle.textContent = 'Edit Supplier'; formHtml = `<div class="form-grid"><div class="form-group"><label>Supplier Code</label><input type="text" value="${record.supplierCode}" readonly></div><div class="form-group"><label for="edit-supplier-name">Supplier Name</label><input type="text" id="edit-supplier-name" name="name" value="${record.name}" required></div><div class="form-group"><label for="edit-supplier-contact">Contact Info</label><input type="text" id="edit-supplier-contact" name="contact" value="${record.contact || ''}"></div></div>`; editModalBody.innerHTML = formHtml; break;
             case 'branch': record = findByKey(state.branches, 'branchCode', id); if (!record) return; editModalTitle.textContent = 'Edit Branch'; formHtml = `<div class="form-grid"><div class="form-group"><label>Branch Code</label><input type="text" value="${record.branchCode}" readonly></div><div class="form-group"><label for="edit-branch-name">Branch Name</label><input type="text" id="edit-branch-name" name="name" value="${record.name}" required></div></div>`; editModalBody.innerHTML = formHtml; break;
             case 'section': record = findByKey(state.sections, 'sectionCode', id); if (!record) return; editModalTitle.textContent = 'Edit Section'; formHtml = `<div class="form-grid"><div class="form-group"><label>Section Code</label><input type="text" value="${record.sectionCode}" readonly></div><div class="form-group"><label for="edit-section-name">Section Name</label><input type="text" id="edit-section-name" name="name" value="${record.name}" required></div></div>`; editModalBody.innerHTML = formHtml; break;
-            
-            // New cases for User Management
             case 'user':
                 record = findByKey(state.allUsers, 'Username', id);
                 if (!record) return;
                 editModalTitle.textContent = 'Edit User';
                 const roleOptions = state.allRoles.map(r => `<option value="${r.RoleName}" ${r.RoleName === record.RoleName ? 'selected' : ''}>${r.RoleName}</option>`).join('');
                 const branchOptions = state.branches.map(b => `<option value="${b.branchCode}" ${b.branchCode === record.AssignedBranchCode ? 'selected' : ''}>${b.name}</option>`).join('');
-
-                formHtml = `<div class="form-grid">
-                    <div class="form-group"><label>Username</label><input type="text" value="${record.Username}" readonly></div>
-                    <div class="form-group"><label for="edit-user-name">Full Name</label><input type="text" id="edit-user-name" name="Name" value="${record.Name}" required></div>
-                    <div class="form-group"><label for="edit-user-role">Role</label><select id="edit-user-role" name="RoleName" required>${roleOptions}</select></div>
-                    <div class="form-group"><label for="edit-user-branch">Assigned Branch (if applicable)</label><select id="edit-user-branch" name="AssignedBranchCode"><option value="">None</option>${branchOptions}</select></div>
-                    <div class="form-group span-full"><label for="edit-user-password">New Password (leave blank to keep unchanged)</label><input type="password" id="edit-user-password" name="LoginCode"></div>
-                </div>`;
+                formHtml = `<div class="form-grid"><div class="form-group"><label>Username</label><input type="text" value="${record.Username}" readonly></div><div class="form-group"><label for="edit-user-name">Full Name</label><input type="text" id="edit-user-name" name="Name" value="${record.Name}" required></div><div class="form-group"><label for="edit-user-role">Role</label><select id="edit-user-role" name="RoleName" required>${roleOptions}</select></div><div class="form-group"><label for="edit-user-branch">Assigned Branch (if applicable)</label><select id="edit-user-branch" name="AssignedBranchCode"><option value="">None</option>${branchOptions}</select></div><div class="form-group span-full"><label for="edit-user-password">New Password (leave blank to keep unchanged)</label><input type="password" id="edit-user-password" name="LoginCode"></div></div>`;
                 editModalBody.innerHTML = formHtml;
                 break;
-            
             case 'role':
                 record = findByKey(state.allRoles, 'RoleName', id);
                 if (!record) return;
                 editModalTitle.textContent = `Edit Permissions for ${record.RoleName}`;
-                
-                // Get all possible permission keys, excluding RoleName
                 const permissionKeys = Object.keys(state.allRoles[0] || {}).filter(key => key !== 'RoleName');
-                
                 const permissionCategories = {
                     'General Access': ['manageUsers', 'viewDashboard', 'viewActivityLog'],
                     'Operations': ['viewOperations', 'opReceive', 'opIssue', 'opTransfer'],
@@ -189,7 +175,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Data Management': ['viewSetup', 'viewMasterData', 'createItem', 'editItem', 'createSupplier', 'editSupplier', 'createBranch', 'editBranch', 'createSection', 'editSection'],
                     'Reporting': ['viewStockLevels', 'viewTransactionHistory', 'viewAllBranches']
                 };
-
                 formHtml = '<h3>Permissions</h3>';
                 for (const category in permissionCategories) {
                     formHtml += `<h4 class="permission-category">${category}</h4><div class="form-grid permissions-grid">`;
@@ -201,7 +186,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     formHtml += `</div>`;
                 }
-
                 editModalBody.innerHTML = formHtml;
                 break;
         }
@@ -215,24 +199,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const id = formEditRecord.dataset.id;
         const formData = new FormData(formEditRecord);
         let payload, action;
-
         if (type === 'user') {
             action = 'updateUser';
             const updates = {};
-            for (let [key, value] of formData.entries()) {
-                if (key === 'LoginCode' && value === '') continue; // Don't update password if blank
-                updates[key] = value;
-            }
+            for (let [key, value] of formData.entries()) { if (key === 'LoginCode' && value === '') continue; updates[key] = value; }
             payload = { Username: id, updates: updates };
         } else if (type === 'role') {
             action = 'updateRolePermissions';
             const updates = {};
             const allPerms = Object.keys(findByKey(state.allRoles, 'RoleName', id));
-            allPerms.forEach(key => {
-                if(key !== 'RoleName') {
-                    updates[key] = formData.has(key); // Set to true if checked, false otherwise
-                }
-            });
+            allPerms.forEach(key => { if(key !== 'RoleName') { updates[key] = formData.has(key); } });
             payload = { RoleName: id, updates: updates };
         } else {
              action = 'updateData';
@@ -240,7 +216,6 @@ document.addEventListener('DOMContentLoaded', () => {
              for (let [key, value] of formData.entries()) { updates[key] = value; }
              payload = { type, id, updates };
         }
-
         const result = await postData(action, payload, btn);
         if (result) {
             showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} updated successfully!`, 'success');
@@ -268,7 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderReceiveListTable() { const tbody = document.getElementById('table-receive-list').querySelector('tbody'); tbody.innerHTML = ''; if (state.currentReceiveList.length === 0) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No items selected. Click "Select Items".</td></tr>'; updateReceiveGrandTotal(); return; } state.currentReceiveList.forEach((item, index) => { const tr = document.createElement('tr'); tr.innerHTML = `<td>${item.itemCode}</td><td>${item.itemName}</td><td><input type="number" class="table-input" value="${item.quantity}" min="0.01" step="0.01" data-index="${index}" data-field="quantity"></td><td><input type="number" class="table-input" value="${item.cost.toFixed(2)}" min="0" step="0.01" data-index="${index}" data-field="cost"></td><td id="total-cost-${index}">${(item.quantity * item.cost).toFixed(2)} EGP</td><td><button class="danger small" data-index="${index}">X</button></td>`; tbody.appendChild(tr); }); updateReceiveGrandTotal(); }
     function renderTransferListTable() { const tbody = document.getElementById('table-transfer-list').querySelector('tbody'); const fromBranchCode = document.getElementById('transfer-from-branch').value; const stock = calculateStockLevels(); tbody.innerHTML = ''; if (state.currentTransferList.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No items selected. Click "Select Items".</td></tr>'; updateTransferGrandTotal(); return; } state.currentTransferList.forEach((item, index) => { const availableStock = stock[fromBranchCode]?.[item.itemCode]?.quantity || 0; const tr = document.createElement('tr'); tr.innerHTML = `<td>${item.itemCode}</td><td>${item.itemName}</td><td>${availableStock.toFixed(2)}</td><td><input type="number" class="table-input" value="${item.quantity}" min="0.01" max="${availableStock}" step="0.01" data-index="${index}" data-field="quantity"></td><td><button class="danger small" data-index="${index}">X</button></td>`; tbody.appendChild(tr); }); updateTransferGrandTotal(); }
     function renderIssueListTable() { const tbody = document.getElementById('table-issue-list').querySelector('tbody'); const fromBranchCode = document.getElementById('issue-from-branch').value; const stock = calculateStockLevels(); tbody.innerHTML = ''; if (state.currentIssueList.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No items selected. Click "Select Items".</td></tr>'; updateIssueGrandTotal(); return; } state.currentIssueList.forEach((item, index) => { const availableStock = stock[fromBranchCode]?.[item.itemCode]?.quantity || 0; const tr = document.createElement('tr'); tr.innerHTML = `<td>${item.itemCode}</td><td>${item.itemName}</td><td>${availableStock.toFixed(2)}</td><td><input type="number" class="table-input" value="${item.quantity}" min="0.01" max="${availableStock}" step="0.01" data-index="${index}" data-field="quantity"></td><td><button class="danger small" data-index="${index}">X</button></td>`; tbody.appendChild(tr); }); updateIssueGrandTotal(); }
-    function renderItemCentricStockView(itemsToRender = state.items) { const container = document.getElementById('item-centric-stock-container') || document.getElementById('dashboard-stock-container'); if(!container) return; const stockByBranch = calculateStockLevels(); const branchesToDisplay = getVisibleBranchesForCurrentUser(); let tableHTML = `<table id="table-stock-levels-by-item"><thead><tr><th>Code</th><th>Item Name</th>`; branchesToDisplay.forEach(b => { tableHTML += `<th>${b.name}</th>` }); tableHTML += `<th>Total</th></tr></thead><tbody>`; itemsToRender.forEach(item => { tableHTML += `<tr><td>${item.code}</td><td>${item.name}</td>`; let total = 0; branchesToDisplay.forEach(branch => { const qty = stockByBranch[branch.branchCode]?.[item.code]?.quantity || 0; total += qty; tableHTML += `<td>${qty > 0 ? qty.toFixed(2) : '-'}</td>`; }); tableHTML += `<td><strong>${total.toFixed(2)}</strong></td></tr>`; }); tableHTML += `</tbody></table>`; container.innerHTML = tableHTML; }
+    function renderItemCentricStockView(itemsToRender = state.items) { const container = document.getElementById('item-centric-stock-container'); if(!container) return; const stockByBranch = calculateStockLevels(); const branchesToDisplay = getVisibleBranchesForCurrentUser(); let tableHTML = `<table id="table-stock-levels-by-item"><thead><tr><th>Code</th><th>Item Name</th>`; branchesToDisplay.forEach(b => { tableHTML += `<th>${b.name}</th>` }); tableHTML += `<th>Total</th></tr></thead><tbody>`; itemsToRender.forEach(item => { tableHTML += `<tr><td>${item.code}</td><td>${item.name}</td>`; let total = 0; branchesToDisplay.forEach(branch => { const qty = stockByBranch[branch.branchCode]?.[item.code]?.quantity || 0; total += qty; tableHTML += `<td>${qty > 0 ? qty.toFixed(2) : '-'}</td>`; }); tableHTML += `<td><strong>${total.toFixed(2)}</strong></td></tr>`; }); tableHTML += `</tbody></table>`; container.innerHTML = tableHTML; }
     function renderItemInquiry(searchTerm) { const resultsContainer = document.getElementById('item-inquiry-results'); if (!searchTerm) { resultsContainer.innerHTML = ''; return; } const stockByBranch = calculateStockLevels(); const filteredItems = state.items.filter(i => i.name.toLowerCase().includes(searchTerm) || i.code.toLowerCase().includes(searchTerm)); let html = ''; const branchesToDisplay = getVisibleBranchesForCurrentUser(); filteredItems.slice(0, 10).forEach(item => { html += `<h4>${item.name} (${item.code})</h4><table><thead><tr><th>Branch</th><th>Qty</th><th>Value</th></tr></thead><tbody>`; let found = false; let totalQty = 0; let totalValue = 0; branchesToDisplay.forEach(branch => { const itemStock = stockByBranch[branch.branchCode]?.[item.code]; if (itemStock && itemStock.quantity > 0) { const value = itemStock.quantity * itemStock.avgCost; html += `<tr><td>${branch.name} (${branch.branchCode || ''})</td><td>${itemStock.quantity.toFixed(2)}</td><td>${value.toFixed(2)} EGP</td></tr>`; totalQty += itemStock.quantity; totalValue += value; found = true; } }); if (!found) { html += `<tr><td colspan="3">No stock for this item.</td></tr>`; } else { html += `<tr style="font-weight:bold; background-color: var(--bg-color);"><td>Total</td><td>${totalQty.toFixed(2)}</td><td>${totalValue.toFixed(2)} EGP</td></tr>` } html += `</tbody></table><hr>`; }); resultsContainer.innerHTML = html; }
     function renderSupplierStatement(supplierCode, startDateStr, endDateStr) { const resultsContainer = document.getElementById('supplier-statement-results'); const exportBtn = document.getElementById('btn-export-supplier-statement'); const supplier = findByKey(state.suppliers, 'supplierCode', supplierCode); if (!supplier) { exportBtn.disabled = true; return; } const financials = calculateSupplierFinancials(); const supplierData = financials[supplierCode]; const sDate = startDateStr ? new Date(startDateStr) : null; const eDate = endDateStr ? new Date(endDateStr) : null; if(eDate) eDate.setHours(23, 59, 59, 999); let openingBalance = 0; if (sDate) { supplierData.events.forEach(event => { if (new Date(event.date) < sDate) { openingBalance += event.debit - event.credit; } }); } const filteredEvents = supplierData.events.filter(event => { const eventDate = new Date(event.date); return (!sDate || eventDate >= sDate) && (!eDate || eventDate <= eDate); }); let balance = openingBalance; let tableBodyHtml = ''; if (sDate) { tableBodyHtml += `<tr style="background-color: var(--bg-color);"><td colspan="3"><strong>Opening Balance as of ${sDate.toLocaleDateString()}</strong></td><td>-</td><td>-</td><td><strong>${openingBalance.toFixed(2)} EGP</strong></td></tr>`; } filteredEvents.forEach(event => { balance += event.debit - event.credit; tableBodyHtml += `<tr><td>${new Date(event.date).toLocaleDateString()}</td><td>${event.type}</td><td>${event.ref}</td><td>${event.debit > 0 ? event.debit.toFixed(2) : '-'}</td><td>${event.credit > 0 ? event.credit.toFixed(2) : '-'}</td><td>${balance.toFixed(2)} EGP</td></tr>`; }); let dateHeader = `for all time`; if (sDate && eDate) { dateHeader = `from ${sDate.toLocaleDateString()} to ${eDate.toLocaleDateString()}`; } else if (sDate) { dateHeader = `from ${sDate.toLocaleDateString()}`; } else if (eDate) { dateHeader = `until ${eDate.toLocaleDateString()}`; } resultsContainer.innerHTML = `<div class="printable-document"><div class="printable-header"><div><h2>Supplier Statement: ${supplier.name}</h2><p style="margin:0; color: var(--text-light-color);">For period: ${dateHeader}</p></div><button class="secondary no-print" onclick="printReport('supplier-statement-results')">Print</button></div><p><strong>Date Generated:</strong> ${new Date().toLocaleString()}</p><div class="report-area"><table id="table-supplier-statement-report"><thead><tr><th>Date</th><th>Type</th><th>Reference</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead><tbody>${tableBodyHtml}</tbody><tfoot><tr style="font-weight:bold; background-color: var(--bg-color);"><td colspan="5" style="text-align:right;">Closing Balance:</td><td>${balance.toFixed(2)} EGP</td></tr></tfoot></table></div></div>`; resultsContainer.style.display = 'block'; exportBtn.disabled = false;}
     function renderBranchStatement(branchCode, startDateStr, endDateStr) { const resultsContainer = document.getElementById('branch-statement-results'); const exportBtn = document.getElementById('btn-export-branch-statement'); const branch = findByKey(state.branches, 'branchCode', branchCode); if (!branch) { exportBtn.disabled = true; return; } const sDate = startDateStr ? new Date(startDateStr) : null; const eDate = endDateStr ? new Date(endDateStr) : null; if(eDate) eDate.setHours(23, 59, 59, 999); const filteredTransactions = state.transactions.filter(t => { const eventDate = new Date(t.date); const isInvolved = t.branchCode === branchCode || t.fromBranchCode === branchCode || t.toBranchCode === branchCode; return isInvolved && (!sDate || eventDate >= sDate) && (!eDate || eventDate <= eDate); }).sort((a,b) => new Date(a.date) - new Date(b.date)); let tableBodyHtml = ''; filteredTransactions.forEach(t => { const item = findByKey(state.items, 'code', t.itemCode) || {name: 'N/A'}; let type = '', details = '', qtyIn = '-', qtyOut = '-'; if (t.type === 'receive' && t.branchCode === branchCode) { type = 'Receive'; details = `From: ${findByKey(state.suppliers, 'supplierCode', t.supplierCode)?.name || 'N/A'} (Ref: ${t.invoiceNumber})`; qtyIn = t.quantity.toFixed(2); } else if (t.type === 'issue' && t.fromBranchCode === branchCode) { type = 'Issue'; details = `To: ${findByKey(state.sections, 'sectionCode', t.sectionCode)?.name || 'N/A'} (Ref: ${t.ref})`; qtyOut = t.quantity.toFixed(2); } else if (t.type === 'transfer' && t.fromBranchCode === branchCode) { type = 'Transfer Out'; details = `To: ${findByKey(state.branches, 'branchCode', t.toBranchCode)?.name || 'N/A'} (Ref: ${t.ref})`; qtyOut = t.quantity.toFixed(2); } else if (t.type === 'transfer' && t.toBranchCode === branchCode) { type = 'Transfer In'; details = `From: ${findByKey(state.branches, 'branchCode', t.fromBranchCode)?.name || 'N/A'} (Ref: ${t.ref})`; qtyIn = t.quantity.toFixed(2); } else { return; } tableBodyHtml += `<tr><td>${new Date(t.date).toLocaleString()}</td><td>${item.code}</td><td>${item.name}</td><td>${type}</td><td>${details}</td><td style="text-align:right;">${qtyIn}</td><td style="text-align:right;">${qtyOut}</td></tr>`; }); let dateHeader = "for all time"; if (sDate && eDate) { dateHeader = `from ${sDate.toLocaleDateString()} to ${eDate.toLocaleDateString()}`; } else if (sDate) { dateHeader = `from ${sDate.toLocaleDateString()}`; } else if (eDate) { dateHeader = `until ${eDate.toLocaleDateString()}`; } resultsContainer.innerHTML = `<div class="printable-document"><div class="printable-header"><div><h2>Branch Activity: ${branch.name}</h2><p style="margin:0; color: var(--text-light-color);">For period: ${dateHeader}</p></div><button class="secondary no-print" onclick="printReport('branch-statement-results')">Print</button></div><div class="report-area"><table id="table-branch-statement-report"><thead><tr><th>Date</th><th>Item Code</th><th>Item Name</th><th>Type</th><th>Details</th><th style="text-align:right;">Qty In</th><th style="text-align:right;">Qty Out</th></tr></thead><tbody>${tableBodyHtml}</tbody></table></div></div>`; resultsContainer.style.display = 'block'; exportBtn.disabled = false;}
@@ -308,7 +283,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!state.currentUser.AssignedBranchCode) return;
         const assignedBranchCode = String(state.currentUser.AssignedBranchCode);
 
-        // Lock down operations views
         document.getElementById('receive-branch').value = assignedBranchCode;
         document.getElementById('receive-branch').disabled = true;
 
@@ -332,7 +306,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const refreshViewData = async (viewId) => {
         if (!state.currentUser) return;
         switch(viewId) {
-            case 'dashboard': renderItemCentricStockView(); break;
+            case 'dashboard':
+                const stock = calculateStockLevels();
+                document.getElementById('dashboard-total-items').textContent = (state.items || []).length;
+                document.getElementById('dashboard-total-suppliers').textContent = (state.suppliers || []).length;
+                document.getElementById('dashboard-total-branches').textContent = (state.branches || []).length;
+                let totalValue = 0;
+                Object.values(stock).forEach(bs => Object.values(bs).forEach(i => totalValue += i.quantity * i.avgCost));
+                document.getElementById('dashboard-total-value').textContent = `${totalValue.toFixed(2)} EGP`;
+                break;
             case 'setup': document.getElementById('form-add-item').parentElement.style.display = userCan('createItem') ? 'block' : 'none'; document.getElementById('form-add-supplier').parentElement.style.display = userCan('createSupplier') ? 'block' : 'none'; document.getElementById('form-add-branch').parentElement.style.display = userCan('createBranch') ? 'block' : 'none'; document.getElementById('form-add-section').parentElement.style.display = userCan('createSection') ? 'block' : 'none'; populateOptions(document.getElementById('item-supplier'), state.suppliers, 'Select Supplier', 'supplierCode', 'name'); break;
             case 'master-data': document.querySelector('[data-subview="items"]').style.display = userCan('editItem') ? 'inline-block' : 'none'; document.querySelector('[data-subview="suppliers"]').style.display = userCan('editSupplier') ? 'inline-block' : 'none'; document.querySelector('[data-subview="branches"]').style.display = userCan('editBranch') ? 'inline-block' : 'none'; document.querySelector('[data-subview="sections"]').style.display = userCan('editSection') ? 'inline-block' : 'none'; renderItemsTable(); renderSuppliersTable(); renderBranchesTable(); renderSectionsTable(); document.querySelector('#view-master-data .sub-nav-item[style*="inline-block"]')?.click(); break;
             case 'operations': 
@@ -427,11 +409,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function attachEventListeners() {
         btnLogout.addEventListener('click', logout);
         document.querySelectorAll('#main-nav a').forEach(link => { if(link.id !== 'btn-logout') link.addEventListener('click', e => { e.preventDefault(); showView(link.dataset.view); }); });
-        
-        // --- Edit button listeners for multiple views ---
         document.getElementById('view-master-data').addEventListener('click', e => { if (e.target.classList.contains('btn-edit')) { openEditModal(e.target.dataset.type, e.target.dataset.id); } });
         document.getElementById('view-user-management').addEventListener('click', e => { if (e.target.classList.contains('btn-edit')) { openEditModal(e.target.dataset.type, e.target.dataset.id); } });
-        
         document.getElementById('btn-show-receive-modal').addEventListener('click', openItemSelectorModal);
         document.getElementById('btn-show-transfer-modal').addEventListener('click', openItemSelectorModal);
         document.getElementById('btn-show-issue-modal').addEventListener('click', openItemSelectorModal);
@@ -460,16 +439,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const toBranchCode = document.getElementById('receive-branch').value;
             const notes = document.getElementById('receive-notes').value;
             if (!toBranchCode || state.currentReceiveList.length === 0) { showToast('Please select a "To Branch" and add items.', 'error'); return; }
-
             const source = document.querySelector('input[name="receiveSource"]:checked').value;
             let payload;
-
             if (source === 'supplier') {
                 const supplierCode = document.getElementById('receive-supplier').value;
                 const invoiceNumber = document.getElementById('receive-invoice').value;
                 if (!supplierCode || !invoiceNumber) { showToast('Please select a supplier and enter an invoice number.', 'error'); return; }
                 payload = { type: 'receive', batchId: generateId(), supplierCode, branchCode: toBranchCode, invoiceNumber, date: new Date().toISOString(), items: state.currentReceiveList, notes };
-            } else { // source is 'branch'
+            } else {
                 const fromBranchCode = document.getElementById('receive-from-branch').value;
                 const ref = document.getElementById('receive-transfer-ref').value;
                 if (!fromBranchCode || fromBranchCode === toBranchCode) { showToast('Please select a valid and different source branch.', 'error'); return; }
@@ -522,8 +499,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelector('[data-view="transaction-history"]').parentElement.style.display = userCan('viewTransactionHistory') ? '' : 'none';
         document.querySelector('[data-view="setup"]').parentElement.style.display = userCan('viewSetup') ? '' : 'none';
         document.querySelector('[data-view="master-data"]').parentElement.style.display = userCan('viewMasterData') ? '' : 'none';
-        document.querySelector('[data-view="activity-log"]').parentElement.style.display = userCan('viewActivityLog') ? '' : 'none';
         document.querySelector('[data-view="user-management"]').parentElement.style.display = userCan('manageUsers') ? '' : 'none';
+        document.querySelector('[data-view="activity-log"]').parentElement.style.display = userCan('viewActivityLog') ? '' : 'none';
     }
 
     function logout() {
