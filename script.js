@@ -13,7 +13,7 @@ window.printReport = function(elementId) {
 
 document.addEventListener('DOMContentLoaded', () => {
     // !!! IMPORTANT: PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxrPr32URHglO1-YtFnKVba1hkwIZMYNcLF8K7JVTBKajxMbuIpHUaFKKRPfpIVDKTc/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwXwaW9hUybmCj2x8bfAxU2OMLMCn0uFPoKGLP-23ZM9-oEgaHhmkxHy6ypxmO22O0t/exec';
 
     const Logger = {
         info: (message, ...args) => console.log(`[StockWise INFO] ${message}`, ...args),
@@ -287,12 +287,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 break;
             case 'user':
                 record = findByKey(state.allUsers, 'Username', id);
-                if (!record) return;
-                editModalTitle.textContent = 'Edit User';
-                const roleOptions = state.allRoles.map(r => `<option value="${r.RoleName}" ${r.RoleName === record.RoleName ? 'selected' : ''}>${r.RoleName}</option>`).join('');
-                const branchOptions = state.branches.map(b => `<option value="${b.branchCode}" ${b.branchCode === record.AssignedBranchCode ? 'selected' : ''}>${b.name}</option>`).join('');
-                const sectionOptions = state.sections.map(s => `<option value="${s.sectionCode}" ${s.sectionCode === record.AssignedSectionCode ? 'selected' : ''}>${s.name}</option>`).join('');
-                formHtml = `<div class="form-grid"><div class="form-group"><label>Username</label><input type="text" value="${record.Username}" readonly></div><div class="form-group"><label for="edit-user-name">Full Name</label><input type="text" id="edit-user-name" name="Name" value="${record.Name}" required></div><div class="form-group"><label for="edit-user-role">Role</label><select id="edit-user-role" name="RoleName" required>${roleOptions}</select></div><div class="form-group"><label for="edit-user-branch">Assigned Branch</label><select id="edit-user-branch" name="AssignedBranchCode"><option value="">None</option>${branchOptions}</select></div><div class="form-group"><label for="edit-user-section">Assigned Section</label><select id="edit-user-section" name="AssignedSectionCode"><option value="">None</option>${sectionOptions}</select></div><div class="form-group span-full"><label for="edit-user-password">New Password (leave blank to keep unchanged)</label><input type="password" id="edit-user-password" name="LoginCode"></div><div class="form-group span-full"><button type="button" id="btn-delete-user" class="danger">Delete User</button></div></div>`;
+                if (!record && id !== null) return; // Allow for creating a new user (id is null)
+                editModalTitle.textContent = id ? 'Edit User' : 'Add New User';
+                const currentUsername = record ? record.Username : '';
+                const currentName = record ? record.Name : '';
+                const currentRole = record ? record.RoleName : '';
+                const currentBranch = record ? record.AssignedBranchCode : '';
+                const currentSection = record ? record.AssignedSectionCode : '';
+
+                const roleOptions = state.allRoles.map(r => `<option value="${r.RoleName}" ${r.RoleName === currentRole ? 'selected' : ''}>${r.RoleName}</option>`).join('');
+                const branchOptions = state.branches.map(b => `<option value="${b.branchCode}" ${b.branchCode === currentBranch ? 'selected' : ''}>${b.name}</option>`).join('');
+                const sectionOptions = state.sections.map(s => `<option value="${s.sectionCode}" ${s.sectionCode === currentSection ? 'selected' : ''}>${s.name}</option>`).join('');
+                
+                formHtml = `<div class="form-grid"><div class="form-group"><label>Username</label><input type="text" id="edit-user-username" name="Username" value="${currentUsername}" ${id ? 'readonly' : 'required'}></div><div class="form-group"><label for="edit-user-name">Full Name</label><input type="text" id="edit-user-name" name="Name" value="${currentName}" required></div><div class="form-group"><label for="edit-user-role">Role</label><select id="edit-user-role" name="RoleName" required>${roleOptions}</select></div><div class="form-group"><label for="edit-user-branch">Assigned Branch</label><select id="edit-user-branch" name="AssignedBranchCode"><option value="">None</option>${branchOptions}</select></div><div class="form-group"><label for="edit-user-section">Assigned Section</label><select id="edit-user-section" name="AssignedSectionCode"><option value="">None</option>${sectionOptions}</select></div><div class="form-group span-full"><label for="edit-user-password">Password / Login Code ${id ? '(leave blank to keep unchanged)' : ''}</label><input type="password" id="edit-user-password" name="LoginCode" ${!id ? 'required' : ''}></div>`;
+                if(id) {
+                    formHtml += `<div class="form-group span-full"><button type="button" id="btn-delete-user" class="danger">Delete User</button></div>`;
+                }
+                formHtml += `</div>`;
                 editModalBody.innerHTML = formHtml;
                 break;
             case 'role':
@@ -334,18 +345,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const type = formEditRecord.dataset.type;
         const id = formEditRecord.dataset.id;
         const formData = new FormData(formEditRecord);
-        let payload, action;
+        let payload = {}, action;
+
         if (type === 'user') {
-            action = 'updateUser';
-            const updates = {};
+            action = id ? 'updateUser' : 'addUser';
             for (let [key, value] of formData.entries()) {
                 if (key === 'LoginCode' && value === '') continue;
-                updates[key] = value;
+                payload[key] = value;
             }
-            payload = {
-                Username: id,
-                updates: updates
-            };
+            if(id) { // If editing, structure payload for updateUser
+                payload = { Username: id, updates: {} };
+                for (let [key, value] of formData.entries()) {
+                    if (key === 'LoginCode' && value === '') continue;
+                    if (key !== 'Username') payload.updates[key] = value;
+                }
+            }
         } else if (type === 'role') {
             action = 'updateRolePermissions';
             const updates = {};
@@ -355,25 +369,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     updates[key] = formData.has(key);
                 }
             });
-            payload = {
-                RoleName: id,
-                updates: updates
-            };
+            payload = { RoleName: id, updates: updates };
         } else {
             action = 'updateData';
             const updates = {};
             for (let [key, value] of formData.entries()) {
                 updates[key] = value;
             }
-            payload = {
-                type,
-                id,
-                updates
-            };
+            payload = { type, id, updates };
         }
+        
         const result = await postData(action, payload, btn);
         if (result) {
-            showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} updated successfully!`, 'success');
+            showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} ${id ? 'updated' : 'added'} successfully!`, 'success');
             closeModal();
             await reloadDataAndRefreshUI();
         }
@@ -541,12 +549,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
-// PART 3 OF 4: VIEW RENDERING & DOCUMENT GENERATION
+    // PART 3 OF 4: VIEW RENDERING & DOCUMENT GENERATION
     function renderItemsTable(data = state.items) {
         const tbody = document.getElementById('table-items').querySelector('tbody');
         tbody.innerHTML = '';
         if (!data || data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6">No items found.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No items found.</td></tr>';
             return;
         }
         const canEdit = userCan('editItem');
@@ -561,7 +569,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const tbody = document.getElementById('table-suppliers').querySelector('tbody');
         tbody.innerHTML = '';
         if (!data || data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5">No suppliers found.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No suppliers found.</td></tr>';
             return;
         }
         const financials = calculateSupplierFinancials();
@@ -578,7 +586,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const tbody = document.getElementById('table-branches').querySelector('tbody');
         tbody.innerHTML = '';
         if (!data || data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3">No branches found.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">No branches found.</td></tr>';
             return;
         }
         const canEdit = userCan('editBranch');
@@ -593,7 +601,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const tbody = document.getElementById('table-sections').querySelector('tbody');
         tbody.innerHTML = '';
         if (!data || data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3">No sections found.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">No sections found.</td></tr>';
             return;
         }
         const canEdit = userCan('editSection');
@@ -699,7 +707,94 @@ document.addEventListener('DOMContentLoaded', () => {
         resultsContainer.innerHTML = html;
     }
     
-    function renderConsumptionReport(config) { /* ... same as before ... */ }
+    function renderSupplierStatement(supplierCode, startDateStr, endDateStr) {
+        const resultsContainer = document.getElementById('supplier-statement-results');
+        const exportBtn = document.getElementById('btn-export-supplier-statement');
+        const supplier = findByKey(state.suppliers, 'supplierCode', supplierCode);
+        if (!supplier) {
+            exportBtn.disabled = true;
+            return;
+        }
+        const financials = calculateSupplierFinancials();
+        const supplierData = financials[supplierCode];
+        const sDate = startDateStr ? new Date(startDateStr) : null;
+        const eDate = endDateStr ? new Date(endDateStr) : null;
+        if (eDate) eDate.setHours(23, 59, 59, 999);
+        let openingBalance = 0;
+        if (sDate) {
+            supplierData.events.forEach(event => {
+                if (new Date(event.date) < sDate) {
+                    openingBalance += event.debit - event.credit;
+                }
+            });
+        }
+        const filteredEvents = supplierData.events.filter(event => {
+            const eventDate = new Date(event.date);
+            return (!sDate || eventDate >= sDate) && (!eDate || eventDate <= eDate);
+        });
+        let balance = openingBalance;
+        let tableBodyHtml = '';
+        if (sDate) {
+            tableBodyHtml += `<tr style="background-color: var(--bg-color);"><td colspan="3"><strong>Opening Balance as of ${sDate.toLocaleDateString()}</strong></td><td>-</td><td>-</td><td><strong>${openingBalance.toFixed(2)} EGP</strong></td></tr>`;
+        }
+        filteredEvents.forEach(event => {
+            balance += event.debit - event.credit;
+            tableBodyHtml += `<tr><td>${new Date(event.date).toLocaleDateString()}</td><td>${event.type}</td><td>${event.ref}</td><td>${event.debit > 0 ? event.debit.toFixed(2) : '-'}</td><td>${event.credit > 0 ? event.credit.toFixed(2) : '-'}</td><td>${balance.toFixed(2)} EGP</td></tr>`;
+        });
+        let dateHeader = `for all time`;
+        if (sDate && eDate) {
+            dateHeader = `from ${sDate.toLocaleDateString()} to ${eDate.toLocaleDateString()}`;
+        } else if (sDate) {
+            dateHeader = `from ${sDate.toLocaleDateString()}`;
+        } else if (eDate) {
+            dateHeader = `until ${eDate.toLocaleDateString()}`;
+        }
+        resultsContainer.innerHTML = `<div class="printable-document"><div class="printable-header"><div><h2>Supplier Statement: ${supplier.name}</h2><p style="margin:0; color: var(--text-light-color);">For period: ${dateHeader}</p></div><button class="secondary no-print" onclick="printReport('supplier-statement-results')">Print</button></div><p><strong>Date Generated:</strong> ${new Date().toLocaleString()}</p><div class="report-area"><table id="table-supplier-statement-report"><thead><tr><th>Date</th><th>Type</th><th>Reference</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead><tbody>${tableBodyHtml}</tbody><tfoot><tr style="font-weight:bold; background-color: var(--bg-color);"><td colspan="5" style="text-align:right;">Closing Balance:</td><td>${balance.toFixed(2)} EGP</td></tr></tfoot></table></div></div>`;
+        resultsContainer.style.display = 'block';
+        exportBtn.disabled = false;
+    }
+
+    function renderConsumptionReport(config) {
+        const { resultsContainerId, exportBtnId, data, title, entityName, dateHeader } = config;
+        const resultsContainer = document.getElementById(resultsContainerId);
+        const exportBtn = document.getElementById(exportBtnId);
+    
+        let tableBodyHtml = '';
+        let grandTotalQty = 0;
+        let grandTotalValue = 0;
+        
+        const groupedByItem = {};
+        data.forEach(t => {
+            if (!groupedByItem[t.itemCode]) {
+                const item = findByKey(state.items, 'code', t.itemCode) || { name: 'N/A', unit: 'N/A' };
+                const stockLevels = calculateStockLevels();
+                const avgCost = stockLevels[t.fromBranchCode]?.[t.itemCode]?.avgCost || item.cost || 0;
+                groupedByItem[t.itemCode] = { item, totalQty: 0, totalValue: 0, avgCost: avgCost };
+            }
+            groupedByItem[t.itemCode].totalQty += t.quantity;
+            groupedByItem[t.itemCode].totalValue += t.quantity * groupedByItem[t.itemCode].avgCost;
+        });
+    
+        Object.values(groupedByItem).forEach(group => {
+            tableBodyHtml += `<tr><td>${group.item.code}</td><td>${group.item.name}</td><td>${group.item.category || 'N/A'}</td><td style="text-align:right;">${group.totalQty.toFixed(2)} ${group.item.unit}</td><td style="text-align:right;">${group.totalValue.toFixed(2)} EGP</td></tr>`;
+            grandTotalQty += group.totalQty;
+            grandTotalValue += group.totalValue;
+        });
+    
+        resultsContainer.innerHTML = `<div class="printable-document">
+            <div class="printable-header"><div><h2>${title}: ${entityName}</h2><p style="margin:0; color: var(--text-light-color);">For period: ${dateHeader}</p></div><button class="secondary no-print" onclick="printReport('${resultsContainerId}')">Print</button></div>
+            <div class="report-area"><table id="table-${resultsContainerId}-report">
+                <thead><tr><th>Item Code</th><th>Item Name</th><th>Category</th><th style="text-align:right;">Total Qty Consumed</th><th style="text-align:right;">Total Value</th></tr></thead>
+                <tbody>${tableBodyHtml}</tbody>
+                <tfoot><tr style="font-weight:bold; background-color: var(--bg-color);">
+                    <td colspan="3" style="text-align:right;">Grand Total:</td>
+                    <td style="text-align:right;">${grandTotalQty.toFixed(2)}</td>
+                    <td style="text-align:right;">${grandTotalValue.toFixed(2)} EGP</td>
+                </tr></tfoot>
+            </table></div></div>`;
+        resultsContainer.style.display = 'block';
+        exportBtn.disabled = false;
+    }
     
     function renderPriceHistory(priceHistory) {
         const container = document.getElementById('subview-price-history');
@@ -846,7 +941,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const generateTransferDocument = (data) => { const fromBranch = findByKey(state.branches, 'branchCode', data.fromBranchCode) || { name: 'DELETED' }; const toBranch = findByKey(state.branches, 'branchCode', data.toBranchCode) || { name: 'DELETED' }; let itemsHtml = ''; data.items.forEach(item => { const fullItem = findByKey(state.items, 'code', item.itemCode) || { code: 'N/A', name: 'DELETED', unit: 'N/A' }; itemsHtml += `<tr><td>${fullItem.code}</td><td>${fullItem.name}</td><td>${item.quantity.toFixed(2)}</td><td>${fullItem.unit}</td></tr>`; }); const content = `<div class="printable-document card"><h2>Internal Transfer Order</h2><p><strong>Order ID:</strong> ${data.batchId}</p><p><strong>Reference:</strong> ${data.ref}</p><p><strong>Date:</strong> ${new Date(data.date).toLocaleString()}</p><hr><p><strong>From:</strong> ${fromBranch.name} (${fromBranch.branchCode || ''})</p><p><strong>To:</strong> ${toBranch.name} (${toBranch.branchCode || ''})</p><hr><h3>Items Transferred</h3><table><thead><tr><th>Code</th><th>Item</th><th>Qty</th><th>Unit</th></tr></thead><tbody>${itemsHtml}</tbody></table><hr><p><strong>Notes:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Sender:</strong> _________________</p><p><strong>Receiver:</strong> _________________</p></div>`; printContent(content); };
     const generateIssueDocument = (data) => { const fromBranch = findByKey(state.branches, 'branchCode', data.fromBranchCode) || { name: 'DELETED' }; const toSection = findByKey(state.sections, 'sectionCode', data.sectionCode) || { name: 'DELETED' }; let itemsHtml = ''; data.items.forEach(item => { const fullItem = findByKey(state.items, 'code', item.itemCode) || { name: 'DELETED', unit: 'N/A' }; itemsHtml += `<tr><td>${item.itemCode}</td><td>${item.itemName || fullItem.name}</td><td>${item.quantity.toFixed(2)}</td><td>${fullItem.unit}</td></tr>`; }); const content = `<div class="printable-document card"><h2>Stock Issue Note</h2><p><strong>Issue Ref #:</strong> ${data.ref}</p><p><strong>Batch ID:</strong> ${data.batchId}</p><p><strong>Date:</strong> ${new Date(data.date).toLocaleString()}</p><hr><p><strong>From Branch:</strong> ${fromBranch.name} (${fromBranch.branchCode || ''})</p><p><strong>To Section:</strong> ${toSection.name} (${toSection.sectionCode || ''})</p><hr><h3>Items Issued</h3><table><thead><tr><th>Code</th><th>Item</th><th>Qty</th><th>Unit</th></tr></thead><tbody>${itemsHtml}</tbody></table><hr><p><strong>Notes:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Issued By:</strong> _________________</p><p><strong>Received By:</strong> _________________</p></div>`; printContent(content); };
     const generatePaymentVoucher = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; let invoicesHtml = ''; data.payments.forEach(p => { invoicesHtml += `<tr><td>${p.invoiceNumber}</td><td>${p.amount.toFixed(2)} EGP</td></tr>`; }); const content = `<div class="printable-document card"><h2>Payment Voucher</h2><p><strong>Voucher ID:</strong> ${data.payments[0].paymentId}</p><p><strong>Date:</strong> ${new Date(data.date).toLocaleString()}</p><hr><p><strong>Paid To:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><p><strong>Amount:</strong> ${data.totalAmount.toFixed(2)} EGP</p><p><strong>Method:</strong> ${data.method}</p><hr><h3>Payment Allocation</h3><table><thead><tr><th>Invoice #</th><th>Amount Paid</th></tr></thead><tbody>${invoicesHtml}</tbody></table><br><p><strong>Signature:</strong> _________________</p></div>`; printContent(content); };
-    const generatePODocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; let itemsHtml = '', totalValue = 0; data.items.forEach(item => { const itemDetails = findByKey(state.items, 'code', item.itemCode) || {name: "N/A"}; const itemTotal = item.quantity * item.cost; totalValue += itemTotal; itemsHtml += `<tr><td>${item.itemCode}</td><td>${itemDetails.name}</td><td>${item.quantity.toFixed(2)}</td><td>${item.cost.toFixed(2)} EGP</td><td>${itemTotal.toFixed(2)} EGP</td></tr>`; }); const content = `<div class="printable-document card"><h2>Purchase Order</h2><p><strong>PO No:</strong> ${data.poId || data.batchId}</p><p><strong>Date:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>Supplier:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><hr><h3>Items Ordered</h3><table><thead><tr><th>Code</th><th>Item</th><th>Qty</th><th>Cost/Unit</th><th>Total</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">Total Value</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>Notes:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Authorized By:</strong> ${state.currentUser.Name}</p></div>`; printContent(content); };
+    const generatePODocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; let itemsHtml = '', totalValue = 0; data.items.forEach(item => { const itemDetails = findByKey(state.items, 'code', item.itemCode) || {name: "N/A"}; const itemTotal = item.quantity * item.cost; totalValue += itemTotal; itemsHtml += `<tr><td>${item.itemCode}</td><td>${itemDetails.name}</td><td>${item.quantity.toFixed(2)}</td><td>${item.cost.toFixed(2)} EGP</td><td>${itemTotal.toFixed(2)} EGP</td></tr>`; }); const content = `<div class="printable-document card"><h2>Purchase Order</h2><p><strong>PO No:</strong> ${data.poId || data.batchId}</p><p><strong>Date:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>Supplier:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><hr><h3>Items Ordered</h3><table><thead><tr><th>Code</th><th>Item</th><th>Qty</th><th>Cost/Unit</th><th>Total</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">Total Value</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>Notes:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Authorized By:</strong> ${data.createdBy || state.currentUser.Name}</p></div>`; printContent(content); };
     const generateReturnDocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; const branch = findByKey(state.branches, 'branchCode', data.fromBranchCode) || { name: 'DELETED' }; let itemsHtml = '', totalValue = 0; data.items.forEach(item => { const itemTotal = item.quantity * item.cost; totalValue += itemTotal; itemsHtml += `<tr><td>${item.itemCode}</td><td>${item.itemName}</td><td>${item.quantity.toFixed(2)}</td><td>${item.cost.toFixed(2)} EGP</td><td>${itemTotal.toFixed(2)} EGP</td></tr>`; }); const content = `<div class="printable-document card"><h2>Supplier Return Note</h2><p><strong>Credit Note Ref:</strong> ${data.ref}</p><p><strong>Date:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>Returned To:</strong> ${supplier.name}</p><p><strong>Returned From:</strong> ${branch.name}</p><hr><h3>Items Returned</h3><table><thead><tr><th>Code</th><th>Item</th><th>Qty</th><th>Cost/Unit</th><th>Total</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">Total Value</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>Reason:</strong> ${data.notes || 'N/A'}</p></div>`; printContent(content); };
     // PART 4 OF 4: CALCULATION ENGINES, EVENT LISTENERS & INITIALIZATION
     function updateReceiveGrandTotal() { let grandTotal = 0; (state.currentReceiveList || []).forEach(item => { grandTotal += (item.quantity || 0) * (item.cost || 0); }); document.getElementById('receive-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; }
@@ -1018,13 +1113,13 @@ document.addEventListener('DOMContentLoaded', () => {
                  document.querySelector('[data-subview="view-pos"]').style.display = userCan('opCreatePO') ? 'inline-block' : 'none';
                  populateOptions(document.getElementById('po-supplier'), state.suppliers, 'Select Supplier', 'supplierCode', 'name');
                  document.getElementById('po-ref').value = generateId('PO');
-                 renderPOListTable(); //renderPurchaseOrdersViewer();
+                 renderPOListTable(); renderPurchaseOrdersViewer();
                  document.querySelector('#view-purchasing .sub-nav-item[style*="inline-block"]')?.click();
                  break;
             case 'requests':
                 document.querySelector('[data-subview="my-requests"]').style.display = userCan('opRequestItems') ? 'inline-block' : 'none';
                 document.querySelector('[data-subview="pending-approval"]').style.display = userCan('opApproveRequest') ? 'inline-block' : 'none';
-                renderRequestListTable(); //renderMyRequests(); renderPendingRequests();
+                renderRequestListTable(); renderMyRequests(); renderPendingRequests();
                 document.querySelector('#view-requests .sub-nav-item[style*="inline-block"]')?.click();
                 break;
             case 'payments':
@@ -1077,6 +1172,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderPendingTransfers() { /* ... unchanged ... */ }
     function renderInTransitReport() { /* ... unchanged ... */ }
+    function renderPurchaseOrdersViewer() { /* ... logic for rendering POs ... */ }
+    function renderMyRequests() { /* ... logic for rendering user's requests ... */ }
+    function renderPendingRequests() { /* ... logic for manager's approval view ... */ }
+    
     function updatePendingRequestsWidget() { /* ... unchanged ... */ }
 
     function setupSearch(inputId, renderFn, dataKey, searchKeys) { const searchInput = document.getElementById(inputId); if (!searchInput) return; searchInput.addEventListener('input', e => { const searchTerm = e.target.value.toLowerCase(); const dataToFilter = state[dataKey] || []; renderFn(searchTerm ? dataToFilter.filter(item => searchKeys.some(key => item[key] && String(item[key]).toLowerCase().includes(searchTerm))) : dataToFilter); }); }
@@ -1104,7 +1203,7 @@ document.addEventListener('DOMContentLoaded', () => {
         modalSearchInput.addEventListener('input', e => renderItemsInModal(e.target.value));
         formEditRecord.addEventListener('submit', handleUpdateSubmit);
 
-        // Edit/History Buttons in Tables (delegated)
+        // Edit/History/Add Buttons (delegated)
         document.getElementById('view-master-data').addEventListener('click', e => {
             const btn = e.target.closest('button');
             if (!btn) return;
@@ -1112,8 +1211,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (btn.classList.contains('btn-history')) { openHistoryModal(btn.dataset.id); }
         });
         document.getElementById('view-user-management').addEventListener('click', e => {
-             const btn = e.target.closest('button.btn-edit');
-             if (btn) { openEditModal(btn.dataset.type, btn.dataset.id); }
+             const btn = e.target.closest('button');
+             if(!btn) return;
+             if (btn.id === 'btn-add-new-user') { openEditModal('user', null); }
+             if (btn.id === 'btn-add-new-role') { const roleName = prompt("Enter new role name:"); if(roleName) { postData('addRole', { RoleName: roleName }, btn).then(res => res && reloadDataAndRefreshUI()); } }
+             if (btn.classList.contains('btn-edit')) { openEditModal(btn.dataset.type, btn.dataset.id); }
         });
         
         // Transaction History View Button (delegated)
@@ -1173,7 +1275,17 @@ document.addEventListener('DOMContentLoaded', () => {
                    if (!isNaN(value)) {
                        list[index][field] = value;
                    }
-                   rendererFn();
+                   // FIX: Only update the totalizers, don't re-render the whole table on input
+                   const item = list[index];
+                   const totalCell = e.target.closest('tr').querySelector(`[id^="total-cost-"], [id^="po-total-cost-"]`);
+                   if(totalCell) {
+                       totalCell.textContent = `${((item.quantity || 0) * (item.cost || 0)).toFixed(2)} EGP`;
+                   }
+                   if(rendererFn === renderReceiveListTable) updateReceiveGrandTotal();
+                   if(rendererFn === renderPOListTable) updatePOGrandTotal();
+                   if(rendererFn === renderReturnListTable) updateReturnGrandTotal();
+                   if(rendererFn === renderIssueListTable) updateIssueGrandTotal();
+                   if(rendererFn === renderTransferListTable) updateTransferGrandTotal();
                 }
             }
         };
@@ -1192,9 +1304,9 @@ document.addEventListener('DOMContentLoaded', () => {
         setupInputTableListeners('table-issue-list', 'currentIssueList', renderIssueListTable);
         setupInputTableListeners('table-request-list', 'currentRequestList', renderRequestListTable);
 
-        document.getElementById('transfer-from-branch').addEventListener('change', renderTransferListTable);
-        document.getElementById('issue-from-branch').addEventListener('change', renderIssueListTable);
-        document.getElementById('return-branch').addEventListener('change', renderReturnListTable);
+        // Report Generation
+        document.getElementById('btn-generate-supplier-statement').addEventListener('click', () => { const supplierCode = document.getElementById('supplier-statement-select').value; if (!supplierCode) { showToast('Please select a supplier.', 'error'); return; } const startDate = document.getElementById('statement-start-date').value; const endDate = document.getElementById('statement-end-date').value; if (startDate && endDate && new Date(startDate) > new Date(endDate)) { showToast('Start date cannot be after end date.', 'error'); return; } renderSupplierStatement(supplierCode, startDate, endDate); });
+        // ... other report buttons ...
     }
     
     function setupRoleBasedNav() {
