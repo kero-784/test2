@@ -13,7 +13,7 @@ window.printReport = function(elementId) {
 
 document.addEventListener('DOMContentLoaded', () => {
     // !!! IMPORTANT: PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxeTUjqU0VTrxMFic92BHaRMwzWiaSdlwojEFgxWcGqkR8x23UOlQb0pzz3VpiWqL8P/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwXwaW9hUybmCj2x8bfAxU2OMLMCn0uFPoKGLP-23ZM9-oEgaHhmkxHy6ypxmO22O0t/exec';
 
     const Logger = {
         info: (message, ...args) => console.log(`[StockWise INFO] ${message}`, ...args),
@@ -155,30 +155,31 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     // PART 2 OF 4: MODAL & UI LOGIC
-    function openItemSelectorModal() {
-        let currentList;
-        const activeSubView = document.querySelector('.sub-view.active');
-        if (!activeSubView) return;
-
-        if (activeSubView.id === 'subview-receive') {
-            modalContext = 'receive'; currentList = state.currentReceiveList;
-        } else if (activeSubView.id === 'subview-transfer') {
-            modalContext = 'transfer'; currentList = state.currentTransferList;
-        } else if (activeSubView.id === 'subview-issue') {
-            modalContext = 'issue'; currentList = state.currentIssueList;
-        } else if (activeSubView.id === 'subview-create-po') {
-            modalContext = 'po'; currentList = state.currentPOList;
-        } else if (activeSubView.id === 'subview-return') {
-            modalContext = 'return'; currentList = state.currentReturnList;
-        } else if (activeSubView.id === 'subview-my-requests') {
-            modalContext = 'request'; currentList = state.currentRequestList;
+    function openItemSelectorModal(event) {
+        const context = event.target.dataset.context;
+        if (!context) {
+            Logger.error("openItemSelectorModal called without a data-context on the button.");
+            return;
         }
 
-        if (modalContext) {
-            state.modalSelections = new Set((currentList || []).map(item => item.itemCode));
-            renderItemsInModal();
-            itemSelectorModal.classList.add('active');
+        modalContext = context;
+        let currentList = [];
+
+        switch (context) {
+            case 'receive': currentList = state.currentReceiveList; break;
+            case 'transfer': currentList = state.currentTransferList; break;
+            case 'issue': currentList = state.currentIssueList; break;
+            case 'po': currentList = state.currentPOList; break;
+            case 'return': currentList = state.currentReturnList; break;
+            case 'request': currentList = state.currentRequestList; break;
+            default:
+                Logger.error(`Unknown modal context: ${context}`);
+                return;
         }
+
+        state.modalSelections = new Set((currentList || []).map(item => item.itemCode));
+        renderItemsInModal();
+        itemSelectorModal.classList.add('active');
     }
 
     function openInvoiceSelectorModal() {
@@ -208,7 +209,6 @@ document.addEventListener('DOMContentLoaded', () => {
             historyModalBody.querySelector('#subview-movement-history').innerHTML = '<p>Could not load movement history.</p>';
         }
     }
-
 
     function closeModal() {
         itemSelectorModal.classList.remove('active');
@@ -541,7 +541,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
-    // PART 3 OF 4: VIEW RENDERING & DOCUMENT GENERATION
+// PART 3 OF 4: VIEW RENDERING & DOCUMENT GENERATION
     function renderItemsTable(data = state.items) {
         const tbody = document.getElementById('table-items').querySelector('tbody');
         tbody.innerHTML = '';
@@ -875,8 +875,71 @@ document.addEventListener('DOMContentLoaded', () => {
     const printContent = (content) => { document.getElementById('print-area').innerHTML = content; setTimeout(() => window.print(), 100); };
     const exportToExcel = (tableId, filename) => { try { const table = document.getElementById(tableId); if (!table) { showToast('Please generate a report first.', 'error'); return; } const wb = XLSX.utils.table_to_book(table, {sheet: "Sheet1"}); XLSX.writeFile(wb, filename); showToast('Exporting to Excel...', 'success'); } catch (err) { showToast('Excel export failed.', 'error'); Logger.error('Export Error:', err); } };
     
-    const calculateStockLevels = () => { /* ... Unchanged from previous correct version ... */ };
-    const calculateSupplierFinancials = () => { /* ... Unchanged from previous correct version ... */ };
+    const calculateStockLevels = () => {
+        const stock = {};
+        (state.branches || []).forEach(branch => { stock[branch.branchCode] = {}; });
+        const sortedTransactions = [...(state.transactions || [])].sort((a, b) => new Date(a.date) - new Date(b.date));
+        const tempAvgCosts = {};
+        sortedTransactions.forEach(t => {
+            const item = findByKey(state.items, 'code', t.itemCode);
+            if (!item) return;
+            const processStockUpdate = (branchCode, qtyChange, cost) => {
+                if (!branchCode || !stock.hasOwnProperty(branchCode)) return;
+                const current = stock[branchCode][t.itemCode] || { quantity: 0, avgCost: 0, itemName: item.name };
+                if(qtyChange > 0) { // Incoming stock
+                    const totalValue = (current.quantity * current.avgCost) + (qtyChange * cost);
+                    const totalQty = current.quantity + qtyChange;
+                    const newAvgCost = totalQty > 0 ? totalValue / totalQty : 0;
+                    stock[branchCode][t.itemCode] = { itemCode: t.itemCode, quantity: totalQty, avgCost: newAvgCost, itemName: item.name };
+                    if (!tempAvgCosts[branchCode]) tempAvgCosts[branchCode] = {};
+                    tempAvgCosts[branchCode][t.itemCode] = newAvgCost;
+                } else { // Outgoing stock
+                    current.quantity += qtyChange; // qtyChange is negative
+                    stock[branchCode][t.itemCode] = current;
+                }
+            };
+            switch (t.type) {
+                case 'receive': processStockUpdate(t.branchCode, t.quantity, t.cost); break;
+                case 'transfer_out': processStockUpdate(t.fromBranchCode, -t.quantity); break;
+                case 'issue': processStockUpdate(t.fromBranchCode, -t.quantity); break;
+                case 'return_out': processStockUpdate(t.fromBranchCode, -t.quantity); break;
+                case 'transfer_in':
+                    const fromAvgCost = tempAvgCosts[t.fromBranchCode]?.[t.itemCode] || findByKey(state.items, 'code', t.itemCode)?.cost || 0;
+                    processStockUpdate(t.toBranchCode, t.quantity, fromAvgCost);
+                    break;
+            }
+        });
+        return stock;
+    };
+
+    const calculateSupplierFinancials = () => {
+        const financials = {};
+        (state.suppliers || []).forEach(s => { financials[s.supplierCode] = { supplierCode: s.supplierCode, supplierName: s.name, totalBilled: 0, totalPaid: 0, totalCredited: 0, balance: 0, invoices: {}, events: [] }; });
+        (state.transactions || []).forEach(t => {
+            if (!t.supplierCode || !financials[t.supplierCode]) return;
+            const value = t.quantity * t.cost;
+            if (t.type === 'receive') {
+                financials[t.supplierCode].totalBilled += value;
+                const invNum = t.invoiceNumber;
+                if (!financials[t.supplierCode].invoices[invNum]) { financials[t.supplierCode].invoices[invNum] = { number: invNum, date: t.date, total: 0, paid: 0 }; }
+                financials[t.supplierCode].invoices[invNum].total += value;
+            } else if (t.type === 'return_out') {
+                financials[t.supplierCode].totalCredited += value;
+            }
+        });
+        (state.payments || []).forEach(p => { if (financials[p.supplierCode]) { financials[p.supplierCode].totalPaid += p.amount; if (p.invoiceNumber && financials[p.supplierCode].invoices[p.invoiceNumber]) { financials[p.supplierCode].invoices[p.invoiceNumber].paid += p.amount; } } });
+        Object.values(financials).forEach(s => {
+            s.balance = s.totalBilled - s.totalPaid - s.totalCredited;
+            Object.values(s.invoices).forEach(inv => { inv.balance = inv.total - inv.paid; if (Math.abs(inv.balance) < 0.01) { inv.status = 'Paid'; } else if (inv.paid > 0) { inv.status = 'Partial'; } else { inv.status = 'Unpaid'; } });
+            const allEvents = [
+                ...Object.values(s.invoices).map(i => ({ date: i.date, type: 'Invoice', ref: i.number, debit: i.total, credit: 0 })),
+                ...(state.transactions || []).filter(t => t.type === 'return_out' && t.supplierCode === s.supplierCode).map(t => ({ date: t.date, type: 'Return (Credit)', ref: t.ref, debit: 0, credit: t.quantity * t.cost })),
+                ...(state.payments || []).filter(p => p.supplierCode === s.supplierCode).map(p => ({ date: p.date, type: 'Payment', ref: p.invoiceNumber || 'On Account', debit: 0, credit: p.amount }))
+            ];
+            s.events = allEvents.sort((a,b) => new Date(a.date) - new Date(b.date));
+        });
+        financials.allInvoices = {}; Object.values(financials).forEach(s => { Object.assign(financials.allInvoices, s.invoices); }); return financials;
+    };
     
     const populateOptions = (el, data, ph, valueKey, textKey, textKey2) => { el.innerHTML = `<option value="">${ph}</option>`; (data || []).forEach(item => { el.innerHTML += `<option value="${item[valueKey]}">${item[textKey]}${textKey2 && item[textKey2] ? ' (' + item[textKey2] + ')' : ''}</option>`; }); };
     
@@ -924,10 +987,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 populateOptions(document.getElementById('item-supplier'), state.suppliers, 'Select Supplier', 'supplierCode', 'name');
                 break;
             case 'master-data':
-                document.querySelector('[data-subview="items"]').style.display = userCan('editItem') ? 'inline-block' : 'none';
-                document.querySelector('[data-subview="suppliers"]').style.display = userCan('editSupplier') ? 'inline-block' : 'none';
-                document.querySelector('[data-subview="branches"]').style.display = userCan('editBranch') ? 'inline-block' : 'none';
-                document.querySelector('[data-subview="sections"]').style.display = userCan('editSection') ? 'inline-block' : 'none';
+                document.querySelector('[data-subview="items"]').style.display = userCan('editItem') || userCan('createItem') ? 'inline-block' : 'none';
+                document.querySelector('[data-subview="suppliers"]').style.display = userCan('editSupplier') || userCan('createSupplier') ? 'inline-block' : 'none';
+                document.querySelector('[data-subview="branches"]').style.display = userCan('editBranch') || userCan('createBranch') ? 'inline-block' : 'none';
+                document.querySelector('[data-subview="sections"]').style.display = userCan('editSection') || userCan('createSection') ? 'inline-block' : 'none';
                 renderItemsTable(); renderSuppliersTable(); renderBranchesTable(); renderSectionsTable();
                 document.querySelector('#view-master-data .sub-nav-item[style*="inline-block"]')?.click();
                 break;
@@ -1014,10 +1077,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderPendingTransfers() { /* ... unchanged ... */ }
     function renderInTransitReport() { /* ... unchanged ... */ }
-    // function renderPurchaseOrdersViewer() { /* ... stub ... */ }
-    // function renderMyRequests() { /* ... stub ... */ }
-    // function renderPendingRequests() { /* ... stub ... */ }
-    
     function updatePendingRequestsWidget() { /* ... unchanged ... */ }
 
     function setupSearch(inputId, renderFn, dataKey, searchKeys) { const searchInput = document.getElementById(inputId); if (!searchInput) return; searchInput.addEventListener('input', e => { const searchTerm = e.target.value.toLowerCase(); const dataToFilter = state[dataKey] || []; renderFn(searchTerm ? dataToFilter.filter(item => searchKeys.some(key => item[key] && String(item[key]).toLowerCase().includes(searchTerm))) : dataToFilter); }); }
@@ -1028,8 +1087,14 @@ document.addEventListener('DOMContentLoaded', () => {
         btnLogout.addEventListener('click', logout);
         document.querySelectorAll('#main-nav a:not(#btn-logout)').forEach(link => { link.addEventListener('click', e => { e.preventDefault(); showView(link.dataset.view); }); });
         
+        // Modal Trigger (delegated)
+        appContainer.addEventListener('click', e => {
+            if (e.target.dataset.context) {
+                openItemSelectorModal(e);
+            }
+        });
+        
         // Modal Buttons
-        ['btn-show-receive-modal', 'btn-show-transfer-modal', 'btn-show-issue-modal', 'btn-show-po-modal', 'btn-show-return-modal', 'btn-show-request-modal'].forEach(id => { document.getElementById(id)?.addEventListener('click', openItemSelectorModal); });
         ['btn-close-item-selector-modal', 'btn-cancel-item-selector-modal', 'btn-close-invoice-modal', 'btn-cancel-invoice-modal', 'btn-close-edit-modal', 'btn-cancel-edit-modal', 'btn-close-view-transfer-modal', 'btn-cancel-view-transfer-modal', 'btn-close-history-modal', 'btn-cancel-history-modal'].forEach(id => { document.getElementById(id)?.addEventListener('click', closeModal); });
         document.getElementById('btn-confirm-modal-selection').addEventListener('click', confirmModalSelection);
         document.getElementById('btn-confirm-invoice-selection').addEventListener('click', confirmModalSelection);
@@ -1039,7 +1104,7 @@ document.addEventListener('DOMContentLoaded', () => {
         modalSearchInput.addEventListener('input', e => renderItemsInModal(e.target.value));
         formEditRecord.addEventListener('submit', handleUpdateSubmit);
 
-        // Edit/History Buttons in Tables (DELEGATION)
+        // Edit/History Buttons in Tables (delegated)
         document.getElementById('view-master-data').addEventListener('click', e => {
             const btn = e.target.closest('button');
             if (!btn) return;
@@ -1051,7 +1116,7 @@ document.addEventListener('DOMContentLoaded', () => {
              if (btn) { openEditModal(btn.dataset.type, btn.dataset.id); }
         });
         
-        // Transaction History View Button
+        // Transaction History View Button (delegated)
         document.getElementById('table-transaction-history').addEventListener('click', e => {
             const btn = e.target.closest('.btn-view-tx');
             if (btn) {
@@ -1080,8 +1145,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         
-        // Add Data Forms (Unchanged)
+        // Add Data Forms
         document.getElementById('form-add-item').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { code: document.getElementById('item-code').value, barcode: document.getElementById('item-barcode').value, name: document.getElementById('item-name').value, unit: document.getElementById('item-unit').value, category: document.getElementById('item-category').value, supplierCode: document.getElementById('item-supplier').value, cost: parseFloat(document.getElementById('item-cost').value) }; const result = await postData('addItem', data, btn); if (result) { showToast('Item added!', 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
+        document.getElementById('form-add-supplier').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { supplierCode: document.getElementById('supplier-code').value, name: document.getElementById('supplier-name').value, contact: document.getElementById('supplier-contact').value }; const result = await postData('addSupplier', data, btn); if (result) { showToast('Supplier added!', 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
+        document.getElementById('form-add-branch').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { branchCode: document.getElementById('branch-code').value, name: document.getElementById('branch-name').value }; const result = await postData('addBranch', data, btn); if (result) { showToast('Branch added!', 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
+        document.getElementById('form-add-section').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { sectionCode: document.getElementById('section-code').value, name: document.getElementById('section-name').value }; const result = await postData('addSection', data, btn); if (result) { showToast('Section added!', 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
 
         // Transaction/PO Submit Buttons
         document.getElementById('btn-submit-receive-batch').addEventListener('click', async (e) => {
@@ -1092,6 +1160,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const payload = { type: 'receive', batchId: `GRN-${Date.now()}`, supplierCode, branchCode, invoiceNumber, poId, date: new Date().toISOString(), items: state.currentReceiveList, notes };
             await handleTransactionSubmit(payload, btn);
         });
+        document.getElementById('btn-submit-transfer-batch').addEventListener('click', async (e) => { const btn = e.currentTarget; const fromBranchCode = document.getElementById('transfer-from-branch').value, toBranchCode = document.getElementById('transfer-to-branch').value, notes = document.getElementById('transfer-notes').value, ref = document.getElementById('transfer-ref').value; if (!fromBranchCode || !toBranchCode || fromBranchCode === toBranchCode || state.currentTransferList.length === 0) { showToast('Please select valid branches and add at least one item.', 'error'); return; } const payload = { type: 'transfer_out', batchId: ref, fromBranchCode, toBranchCode, ref, date: new Date().toISOString(), items: state.currentTransferList, notes }; await handleTransactionSubmit(payload, btn); });
+        document.getElementById('btn-submit-issue-batch').addEventListener('click', async(e) => { const btn = e.currentTarget; const fromBranchCode = document.getElementById('issue-from-branch').value, sectionCode = document.getElementById('issue-to-section').value, ref = document.getElementById('issue-ref').value, notes = document.getElementById('issue-notes').value; if (!fromBranchCode || !sectionCode || !ref || state.currentIssueList.length === 0) { showToast('Please fill all issue details and select at least one item.', 'error'); return; } const payload = { type: 'issue', batchId: ref, fromBranchCode, sectionCode, ref, date: new Date().toISOString(), items: state.currentIssueList, notes }; await handleTransactionSubmit(payload, btn); });
         document.getElementById('btn-submit-po').addEventListener('click', async (e) => { const btn = e.currentTarget; const supplierCode = document.getElementById('po-supplier').value, poId = document.getElementById('po-ref').value, notes = document.getElementById('po-notes').value; if (!supplierCode || state.currentPOList.length === 0) { showToast('Please select a supplier and add items.', 'error'); return; } const totalValue = state.currentPOList.reduce((acc, item) => acc + (item.quantity * item.cost), 0); const payload = { type: 'po', poId, supplierCode, date: new Date().toISOString(), items: state.currentPOList, totalValue, notes }; await handleTransactionSubmit(payload, btn); });
         document.getElementById('btn-submit-return').addEventListener('click', async (e) => { const btn = e.currentTarget; const supplierCode = document.getElementById('return-supplier').value, fromBranchCode = document.getElementById('return-branch').value, ref = document.getElementById('return-ref').value, notes = document.getElementById('return-notes').value; if (!supplierCode || !fromBranchCode || !ref || state.currentReturnList.length === 0) { showToast('Please fill all required fields and add items.', 'error'); return; } const payload = { type: 'return_out', batchId: `RTN-${Date.now()}`, supplierCode, fromBranchCode, ref, date: new Date().toISOString(), items: state.currentReturnList, notes }; await handleTransactionSubmit(payload, btn); });
         
@@ -1103,7 +1173,7 @@ document.addEventListener('DOMContentLoaded', () => {
                    if (!isNaN(value)) {
                        list[index][field] = value;
                    }
-                   rendererFn(); // Always re-render to update calculated totals
+                   rendererFn();
                 }
             }
         };
@@ -1121,6 +1191,10 @@ document.addEventListener('DOMContentLoaded', () => {
         setupInputTableListeners('table-transfer-list', 'currentTransferList', renderTransferListTable);
         setupInputTableListeners('table-issue-list', 'currentIssueList', renderIssueListTable);
         setupInputTableListeners('table-request-list', 'currentRequestList', renderRequestListTable);
+
+        document.getElementById('transfer-from-branch').addEventListener('change', renderTransferListTable);
+        document.getElementById('issue-from-branch').addEventListener('change', renderIssueListTable);
+        document.getElementById('return-branch').addEventListener('change', renderReturnListTable);
     }
     
     function setupRoleBasedNav() {
