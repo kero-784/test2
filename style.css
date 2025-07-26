@@ -205,6 +205,12 @@ tbody tr:hover { background-color: #f7faff; }
 #table-activity-log td:nth-child(4) { white-space: normal; word-break: break-word; }
 .permission-category { font-size: 16px; font-weight: 600; margin-top: 24px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border-color); color: var(--primary-dark); }
 .permissions-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.permissions-scroll-container {
+    flex-grow: 1;
+    overflow-y: auto;
+    min-height: 0;
+    padding-top: 16px;
+}
 #view-transfer-modal-body p { margin: 4px 0; font-size: 16px; }
 #view-transfer-modal-body p strong { color: var(--text-light-color); display: inline-block; width: 120px; }
 
