@@ -332,7 +332,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Financials': ['viewPayments', 'opRecordPayment'],
                     'Reporting': ['viewReports', 'viewStockLevels', 'viewTransactionHistory', 'viewAllBranches'],
                 };
-                formHtml = '<h3>Permissions</h3>';
+                            formHtml = '<h3>Permissions</h3>';
+                // Add a new wrapper div that will handle the scrolling
+                formHtml += '<div class="permissions-scroll-container">'; 
                 for (const category in permissionCategories) {
                     formHtml += `<h4 class="permission-category">${category}</h4><div class="form-grid permissions-grid">`;
                     permissionCategories[category].forEach(key => {
@@ -344,6 +346,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     formHtml += `</div>`;
                 }
+                formHtml += '</div>'; // Close the new wrapper div
                 formHtml += `<div class="form-group span-full" style="margin-top: 24px;"><button type="button" id="btn-delete-role" class="danger">Delete Role</button></div>`
                 editModalBody.innerHTML = formHtml;
                 break;
