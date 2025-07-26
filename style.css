@@ -190,7 +190,7 @@ tbody tr:hover { background-color: #f7faff; }
 .modal-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 20px 24px; border-top: 1px solid var(--border-color); background-color: #F7F8FC; flex-shrink: 0; }
 
 /* --- Component-Specific Styles --- */
-#table-receive-list input, #table-transfer-list input, #table-issue-list input, #table-po-list input, #table-return-list input, #table-request-list input { padding: 8px; font-size: 14px; max-width: 120px; background-color: white; }
+#table-receive-list input, #table-transfer-list input, #table-issue-list input, #table-po-list input, #table-return-list input, #table-request-list input, #table-edit-po-list input { padding: 8px; font-size: 14px; max-width: 120px; background-color: white; }
 .kpi-card { background-color: var(--card-bg-color); padding: 20px; border-radius: var(--border-radius); box-shadow: var(--shadow-sm); border: 1px solid var(--border-color); text-align: center; }
 .kpi-label { font-size: 14px; color: var(--text-light-color); margin-bottom: 8px; font-weight: 500; }
 .kpi-value { font-size: 28px; font-weight: 700; color: var(--text-color); }
@@ -204,7 +204,7 @@ tbody tr:hover { background-color: #f7faff; }
 #item-centric-stock-container td, .printable-area td, #history-modal-body td { white-space: normal; }
 #table-activity-log td:nth-child(4) { white-space: normal; word-break: break-word; }
 .permission-category { font-size: 16px; font-weight: 600; margin-top: 24px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border-color); color: var(--primary-dark); }
-.permissions-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.permissions-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
 #view-transfer-modal-body p { margin: 4px 0; font-size: 16px; }
 #view-transfer-modal-body p strong { color: var(--text-light-color); display: inline-block; width: 120px; }
 
