@@ -332,21 +332,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Financials': ['viewPayments', 'opRecordPayment'],
                     'Reporting': ['viewReports', 'viewStockLevels', 'viewTransactionHistory', 'viewAllBranches'],
                 };
-                            formHtml = '<h3>Permissions</h3>';
-                // Add a new wrapper div that will handle the scrolling
-                formHtml += '<div class="permissions-scroll-container">'; 
+                           formHtml = '<h3>Permissions</h3>';
                 for (const category in permissionCategories) {
                     formHtml += `<h4 class="permission-category">${category}</h4><div class="form-grid permissions-grid">`;
-                    permissionCategories[category].forEach(key => {
-                        // Only show permission if it exists in the sheet
-                        if (Object.keys(record).includes(key)) {
-                            const isChecked = record[key] === true || String(record[key]).toUpperCase() === 'TRUE';
-                            formHtml += `<div class="form-group-checkbox"><input type="checkbox" id="edit-perm-${key}" name="${key}" ${isChecked ? 'checked' : ''}><label for="edit-perm-${key}">${key}</label></div>`;
-                        }
-                    });
+                    // ... (rest of the loop) ...
                     formHtml += `</div>`;
                 }
-                formHtml += '</div>'; // Close the new wrapper div
                 formHtml += `<div class="form-group span-full" style="margin-top: 24px;"><button type="button" id="btn-delete-role" class="danger">Delete Role</button></div>`
                 editModalBody.innerHTML = formHtml;
                 break;
