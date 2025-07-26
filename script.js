@@ -1,5 +1,4 @@
 // PART 1 OF 4: CORE SETUP & API
-<link rel="icon" href="favicon.ico" type="image/x-icon">
 window.printReport = function(elementId) {
     const reportContent = document.querySelector(`#${elementId} .printable-document`);
     if (reportContent) {
