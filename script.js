@@ -317,11 +317,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 formHtml += `</div>`;
                 editModalBody.innerHTML = formHtml;
                 break;
-            case 'role':
+                        case 'role':
                 record = findByKey(state.allRoles, 'RoleName', id);
                 if (!record) return;
                 editModalTitle.textContent = `Edit Permissions for ${record.RoleName}`;
-                const permissionKeys = Object.keys(state.allRoles[0] || {}).filter(key => key !== 'RoleName');
+
+                // --- START OF FIX ---
+                // This is the robust way to define all possible permissions.
+                // It ensures that even if a column is missing from the sheet, it can be added.
                 const permissionCategories = {
                     'General Access': ['viewDashboard', 'viewActivityLog'],
                     'User Management': ['manageUsers'],
@@ -332,13 +335,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Financials': ['viewPayments', 'opRecordPayment'],
                     'Reporting': ['viewReports', 'viewStockLevels', 'viewTransactionHistory', 'viewAllBranches'],
                 };
-                           formHtml = '<h3>Permissions</h3>';
+                
+                formHtml = '<h3>Permissions</h3>';
                 for (const category in permissionCategories) {
                     formHtml += `<h4 class="permission-category">${category}</h4><div class="form-grid permissions-grid">`;
-                    // ... (rest of the loop) ...
+                    permissionCategories[category].forEach(key => {
+                        // The fix is here: We check the record itself, not a potentially empty template object.
+                        // This ensures that checkboxes render correctly for every defined permission.
+                        const isChecked = record[key] === true || String(record[key]).toUpperCase() === 'TRUE';
+                        formHtml += `<div class="form-group-checkbox"><input type="checkbox" id="edit-perm-${key}" name="${key}" ${isChecked ? 'checked' : ''}><label for="edit-perm-${key}">${key}</label></div>`;
+                    });
                     formHtml += `</div>`;
                 }
-                formHtml += `<div class="form-group span-full" style="margin-top: 24px;"><button type="button" id="btn-delete-role" class="danger">Delete Role</button></div>`
+                // --- END OF FIX ---
+
+                formHtml += `<div class="form-group span-full" style="margin-top: 24px;"><button type="button" id="btn-delete-role" class="danger">Delete Role</button></div>`;
                 editModalBody.innerHTML = formHtml;
                 break;
         }
