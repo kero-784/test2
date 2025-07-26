@@ -162,7 +162,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setButtonLoading(false, buttonEl);
         }
     }
-    // PART 2 OF 4: MODAL & UI LOGIC
+ // PART 2 OF 4: MODAL & UI LOGIC
     function openItemSelectorModal(event) {
         const context = event.target.dataset.context;
         if (!context) {
@@ -568,7 +568,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
-  // PART 3 OF 4: VIEW RENDERING & DOCUMENT GENERATION
+// PART 3 OF 4: VIEW RENDERING & DOCUMENT GENERATION
     function renderItemsTable(data = state.items) {
         const tbody = document.getElementById('table-items').querySelector('tbody');
         tbody.innerHTML = '';
