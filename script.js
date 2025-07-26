@@ -1801,4 +1801,3 @@ document.addEventListener('DOMContentLoaded', () => {
 
     init();
 });
-```
