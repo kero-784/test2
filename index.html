@@ -96,7 +96,13 @@
                     <div class="card"><h2>My Request History</h2><div class="report-area"><table id="table-my-requests-history"><thead><tr><th>ID</th><th>Date</th><th>Type</th><th>Items (Req/Issued)</th><th>Status</th><th>Notes</th></tr></thead><tbody></tbody></table></div></div>
                 </div>
                 <div id="subview-pending-approval" class="sub-view">
-                    <div class="card"><h2>Requests Pending Approval</h2><div class="report-area"><table id="table-pending-requests"><thead><tr><th>ID</th><th>Date</th><th>Type</th><th>Requested By</th><th>Details</th><th>Items</th><th>Actions</th></tr></thead><tbody></tbody></table></div></div>
+                    <div class="card">
+                        <div class="toolbar">
+                            <h2>Requests Pending Approval</h2>
+                            <button id="btn-print-pending-requests" class="secondary small">Print List</button>
+                        </div>
+                        <div class="report-area"><table id="table-pending-requests"><thead><tr><th>ID</th><th>Date</th><th>Type</th><th>Requested By</th><th>Details</th><th>Items</th><th>Actions</th></tr></thead><tbody></tbody></table></div>
+                    </div>
                 </div>
             </div>
             <div id="view-stock-levels" class="view"><div class="card"><div class="toolbar"><h2 id="stock-levels-title">Stock by Item</h2><div class="search-bar"><input type="search" id="stock-levels-search" class="search-bar-input" placeholder="Search by item name or code..."></div><button id="btn-export-stock" class="secondary">Export to Excel</button></div><div id="item-centric-stock-container" class="report-area"></div></div><div class="card"><h2>Item Stock Inquiry (Drill-down)</h2><input type="search" id="item-inquiry-search" class="search-bar-input" placeholder="Start typing an item name or code..."><div id="item-inquiry-results" class="report-area"></div></div></div>
