@@ -1,4 +1,4 @@
-// PART 1 OF 4: CORE SETUP & API
+// --- START OF SCRIPT.JS PART 1 OF 4 ---
 
 window.printReport = function(elementId) {
     const reportContent = document.querySelector(`#${elementId} .printable-document`);
@@ -162,6 +162,8 @@ document.addEventListener('DOMContentLoaded', () => {
             setButtonLoading(false, buttonEl);
         }
     }
+// --- START OF SCRIPT.JS PART 2 OF 4 ---
+
  // PART 2 OF 4: MODAL & UI LOGIC
     function openItemSelectorModal(event) {
         const context = event.target.dataset.context;
@@ -318,6 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 record = findByKey(state.allRoles, 'RoleName', id);
                 if (!record) return;
                 editModalTitle.textContent = `Edit Permissions for ${record.RoleName}`;
+                // Updated permission keys
                 const permissionKeys = Object.keys(state.allRoles[0] || {}).filter(key => key !== 'RoleName');
                 const permissionCategories = {
                     'General Access': ['viewDashboard', 'viewActivityLog'],
@@ -325,7 +328,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Data Management': ['viewSetup', 'viewMasterData', 'createItem', 'editItem', 'createSupplier', 'editSupplier', 'createBranch', 'editBranch', 'createSection', 'editSection'],
                     'Stock Operations': ['viewOperations', 'opReceive', 'opReceiveWithoutPO', 'opIssue', 'opTransfer', 'opReturn'],
                     'Purchasing': ['viewPurchasing', 'opCreatePO'],
-                    'Item Requests': ['viewRequests', 'opRequestItems', 'opApproveRequest'],
+                    'Item Requests': ['viewRequests', 'opRequestItems', 'opApproveIssueRequest', 'opApproveResupplyRequest'], // <-- Split permissions
                     'Financials': ['viewPayments', 'opRecordPayment'],
                     'Reporting': ['viewReports', 'viewStockLevels', 'viewTransactionHistory', 'viewAllBranches'],
                 };
@@ -357,9 +360,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (type === 'user') {
             action = id ? 'updateUser' : 'addUser';
+            payload = {}; // Clear payload for user add/edit
             for (let [key, value] of formData.entries()) {
-                if (key === 'LoginCode' && value === '') continue;
-                payload[key] = value;
+                 if (key === 'LoginCode' && value === '') continue;
+                 payload[key] = value;
             }
             if(id) { // If editing, structure payload for updateUser
                 payload = { Username: id, updates: {} };
@@ -525,7 +529,9 @@ document.addEventListener('DOMContentLoaded', () => {
         Logger.info(`Switching view to: ${viewId}` + (subViewId ? `/${subViewId}` : ''));
         document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
         document.querySelectorAll('#main-nav a').forEach(link => link.classList.remove('active'));
-        document.getElementById(`view-${viewId}`).classList.add('active');
+        const viewToShow = document.getElementById(`view-${viewId}`);
+        if(viewToShow) viewToShow.classList.add('active');
+        
         const activeLink = document.querySelector(`[data-view="${viewId}"]`);
         if (activeLink) {
             activeLink.classList.add('active');
@@ -568,7 +574,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
-// PART 3 OF 4: VIEW RENDERING & DOCUMENT GENERATION
+    // PART 3 OF 4: VIEW RENDERING & DOCUMENT GENERATION
     function renderItemsTable(data = state.items) {
         const tbody = document.getElementById('table-items').querySelector('tbody');
         tbody.innerHTML = '';
@@ -1066,10 +1072,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (branchCode) {
             ['receive-branch', 'issue-from-branch', 'transfer-from-branch', 'return-branch'].forEach(id => {
                 const el = document.getElementById(id);
-                if (el) { el.value = branchCode; el.disabled = true; el.dispatchEvent(new Event('change')); }
+                if (el && !userCan('viewAllBranches')) { el.value = branchCode; el.disabled = true; el.dispatchEvent(new Event('change')); }
             });
             if (!userCan('viewAllBranches')) {
-                ['branch-consumption-select'].forEach(id => {
+                ['branch-consumption-select', 'resupply-branch-filter'].forEach(id => {
                     const el = document.getElementById(id);
                     if (el) { el.value = branchCode; el.disabled = true; }
                 });
@@ -1084,17 +1090,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const refreshViewData = async (viewId) => {
         if (!state.currentUser) return;
         Logger.debug(`Refreshing view: ${viewId}`);
-        document.querySelectorAll('.card h2 .btn-refresh').forEach(btn => btn.remove());
-        if(viewId !== 'dashboard') {
-            const activeViewTitle = document.querySelector(`#view-${viewId} .toolbar h2, #view-${viewId} .card h2`);
-            if(activeViewTitle) {
-                const refreshBtn = document.createElement('button');
-                refreshBtn.className = 'secondary small btn-refresh no-print';
-                refreshBtn.title = 'Refresh Data';
-                refreshBtn.innerHTML = '⟳';
-                activeViewTitle.appendChild(refreshBtn);
-            }
+        document.querySelectorAll('.card h2 .btn-refresh, .toolbar .btn-refresh').forEach(btn => btn.remove());
+
+        const activeView = document.getElementById(`view-${viewId}`);
+        let targetHeader = activeView.querySelector('.toolbar h2, .card h2');
+        if (viewId === 'stock-levels') {
+            targetHeader = activeView.querySelector('.toolbar');
         }
+
+        if (targetHeader) {
+            const refreshBtn = document.createElement('button');
+            refreshBtn.className = 'secondary small btn-refresh no-print';
+            refreshBtn.title = 'Refresh Data';
+            refreshBtn.innerHTML = '⟳';
+            targetHeader.appendChild(refreshBtn);
+        }
+
 
         switch(viewId) {
             case 'dashboard':
@@ -1150,7 +1161,7 @@ document.addEventListener('DOMContentLoaded', () => {
                  break;
             case 'requests':
                 document.querySelector('[data-subview="my-requests"]').style.display = userCan('opRequestItems') ? 'inline-block' : 'none';
-                document.querySelector('[data-subview="pending-approval"]').style.display = userCan('opApproveRequest') ? 'inline-block' : 'none';
+                document.querySelector('[data-subview="pending-approval"]').style.display = userCan('opApproveIssueRequest') || userCan('opApproveResupplyRequest') ? 'inline-block' : 'none';
                 renderRequestListTable(); renderMyRequests(); renderPendingRequests();
                 document.querySelector('#view-requests .sub-nav-item[style*="inline-block"]')?.click();
                 break;
@@ -1163,6 +1174,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 populateOptions(document.getElementById('supplier-statement-select'), state.suppliers, 'Select a Supplier', 'supplierCode', 'name');
                 populateOptions(document.getElementById('branch-consumption-select'), getVisibleBranchesForCurrentUser(), 'Select a Branch', 'branchCode', 'name');
                 populateOptions(document.getElementById('section-consumption-select'), state.sections, 'Select a Section', 'sectionCode', 'name');
+                populateOptions(document.getElementById('resupply-branch-filter'), getVisibleBranchesForCurrentUser(), 'All Branches', 'branchCode', 'name');
                 populateOptions(document.getElementById('branch-consumption-item-filter'), state.items, 'All Items', 'code', 'name');
                 populateOptions(document.getElementById('section-consumption-item-filter'), state.items, 'All Items', 'code', 'name');
                 document.querySelector('#view-reports .sub-nav-item').click();
@@ -1263,6 +1275,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const toBranch = findByKey(state.branches, 'branchCode', first.ToBranch)?.name || first.ToBranch;
             const itemsSummary = group.map(i => `${i.Quantity} x ${findByKey(state.items, 'code', i.ItemCode)?.name || i.ItemCode}`).join('<br>');
             const tr = document.createElement('tr');
+            let canApprove = (first.Type === 'issue' && userCan('opApproveIssueRequest')) || (first.Type === 'resupply' && userCan('opApproveResupplyRequest'));
+            
             tr.innerHTML = `
                 <td>${first.RequestID}</td>
                 <td>${new Date(first.Date).toLocaleString()}</td>
@@ -1272,8 +1286,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${itemsSummary}</td>
                 <td>
                     <div class="action-buttons">
-                        <button class="primary small btn-approve-request" data-id="${first.RequestID}">Approve</button>
-                        <button class="danger small btn-reject-request" data-id="${first.RequestID}">Reject</button>
+                        <button class="primary small btn-approve-request" data-id="${first.RequestID}" ${!canApprove ? 'disabled' : ''}>Approve</button>
+                        <button class="danger small btn-reject-request" data-id="${first.RequestID}" ${!canApprove ? 'disabled' : ''}>Reject</button>
                     </div>
                 </td>
             `;
@@ -1328,7 +1342,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function updatePendingRequestsWidget() {
         const widget = document.getElementById('pending-requests-widget');
-        if (!userCan('opApproveRequest')) {
+        if (!userCan('opApproveIssueRequest') && !userCan('opApproveResupplyRequest')) {
             widget.style.display = 'none';
             return;
         }
@@ -1479,10 +1493,11 @@ document.addEventListener('DOMContentLoaded', () => {
         setupInputTableListeners('table-request-list', 'currentRequestList', renderRequestListTable);
 
         // Report Generation Buttons
-        document.getElementById('btn-generate-supplier-statement').addEventListener('click', () => { /* ... report logic ... */ });
-        document.getElementById('btn-generate-branch-consumption').addEventListener('click', () => { /* ... report logic ... */ });
-        document.getElementById('btn-generate-section-consumption').addEventListener('click', () => { /* ... report logic ... */ });
-        document.getElementById('btn-view-pending-requests').addEventListener('click', () => showView('requests', 'pending-approval'));
+        document.getElementById('btn-generate-supplier-statement').addEventListener('click', () => { const supplierCode = document.getElementById('supplier-statement-select').value; const startDate = document.getElementById('statement-start-date').value; const endDate = document.getElementById('statement-end-date').value; if(!supplierCode) { showToast('Please select a supplier.', 'error'); return; } renderSupplierStatement(supplierCode, startDate, endDate); });
+        document.getElementById('btn-generate-branch-consumption').addEventListener('click', () => { const branchCode = document.getElementById('branch-consumption-select').value; const startDate = document.getElementById('branch-consumption-start-date').value; const endDate = document.getElementById('branch-consumption-end-date').value; const itemFilter = document.getElementById('branch-consumption-item-filter').value; const categoryFilter = document.getElementById('branch-consumption-category-filter').value; if(!branchCode) { showToast('Please select a branch.', 'error'); return; } let filteredTx = state.transactions.filter(t => t.type === 'issue' && t.fromBranchCode === branchCode); const sDate = startDate ? new Date(startDate) : null; const eDate = endDate ? new Date(endDate) : null; if(eDate) eDate.setHours(23,59,59,999); if (sDate) filteredTx = filteredTx.filter(t => new Date(t.date) >= sDate); if (eDate) filteredTx = filteredTx.filter(t => new Date(t.date) <= eDate); if (itemFilter) filteredTx = filteredTx.filter(t => t.itemCode === itemFilter); if (categoryFilter) { const itemCodesInCategory = state.items.filter(i => i.category === categoryFilter).map(i => i.code); filteredTx = filteredTx.filter(t => itemCodesInCategory.includes(t.itemCode)); } renderConsumptionReport({ resultsContainerId: 'branch-consumption-results', exportBtnId: 'btn-export-branch-consumption', data: filteredTx, title: 'Branch Consumption Report', entityName: findByKey(state.branches, 'branchCode', branchCode).name, dateHeader: `${startDate || 'Start'} to ${endDate || 'End'}` }); });
+        document.getElementById('btn-generate-section-consumption').addEventListener('click', () => { const sectionCode = document.getElementById('section-consumption-select').value; const startDate = document.getElementById('section-consumption-start-date').value; const endDate = document.getElementById('section-consumption-end-date').value; const itemFilter = document.getElementById('section-consumption-item-filter').value; const categoryFilter = document.getElementById('section-consumption-category-filter').value; if(!sectionCode) { showToast('Please select a section.', 'error'); return; } let filteredTx = state.transactions.filter(t => t.type === 'issue' && t.sectionCode === sectionCode); const sDate = startDate ? new Date(startDate) : null; const eDate = endDate ? new Date(endDate) : null; if(eDate) eDate.setHours(23,59,59,999); if (sDate) filteredTx = filteredTx.filter(t => new Date(t.date) >= sDate); if (eDate) filteredTx = filteredTx.filter(t => new Date(t.date) <= eDate); if (itemFilter) filteredTx = filteredTx.filter(t => t.itemCode === itemFilter); if (categoryFilter) { const itemCodesInCategory = state.items.filter(i => i.category === categoryFilter).map(i => i.code); filteredTx = filteredTx.filter(t => itemCodesInCategory.includes(t.itemCode)); } renderConsumptionReport({ resultsContainerId: 'section-consumption-results', exportBtnId: 'btn-export-section-consumption', data: filteredTx, title: 'Section Consumption Report', entityName: findByKey(state.sections, 'sectionCode', sectionCode).name, dateHeader: `${startDate || 'Start'} to ${endDate || 'End'}` }); });
+        document.getElementById('btn-generate-resupply-report').addEventListener('click', () => { const branchCode = document.getElementById('resupply-branch-filter').value; const startDate = document.getElementById('resupply-start-date').value; const endDate = document.getElementById('resupply-end-date').value; let filteredReqs = state.itemRequests.filter(r => r.Type === 'resupply'); const sDate = startDate ? new Date(startDate) : null; const eDate = endDate ? new Date(endDate) : null; if(eDate) eDate.setHours(23,59,59,999); if (branchCode) filteredReqs = filteredReqs.filter(r => r.ToBranch === branchCode); if (sDate) filteredReqs = filteredReqs.filter(r => new Date(r.Date) >= sDate); if (eDate) filteredReqs = filteredReqs.filter(r => new Date(r.Date) <= eDate); const entityName = branchCode ? findByKey(state.branches, 'branchCode', branchCode).name : 'All Branches'; renderConsumptionReport({ resultsContainerId: 'resupply-report-results', exportBtnId: 'btn-export-resupply-report', data: filteredReqs.map(r => ({...r, fromBranchCode: r.ToBranch, itemCode: r.ItemCode, quantity: r.Quantity})), title: 'Resupply Request Report', entityName: entityName, dateHeader: `${startDate || 'Start'} to ${endDate || 'End'}`}); });
+        document.getElementById('pending-requests-widget').addEventListener('click', () => showView('requests', 'pending-approval'));
 
         // Other Listeners (delegated for dynamic content)
         document.getElementById('view-operations').addEventListener('click', e => {
@@ -1525,6 +1540,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if(!poId) {
                 state.currentReceiveList = [];
                 renderReceiveListTable();
+                document.getElementById('receive-supplier').value = '';
                 return;
             }
             const po = findByKey(state.purchaseOrders, 'poId', poId);
@@ -1535,8 +1551,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 return {
                     itemCode: item.itemCode,
                     itemName: masterItem?.name || 'Unknown Item',
-                    quantity: item.quantity,
-                    cost: item.cost
+                    quantity: parseFloat(item.quantity),
+                    cost: parseFloat(item.cost)
                 }
             });
             renderReceiveListTable();
@@ -1550,7 +1566,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const navMap = { 'dashboard': 'viewDashboard', 'operations': 'viewOperations', 'purchasing': 'viewPurchasing', 'requests': 'viewRequests', 'payments': 'viewPayments', 'reports': 'viewReports', 'stock-levels': 'viewStockLevels', 'transaction-history': 'viewTransactionHistory', 'setup': 'viewSetup', 'master-data': 'viewMasterData', 'user-management': 'manageUsers', 'activity-log': 'viewActivityLog' };
         for (const [view, permission] of Object.entries(navMap)) {
             const navItem = document.querySelector(`[data-view="${view}"]`);
-            if (navItem) { navItem.parentElement.style.display = userCan(permission) ? '' : 'none'; }
+            if (navItem) { 
+                const hasPermission = userCan(permission);
+                if (view === 'requests') {
+                    // Special case for requests view
+                    const canRequest = userCan('opRequestItems');
+                    const canApproveIssue = userCan('opApproveIssueRequest');
+                    const canApproveResupply = userCan('opApproveResupplyRequest');
+                    if (canRequest || canApproveIssue || canApproveResupply) {
+                        navItem.parentElement.style.display = '';
+                    } else {
+                        navItem.parentElement.style.display = 'none';
+                    }
+                } else {
+                    navItem.parentElement.style.display = hasPermission ? '' : 'none'; 
+                }
+            }
         }
     }
     
@@ -1566,9 +1597,23 @@ document.addEventListener('DOMContentLoaded', () => {
         setupSearch('search-branches', renderBranchesTable, 'branches', ['name', 'branchCode']);
         setupSearch('search-sections', renderSectionsTable, 'sections', ['name', 'sectionCode']);
         setupSearch('stock-levels-search', renderItemCentricStockView, 'items', ['name', 'code']);
+        document.getElementById('item-inquiry-search').addEventListener('input', e => renderItemInquiry(e.target.value.toLowerCase()));
+        document.getElementById('transaction-search').addEventListener('input', e => renderTransactionHistory(e.target.value));
+
+        // Export buttons
+        document.getElementById('btn-export-items').addEventListener('click', () => exportToExcel('table-items', 'ItemList.xlsx'));
+        document.getElementById('btn-export-suppliers').addEventListener('click', () => exportToExcel('table-suppliers', 'SupplierList.xlsx'));
+        document.getElementById('btn-export-branches').addEventListener('click', () => exportToExcel('table-branches', 'BranchList.xlsx'));
+        document.getElementById('btn-export-sections').addEventListener('click', () => exportToExcel('table-sections', 'SectionList.xlsx'));
+        document.getElementById('btn-export-stock').addEventListener('click', () => exportToExcel('table-stock-levels-by-item', 'StockLevels.xlsx'));
+        document.getElementById('btn-export-supplier-statement').addEventListener('click', () => exportToExcel('table-supplier-statement-report', 'SupplierStatement.xlsx'));
+        document.getElementById('btn-export-branch-consumption').addEventListener('click', () => exportToExcel('table-branch-consumption-results-report', 'BranchConsumption.xlsx'));
+        document.getElementById('btn-export-section-consumption').addEventListener('click', () => exportToExcel('table-section-consumption-results-report', 'SectionConsumption.xlsx'));
+        document.getElementById('btn-export-resupply-report').addEventListener('click', () => exportToExcel('table-resupply-report-results-report', 'ResupplyReport.xlsx'));
+        
         updateUserBranchDisplay();
         updatePendingRequestsWidget();
-        const firstVisibleView = document.querySelector('#main-nav .nav-item[style*="display:"]:not([style*="display: none"]) a')?.dataset.view || 'dashboard';
+        const firstVisibleView = document.querySelector('#main-nav .nav-item:not([style*="display: none"]) a')?.dataset.view || 'dashboard';
         showView(firstVisibleView);
         Logger.info('Application initialized successfully.');
     }
