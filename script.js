@@ -13,7 +13,7 @@ window.printReport = function(elementId) {
 
 document.addEventListener('DOMContentLoaded', () => {
     // !!! IMPORTANT: PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwBd1R63gywFUZ4_5OP6hDCcL2RPclXw-01E-lK32MU3sTCPd416k9sBx_RmfKoKun0/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzeIITgXgVJx2cxco1XEauD_id-Dzucot6jIXfJfurXjepFTyy981ysSo6QoBFxGxmY/exec';
 
     const Logger = {
         info: (message, ...args) => console.log(`[StockWise INFO] ${message}`, ...args),
@@ -167,7 +167,14 @@ document.addEventListener('DOMContentLoaded', () => {
             setButtonLoading(false, buttonEl);
         }
     }
-    // PART 2 OF 4: MODAL & UI LOGIC
+```
+
+---
+
+### **`script.js` - Part 2 of 4**
+
+```javascript
+// PART 2 OF 4: MODAL & UI LOGIC
     function openItemSelectorModal(event) {
         const context = event.target.dataset.context;
         if (!context) {
@@ -317,14 +324,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 formHtml += `</div>`;
                 editModalBody.innerHTML = formHtml;
                 break;
-                        case 'role':
+            case 'role':
                 record = findByKey(state.allRoles, 'RoleName', id);
-                if (!record) return;
+                if (!record) {
+                    showToast('Role data not found. Please refresh and try again.', 'error');
+                    return;
+                }
                 editModalTitle.textContent = `Edit Permissions for ${record.RoleName}`;
 
-                // --- START OF FIX ---
-                // This is the robust way to define all possible permissions.
-                // It ensures that even if a column is missing from the sheet, it can be added.
+                // This is the complete, hardcoded list of all possible permissions.
+                // This prevents the error where checkboxes don't appear if the sheet is missing columns.
                 const permissionCategories = {
                     'General Access': ['viewDashboard', 'viewActivityLog'],
                     'User Management': ['manageUsers'],
@@ -340,14 +349,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 for (const category in permissionCategories) {
                     formHtml += `<h4 class="permission-category">${category}</h4><div class="form-grid permissions-grid">`;
                     permissionCategories[category].forEach(key => {
-                        // The fix is here: We check the record itself, not a potentially empty template object.
+                        // The fix is here: We check the record itself for the key.
                         // This ensures that checkboxes render correctly for every defined permission.
                         const isChecked = record[key] === true || String(record[key]).toUpperCase() === 'TRUE';
                         formHtml += `<div class="form-group-checkbox"><input type="checkbox" id="edit-perm-${key}" name="${key}" ${isChecked ? 'checked' : ''}><label for="edit-perm-${key}">${key}</label></div>`;
                     });
                     formHtml += `</div>`;
                 }
-                // --- END OF FIX ---
 
                 formHtml += `<div class="form-group span-full" style="margin-top: 24px;"><button type="button" id="btn-delete-role" class="danger">Delete Role</button></div>`;
                 editModalBody.innerHTML = formHtml;
@@ -583,7 +591,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
+```
 
+---
+
+### **`script.js` - Part 3 of 4**
+
+```javascript
 // PART 3 OF 4: VIEW RENDERING & DOCUMENT GENERATION
     function renderItemsTable(data = state.items) {
         const tbody = document.getElementById('table-items').querySelector('tbody');
@@ -666,7 +680,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     case 'text': content = item[col.key]; break;
                     case 'number_input': content = `<input type="number" class="table-input" value="${item[col.key] || 1}" min="${col.min || 0.01}" ${col.maxKey ? `max="${stock[fromBranch]?.[item.itemCode]?.quantity || 0}"` : ''} step="${col.step || 0.01}" data-index="${index}" data-field="${col.key}">`; break;
                     case 'cost_input': content = `<input type="number" class="table-input" value="${(item.cost || 0).toFixed(2)}" min="0" step="0.01" data-index="${index}" data-field="cost">`; break;
-                    case 'calculated': content = `<span id="${col.idPrefix}-${index}">${col.calculator(item)}</span>`; break;
+                    case 'calculated': content = `<span>${col.calculator(item)}</span>`; break;
                     case 'available_stock': content = (stock[fromBranch]?.[item.itemCode]?.quantity || 0).toFixed(2); break;
                 }
                 cellsHtml += `<td>${content}</td>`;
@@ -678,11 +692,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (totalizerFn) totalizerFn();
     };
     
-    function renderReceiveListTable() { renderDynamicListTable('table-receive-list', state.currentReceiveList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated', idPrefix: 'total-cost', calculator: item => `${((item.quantity || 0) * (item.cost || 0)).toFixed(2)} EGP` } ], 'No items selected. Click "Select Items".', updateReceiveGrandTotal); }
+    function renderReceiveListTable() { renderDynamicListTable('table-receive-list', state.currentReceiveList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated', calculator: item => `${((item.quantity || 0) * (item.cost || 0)).toFixed(2)} EGP` } ], 'No items selected. Click "Select Items".', updateReceiveGrandTotal); }
     function renderTransferListTable() { renderDynamicListTable('table-transfer-list', state.currentTransferList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'available_stock', branchSelectId: 'transfer-from-branch' }, { type: 'number_input', key: 'quantity', maxKey: true, branchSelectId: 'transfer-from-branch' } ], 'No items selected. Click "Select Items".', updateTransferGrandTotal); }
     function renderIssueListTable() { renderDynamicListTable('table-issue-list', state.currentIssueList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'available_stock', branchSelectId: 'issue-from-branch' }, { type: 'number_input', key: 'quantity', maxKey: true, branchSelectId: 'issue-from-branch' } ], 'No items selected. Click "Select Items".', updateIssueGrandTotal); }
-    function renderPOListTable() { renderDynamicListTable('table-po-list', state.currentPOList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated', idPrefix: 'po-total-cost', calculator: item => `${((item.quantity || 0) * (item.cost || 0)).toFixed(2)} EGP` } ], 'No items selected. Click "Select Items".', updatePOGrandTotal); }
-    function renderPOEditListTable() { renderDynamicListTable('table-edit-po-list', state.currentEditingPOList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated', idPrefix: 'edit-po-total-cost', calculator: item => `${((item.quantity || 0) * (item.cost || 0)).toFixed(2)} EGP` } ], 'No items selected. Click "Select Items".', updatePOEditGrandTotal); }
+    function renderPOListTable() { renderDynamicListTable('table-po-list', state.currentPOList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated', calculator: item => `${((item.quantity || 0) * (item.cost || 0)).toFixed(2)} EGP` } ], 'No items selected. Click "Select Items".', updatePOGrandTotal); }
+    function renderPOEditListTable() { renderDynamicListTable('table-edit-po-list', state.currentEditingPOList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated', calculator: item => `${((item.quantity || 0) * (item.cost || 0)).toFixed(2)} EGP` } ], 'No items selected. Click "Select Items".', updatePOEditGrandTotal); }
     function renderReturnListTable() { renderDynamicListTable('table-return-list', state.currentReturnList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'available_stock', branchSelectId: 'return-branch' }, { type: 'number_input', key: 'quantity', maxKey: true, branchSelectId: 'return-branch' }, { type: 'cost_input', key: 'cost' } ], 'No items selected. Click "Select Items".', updateReturnGrandTotal); }
     function renderRequestListTable() { renderDynamicListTable('table-request-list', state.currentRequestList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' } ], 'No items selected. Click "Select Items".', null); }
 
@@ -954,7 +968,7 @@ document.addEventListener('DOMContentLoaded', () => {
                      const t_from = findByKey(state.branches, 'branchCode', first.fromBranchCode);
                      const t_to = findByKey(state.branches, 'branchCode', first.toBranchCode);
                      details = `Transferred ${group.transactions.length} item(s) from <strong>${t_from?.name || 'N/A'}</strong> to <strong>${t_to?.name || 'N/A'}</strong>`;
-                     typeDisplay = first.Status === 'In Transit' ? "TRANSFER (IN TRANSIT)" : "TRANSFER";
+                     typeDisplay = "TRANSFER";
                      statusTag = `<span class="status-tag status-${(first.Status || '').toLowerCase().replace(/ /g,'')}">${first.Status}</span>`;
                      break;
                 case 'po':
@@ -991,7 +1005,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const generatePaymentVoucher = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; let invoicesHtml = ''; data.payments.forEach(p => { invoicesHtml += `<tr><td>${p.invoiceNumber}</td><td>${p.amount.toFixed(2)} EGP</td></tr>`; }); const content = `<div class="printable-document card"><h2>Payment Voucher</h2><p><strong>Voucher ID:</strong> ${data.payments[0].paymentId}</p><p><strong>Date:</strong> ${new Date(data.date).toLocaleString()}</p><hr><p><strong>Paid To:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><p><strong>Amount:</strong> ${data.totalAmount.toFixed(2)} EGP</p><p><strong>Method:</strong> ${data.method}</p><hr><h3>Payment Allocation</h3><table><thead><tr><th>Invoice #</th><th>Amount Paid</th></tr></thead><tbody>${invoicesHtml}</tbody></table><br><p><strong>Signature:</strong> _________________</p></div>`; printContent(content); };
     const generatePODocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; let itemsHtml = '', totalValue = 0; data.items.forEach(item => { const itemDetails = findByKey(state.items, 'code', item.itemCode) || {name: "N/A"}; const itemTotal = (item.quantity || 0) * (item.cost || 0); totalValue += itemTotal; itemsHtml += `<tr><td>${item.itemCode}</td><td>${itemDetails.name}</td><td>${(item.quantity || 0).toFixed(2)}</td><td>${(item.cost || 0).toFixed(2)} EGP</td><td>${itemTotal.toFixed(2)} EGP</td></tr>`; }); const content = `<div class="printable-document card"><h2>Purchase Order</h2><p><strong>PO No:</strong> ${data.poId || data.batchId}</p><p><strong>Date:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>Supplier:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><hr><h3>Items Ordered</h3><table><thead><tr><th>Code</th><th>Item</th><th>Qty</th><th>Cost/Unit</th><th>Total</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">Total Value</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>Notes:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Authorized By:</strong> ${data.createdBy || state.currentUser.Name}</p></div>`; printContent(content); };
     const generateReturnDocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; const branch = findByKey(state.branches, 'branchCode', data.fromBranchCode) || { name: 'DELETED' }; let itemsHtml = '', totalValue = 0; data.items.forEach(item => { const itemTotal = item.quantity * item.cost; totalValue += itemTotal; itemsHtml += `<tr><td>${item.itemCode}</td><td>${item.itemName}</td><td>${item.quantity.toFixed(2)}</td><td>${item.cost.toFixed(2)} EGP</td><td>${itemTotal.toFixed(2)} EGP</td></tr>`; }); const content = `<div class="printable-document card"><h2>Supplier Return Note</h2><p><strong>Credit Note Ref:</strong> ${data.ref}</p><p><strong>Date:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>Returned To:</strong> ${supplier.name}</p><p><strong>Returned From:</strong> ${branch.name}</p><hr><h3>Items Returned</h3><table><thead><tr><th>Code</th><th>Item</th><th>Qty</th><th>Cost/Unit</th><th>Total</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">Total Value</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>Reason:</strong> ${data.notes || 'N/A'}</p></div>`; printContent(content); };
-    
+```
+
+---
+
+### **`script.js` - Part 4 of 4**
+
+```javascript
 // PART 4 OF 4: CALCULATION ENGINES, EVENT LISTENERS & INITIALIZATION
     function updateReceiveGrandTotal() { let grandTotal = 0; (state.currentReceiveList || []).forEach(item => { grandTotal += (item.quantity || 0) * (item.cost || 0); }); document.getElementById('receive-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; }
     function updateTransferGrandTotal() { let grandTotalQty = 0; (state.currentTransferList || []).forEach(item => { grandTotalQty += (item.quantity || 0); }); document.getElementById('transfer-grand-total').textContent = grandTotalQty.toFixed(2); }
@@ -1200,8 +1220,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 populateOptions(document.getElementById('tx-filter-branch'), state.branches, 'All Branches', 'branchCode', 'name');
                 populateOptions(document.getElementById('tx-filter-section'), state.sections, 'All Sections', 'sectionCode', 'name');
                 populateOptions(document.getElementById('tx-filter-supplier'), state.suppliers, 'All Suppliers', 'supplierCode', 'name');
-                const txTypes = [...new Set(state.transactions.map(t => t.type))];
-                populateOptions(document.getElementById('tx-filter-type'), txTypes.map(t => ({'type': t})), 'All Types', 'type', 'type');
+                const txTypes = ['receive', 'issue', 'transfer_out', 'transfer_in', 'return_out', 'po'];
+                populateOptions(document.getElementById('tx-filter-type'), txTypes.map(t => ({'type': t, 'name': t.replace('_', ' ').toUpperCase()})), 'All Types', 'type', 'name');
                 renderTransactionHistory(); 
                 break;
             case 'user-management':
@@ -1294,7 +1314,7 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.values(grouped).reverse().forEach(group => {
             const first = group;
             const tr = document.createElement('tr');
-            const itemsSummary = group.items.map(i => `${i.Quantity} / ${i.IssuedQuantity !== '' ? i.IssuedQuantity : 'N/A'}`).join(', ');
+            const itemsSummary = group.items.map(i => `${i.Quantity} / ${i.IssuedQuantity !== '' && i.IssuedQuantity !== null ? i.IssuedQuantity : 'N/A'}`).join(', ');
 
             tr.innerHTML = `
                 <td>${first.RequestID}</td>
@@ -1486,7 +1506,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         ['tx-filter-type', 'tx-filter-branch', 'tx-filter-section', 'tx-filter-supplier', 'transaction-search'].forEach(id => {
-            document.getElementById(id).addEventListener('input', () => {
+            const el = document.getElementById(id);
+            const eventType = (el.tagName === 'SELECT') ? 'change' : 'input';
+            el.addEventListener(eventType, () => {
                 const filters = {
                     type: document.getElementById('tx-filter-type').value,
                     branch: document.getElementById('tx-filter-branch').value,
