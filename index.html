@@ -73,8 +73,8 @@
                     <div id="auto-backup-frequency-container" class="form-group" style="display: none; max-width: 300px; margin-top: 16px;">
                         <label for="auto-backup-frequency">Backup Frequency</label>
                         <select id="auto-backup-frequency">
-                            <option value="daily">Daily</option>
-                            <option value="weekly">Weekly</option>
+                            <option value="daily">Daily (at 2am)</option>
+                            <option value="weekly">Weekly (Sunday at 2am)</option>
                         </select>
                     </div>
                     <p id="auto-backup-status" style="margin-top: 16px; color: var(--text-light-color); font-style: italic;"></p>
@@ -88,18 +88,55 @@
                     <div id="backup-list-container" class="report-area">
                         <p>Loading backup list...</p>
                     </div>
-                    <div style="margin-top: 20px; padding: 15px; background-color: #fdf2e9; border: 1px solid #e89500; border-radius: 8px;">
-                        <strong style="color: var(--danger-color);">WARNING:</strong> Restoring data is a manual process. Clicking "Restore" will open the selected backup file. You must manually verify and copy the required data back into the main application sheet. This action cannot be undone automatically.
-                    </div>
                 </div>
             </div>
-            <!-- ALL OTHER VIEWS (master-data, payments, reports, etc.) GO HERE AND REMAIN UNCHANGED -->
-            <!-- ... -->
+            <div id="view-master-data" class="view"><!-- ... Master Data content ... --></div>
+            <div id="view-payments" class="view"><!-- ... Payments content ... --></div>
+            <!-- ... all other views ... -->
         </main>
     </div>
     
-    <!-- ALL MODALS GO HERE AND REMAIN UNCHANGED -->
-    <!-- ... -->
+    <!-- ALL MODALS GO HERE -->
+    <div id="item-selector-modal" class="modal-overlay"><!-- ... --></div>
+    <div id="invoice-selector-modal" class="modal-overlay"><!-- ... --></div>
+    <div id="edit-modal" class="modal-overlay"><!-- ... --></div>
+    <div id="view-transfer-modal" class="modal-overlay"><!-- ... --></div>
+    <div id="history-modal" class="modal-overlay"><!-- ... --></div>
+    <div id="edit-po-modal" class="modal-overlay"><!-- ... --></div>
+    <div id="approve-request-modal" class="modal-overlay"><!-- ... --></div>
+
+    <!-- NEW RESTORE MODAL -->
+    <div id="restore-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2 id="restore-modal-title">Restore from Backup</h2>
+                <button class="close-button">×</button>
+            </div>
+            <div class="modal-body" id="restore-modal-body">
+                <p>You are about to restore data from the backup file:</p>
+                <p><strong id="restore-filename-display"></strong></p>
+                <hr>
+                <p><strong>1. Select which data sheets to restore.</strong></p>
+                <div id="restore-sheet-list" class="form-grid permissions-grid">
+                    <!-- Checkboxes will be inserted here by JavaScript -->
+                </div>
+                <hr>
+                <div class="form-group" style="margin-top: 20px;">
+                    <label><strong>2. Confirm this irreversible action.</strong></label>
+                    <div style="padding: 15px; background-color: #FDEDE9; border: 1px solid var(--danger-color); border-radius: 8px;">
+                        <strong style="color: var(--danger-color);">EXTREME DANGER:</strong> This will permanently delete the current data in the selected live sheets and replace it with the data from the backup. This action CANNOT be undone.
+                    </div>
+                    <p style="margin-top: 15px;">Please type <strong>RESTORE</strong> into the box below to proceed.</p>
+                    <input type="text" id="restore-confirmation-input" autocomplete="off">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="secondary modal-cancel">Cancel</button>
+                <button id="btn-confirm-restore" class="danger" disabled>Confirm and Restore Data</button>
+            </div>
+        </div>
+    </div>
+
     <div id="print-area" style="display: none;"></div>
     <div id="toast-container"></div>
     <script src="script.js"></script>
