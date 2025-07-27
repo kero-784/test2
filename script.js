@@ -799,40 +799,57 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderConsumptionReport(config) {
-        const { resultsContainerId, exportBtnId, data, title, entityName, dateHeader, qtyColumnHeader = 'Total Qty Consumed' } = config;
+        const { resultsContainerId, exportBtnId, data, title, entityName, dateHeader, historicalCosts, qtyColumnHeader = 'Total Qty Consumed' } = config;
         const resultsContainer = document.getElementById(resultsContainerId);
         const exportBtn = document.getElementById(exportBtnId);
     
-        let tableBodyHtml = '';
-        let grandTotalValue = 0;
-        
+        const hasValue = !!historicalCosts; // Check if we should calculate value
+    
         const groupedByItem = {};
         (data || []).forEach(t => {
             if (!groupedByItem[t.itemCode]) {
-                const item = findByKey(state.items, 'code', t.itemCode) || { name: 'N/A', unit: 'N/A' };
-                const stockLevels = calculateStockLevels();
-                const avgCost = stockLevels[t.fromBranchCode]?.[t.itemCode]?.avgCost || item.cost || 0;
-                groupedByItem[t.itemCode] = { item, totalQty: 0, totalValue: 0, avgCost: avgCost };
+                const item = findByKey(state.items, 'code', t.itemCode) || { name: 'N/A', unit: 'N/A', category: 'N/A' };
+                groupedByItem[t.itemCode] = { item, totalQty: 0, totalValue: 0 };
             }
-            // FIX: Ensure quantity is a number before adding
-            groupedByItem[t.itemCode].totalQty += parseFloat(t.quantity) || 0;
-            groupedByItem[t.itemCode].totalValue += (parseFloat(t.quantity) || 0) * groupedByItem[t.itemCode].avgCost;
+            
+            const quantity = parseFloat(t.quantity) || 0;
+            groupedByItem[t.itemCode].totalQty += quantity;
+    
+            if (hasValue) {
+                // Use the historically accurate cost for this specific transaction
+                const costAtTransaction = historicalCosts[`${t.batchId}-${t.itemCode}`] || findByKey(state.items, 'code', t.itemCode)?.cost || 0;
+                groupedByItem[t.itemCode].totalValue += quantity * costAtTransaction;
+            }
         });
     
-        Object.values(groupedByItem).sort((a,b) => a.item.name.localeCompare(b.item.name)).forEach(group => {
-            tableBodyHtml += `<tr><td>${group.item.code}</td><td>${group.item.name}</td><td>${group.item.category || 'N/A'}</td><td style="text-align:right;">${group.totalQty.toFixed(2)} ${group.item.unit}</td><td style="text-align:right;">${group.totalValue.toFixed(2)} EGP</td></tr>`;
-            grandTotalValue += group.totalValue;
+        let tableBodyHtml = '';
+        const sortedGroups = Object.values(groupedByItem).sort((a, b) => a.item.name.localeCompare(b.item.name));
+    
+        sortedGroups.forEach(group => {
+            tableBodyHtml += `<tr>
+                <td>${group.item.code}</td>
+                <td>${group.item.name}</td>
+                <td>${group.item.category || 'N/A'}</td>
+                <td style="text-align:right;">${group.totalQty.toFixed(2)} ${group.item.unit}</td>
+                ${hasValue ? `<td style="text-align:right;">${group.totalValue.toFixed(2)} EGP</td>` : ''}
+            </tr>`;
         });
+        
+        const grandTotalValue = sortedGroups.reduce((sum, group) => sum + group.totalValue, 0);
+    
+        const headerHtml = `<thead><tr><th>Item Code</th><th>Item Name</th><th>Category</th><th style="text-align:right;">${qtyColumnHeader}</th>${hasValue ? '<th style="text-align:right;">Total Value</th>' : ''}</tr></thead>`;
+        
+        const footerHtml = hasValue ? `<tfoot><tr style="font-weight:bold; background-color: var(--bg-color);">
+            <td colspan="4" style="text-align:right;">Grand Total Value:</td>
+            <td style="text-align:right;">${grandTotalValue.toFixed(2)} EGP</td>
+        </tr></tfoot>` : '';
     
         resultsContainer.innerHTML = `<div class="printable-document">
             <div class="printable-header"><div><h2>${title}: ${entityName}</h2><p style="margin:0; color: var(--text-light-color);">For period: ${dateHeader}</p></div><button class="secondary small no-print" onclick="printReport('${resultsContainerId}')">Print</button></div>
             <div class="report-area"><table id="table-${resultsContainerId}-report">
-                <thead><tr><th>Item Code</th><th>Item Name</th><th>Category</th><th style="text-align:right;">${qtyColumnHeader}</th><th style="text-align:right;">Total Value</th></tr></thead>
+                ${headerHtml}
                 <tbody>${tableBodyHtml}</tbody>
-                <tfoot><tr style="font-weight:bold; background-color: var(--bg-color);">
-                    <td colspan="4" style="text-align:right;">Grand Total Value:</td>
-                    <td style="text-align:right;">${grandTotalValue.toFixed(2)} EGP</td>
-                </tr></tfoot>
+                ${footerHtml}
             </table></div></div>`;
         resultsContainer.style.display = 'block';
         exportBtn.disabled = false;
@@ -1109,6 +1126,69 @@ document.addEventListener('DOMContentLoaded', () => {
         financials.allInvoices = {}; Object.values(financials).forEach(s => { Object.assign(financials.allInvoices, s.invoices); }); return financials;
     };
     
+    const calculateHistoricalCosts = () => {
+        const costSnapshots = {}; // { 'batchId-itemCode': cost }
+        const stock = {}; // { branchCode: { itemCode: { quantity: x, avgCost: y } } }
+        
+        (state.branches || []).forEach(branch => { stock[branch.branchCode] = {}; });
+        
+        const sortedTransactions = [...(state.transactions || [])]
+            .filter(t => t.type) // Ensure type exists to avoid errors
+            .sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+        sortedTransactions.forEach(t => {
+            const item = findByKey(state.items, 'code', t.itemCode);
+            if (!item) return;
+    
+            const qty = parseFloat(t.quantity) || 0;
+            let branchCode, costForUpdate, costForSnapshot;
+    
+            // Determine branch and cost based on transaction type
+            switch (t.type) {
+                case 'receive':
+                    branchCode = t.branchCode;
+                    costForUpdate = parseFloat(t.cost) || 0;
+                    costForSnapshot = costForUpdate;
+                    break;
+                case 'transfer_in':
+                    branchCode = t.toBranchCode;
+                    // Get the cost from the corresponding 'transfer_out' snapshot, which should have already been created
+                    costForUpdate = costSnapshots[`${t.batchId}-${t.itemCode}`] || (stock[t.fromBranchCode]?.[t.itemCode]?.avgCost) || item.cost;
+                    costForSnapshot = costForUpdate;
+                    break;
+                case 'issue':
+                case 'return_out':
+                case 'transfer_out':
+                    branchCode = t.fromBranchCode;
+                    costForUpdate = null; // Cost doesn't change for outgoing stock, so no update needed based on a new cost.
+                    costForSnapshot = stock[branchCode]?.[t.itemCode]?.avgCost || parseFloat(item.cost) || 0;
+                    break;
+                default:
+                    return; // Skip unknown transaction types
+            }
+            
+            if (!branchCode || !stock[branchCode]) return;
+            
+            // Snapshot the cost for this item within this transaction batch.
+            costSnapshots[`${t.batchId}-${t.itemCode}`] = costForSnapshot;
+    
+            // Get current stock state
+            const currentStock = stock[branchCode][t.itemCode] || { quantity: 0, avgCost: parseFloat(item.cost) || 0 };
+    
+            // Update stock state for future calculations
+            if (t.type === 'receive' || t.type === 'transfer_in') {
+                const totalValue = (currentStock.quantity * currentStock.avgCost) + (qty * costForUpdate);
+                const totalQty = currentStock.quantity + qty;
+                const newAvgCost = totalQty > 0 ? totalValue / totalQty : currentStock.avgCost;
+                stock[branchCode][t.itemCode] = { quantity: totalQty, avgCost: newAvgCost };
+            } else { // issue, return_out, transfer_out
+                stock[branchCode][t.itemCode] = { quantity: currentStock.quantity - qty, avgCost: currentStock.avgCost };
+            }
+        });
+    
+        return costSnapshots;
+    };
+
     const populateOptions = (el, data, ph, valueKey, textKey, textKey2) => { el.innerHTML = `<option value="">${ph}</option>`; (data || []).forEach(item => { el.innerHTML += `<option value="${item[valueKey]}">${item[textKey]}${textKey2 && item[textKey2] ? ' (' + item[textKey2] + ')' : ''}</option>`; }); };
     
     function getVisibleBranchesForCurrentUser() { if (!state.currentUser) return []; if (userCan('viewAllBranches')) { return state.branches; } if (state.currentUser.AssignedBranchCode) { return state.branches.filter(b => String(b.branchCode) === String(state.currentUser.AssignedBranchCode)); } return []; }
@@ -1617,8 +1697,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Report Generation Buttons
         document.getElementById('btn-generate-supplier-statement').addEventListener('click', () => { const supplierCode = document.getElementById('supplier-statement-select').value; const startDate = document.getElementById('statement-start-date').value; const endDate = document.getElementById('statement-end-date').value; if(!supplierCode) { showToast('Please select a supplier.', 'error'); return; } renderSupplierStatement(supplierCode, startDate, endDate); });
-        document.getElementById('btn-generate-branch-consumption').addEventListener('click', () => { const branchCode = document.getElementById('branch-consumption-select').value; const startDate = document.getElementById('branch-consumption-start-date').value; const endDate = document.getElementById('branch-consumption-end-date').value; const itemFilter = document.getElementById('branch-consumption-item-filter').value; const categoryFilter = document.getElementById('branch-consumption-category-filter').value; if(!branchCode) { showToast('Please select a branch.', 'error'); return; } let filteredTx = state.transactions.filter(t => t.type === 'issue' && t.fromBranchCode === branchCode); const sDate = startDate ? new Date(startDate) : null; if(sDate) sDate.setHours(0,0,0,0); const eDate = endDate ? new Date(endDate) : null; if(eDate) eDate.setHours(23,59,59,999); if (sDate) filteredTx = filteredTx.filter(t => new Date(t.date) >= sDate); if (eDate) filteredTx = filteredTx.filter(t => new Date(t.date) <= eDate); if (itemFilter) filteredTx = filteredTx.filter(t => t.itemCode === itemFilter); if (categoryFilter) { const itemCodesInCategory = state.items.filter(i => i.category === categoryFilter).map(i => i.code); filteredTx = filteredTx.filter(t => itemCodesInCategory.includes(t.itemCode)); } renderConsumptionReport({ resultsContainerId: 'branch-consumption-results', exportBtnId: 'btn-export-branch-consumption', data: filteredTx, title: 'Branch Consumption Report', entityName: findByKey(state.branches, 'branchCode', branchCode).name, dateHeader: `${startDate || 'Start'} to ${endDate || 'End'}` }); });
-        document.getElementById('btn-generate-section-consumption').addEventListener('click', () => { const sectionCode = document.getElementById('section-consumption-select').value; const startDate = document.getElementById('section-consumption-start-date').value; const endDate = document.getElementById('section-consumption-end-date').value; const itemFilter = document.getElementById('section-consumption-item-filter').value; const categoryFilter = document.getElementById('section-consumption-category-filter').value; if(!sectionCode) { showToast('Please select a section.', 'error'); return; } let filteredTx = state.transactions.filter(t => t.type === 'issue' && t.sectionCode === sectionCode); const sDate = startDate ? new Date(startDate) : null; if(sDate) sDate.setHours(0,0,0,0); const eDate = endDate ? new Date(endDate) : null; if(eDate) eDate.setHours(23,59,59,999); if (sDate) filteredTx = filteredTx.filter(t => new Date(t.date) >= sDate); if (eDate) filteredTx = filteredTx.filter(t => new Date(t.date) <= eDate); if (itemFilter) filteredTx = filteredTx.filter(t => t.itemCode === itemFilter); if (categoryFilter) { const itemCodesInCategory = state.items.filter(i => i.category === categoryFilter).map(i => i.code); filteredTx = filteredTx.filter(t => itemCodesInCategory.includes(t.itemCode)); } renderConsumptionReport({ resultsContainerId: 'section-consumption-results', exportBtnId: 'btn-export-section-consumption', data: filteredTx, title: 'Section Consumption Report', entityName: findByKey(state.sections, 'sectionCode', sectionCode).name, dateHeader: `${startDate || 'Start'} to ${endDate || 'End'}` }); });
+        document.getElementById('btn-generate-branch-consumption').addEventListener('click', () => { const branchCode = document.getElementById('branch-consumption-select').value; const startDate = document.getElementById('branch-consumption-start-date').value; const endDate = document.getElementById('branch-consumption-end-date').value; const itemFilter = document.getElementById('branch-consumption-item-filter').value; const categoryFilter = document.getElementById('branch-consumption-category-filter').value; if(!branchCode) { showToast('Please select a branch.', 'error'); return; } let filteredTx = state.transactions.filter(t => t.type === 'issue' && t.fromBranchCode === branchCode); const sDate = startDate ? new Date(startDate) : null; if(sDate) sDate.setHours(0,0,0,0); const eDate = endDate ? new Date(endDate) : null; if(eDate) eDate.setHours(23,59,59,999); if (sDate) filteredTx = filteredTx.filter(t => new Date(t.date) >= sDate); if (eDate) filteredTx = filteredTx.filter(t => new Date(t.date) <= eDate); if (itemFilter) filteredTx = filteredTx.filter(t => t.itemCode === itemFilter); if (categoryFilter) { const itemCodesInCategory = state.items.filter(i => i.category === categoryFilter).map(i => i.code); filteredTx = filteredTx.filter(t => itemCodesInCategory.includes(t.itemCode)); } const historicalCosts = calculateHistoricalCosts(); renderConsumptionReport({ resultsContainerId: 'branch-consumption-results', exportBtnId: 'btn-export-branch-consumption', data: filteredTx, title: 'Branch Consumption Report', entityName: findByKey(state.branches, 'branchCode', branchCode).name, dateHeader: `${startDate || 'Start'} to ${endDate || 'End'}`, historicalCosts: historicalCosts }); });
+        document.getElementById('btn-generate-section-consumption').addEventListener('click', () => { const sectionCode = document.getElementById('section-consumption-select').value; const startDate = document.getElementById('section-consumption-start-date').value; const endDate = document.getElementById('section-consumption-end-date').value; const itemFilter = document.getElementById('section-consumption-item-filter').value; const categoryFilter = document.getElementById('section-consumption-category-filter').value; if(!sectionCode) { showToast('Please select a section.', 'error'); return; } let filteredTx = state.transactions.filter(t => t.type === 'issue' && t.sectionCode === sectionCode); const sDate = startDate ? new Date(startDate) : null; if(sDate) sDate.setHours(0,0,0,0); const eDate = endDate ? new Date(endDate) : null; if(eDate) eDate.setHours(23,59,59,999); if (sDate) filteredTx = filteredTx.filter(t => new Date(t.date) >= sDate); if (eDate) filteredTx = filteredTx.filter(t => new Date(t.date) <= eDate); if (itemFilter) filteredTx = filteredTx.filter(t => t.itemCode === itemFilter); if (categoryFilter) { const itemCodesInCategory = state.items.filter(i => i.category === categoryFilter).map(i => i.code); filteredTx = filteredTx.filter(t => itemCodesInCategory.includes(t.itemCode)); } const historicalCosts = calculateHistoricalCosts(); renderConsumptionReport({ resultsContainerId: 'section-consumption-results', exportBtnId: 'btn-export-section-consumption', data: filteredTx, title: 'Section Consumption Report', entityName: findByKey(state.sections, 'sectionCode', sectionCode).name, dateHeader: `${startDate || 'Start'} to ${endDate || 'End'}`, historicalCosts: historicalCosts }); });
         document.getElementById('btn-generate-resupply-report').addEventListener('click', () => { const branchCode = document.getElementById('resupply-branch-filter').value; const startDate = document.getElementById('resupply-start-date').value; const endDate = document.getElementById('resupply-end-date').value; let filteredReqs = state.itemRequests.filter(r => r.Type === 'resupply'); const sDate = startDate ? new Date(startDate) : null; if(sDate) sDate.setHours(0,0,0,0); const eDate = endDate ? new Date(endDate) : null; if(eDate) eDate.setHours(23,59,59,999); if (branchCode) filteredReqs = filteredReqs.filter(r => r.ToBranch === branchCode); if (sDate) filteredReqs = filteredReqs.filter(r => new Date(r.Date) >= sDate); if (eDate) filteredReqs = filteredReqs.filter(r => new Date(r.Date) <= eDate); const entityName = branchCode ? findByKey(state.branches, 'branchCode', branchCode).name : 'All Branches'; renderConsumptionReport({ resultsContainerId: 'resupply-report-results', exportBtnId: 'btn-export-resupply-report', data: filteredReqs.map(r => ({...r, fromBranchCode: r.ToBranch, itemCode: r.ItemCode, quantity: r.Quantity})), title: 'Resupply Request Report', entityName: entityName, dateHeader: `${startDate || 'Start'} to ${endDate || 'End'}`, qtyColumnHeader: 'Total Qty Requested' }); });
         document.getElementById('pending-requests-widget').addEventListener('click', () => showView('requests', 'pending-approval'));
         ['tx-filter-type', 'tx-filter-branch', 'tx-filter-section', 'tx-filter-supplier', 'transaction-search'].forEach(id => {
