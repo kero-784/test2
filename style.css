@@ -207,7 +207,18 @@ tbody tr:hover { background-color: #f7faff; }
 .permissions-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
 #view-transfer-modal-body p { margin: 4px 0; font-size: 16px; }
 #view-transfer-modal-body p strong { color: var(--text-light-color); display: inline-block; width: 120px; }
-
+/* --- Toggle Switch Styles --- */
+.form-group-toggle { display: flex; align-items: center; justify-content: space-between; max-width: 400px; }
+.form-group-toggle label { margin-bottom: 0; font-weight: 600; }
+.switch { position: relative; display: inline-block; width: 60px; height: 34px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; }
+.slider:before { position: absolute; content: ""; height: 26px; width: 26px; left: 4px; bottom: 4px; background-color: white; transition: .4s; }
+input:checked + .slider { background-color: var(--primary-color); }
+input:focus + .slider { box-shadow: 0 0 1px var(--primary-color); }
+input:checked + .slider:before { transform: translateX(26px); }
+.slider.round { border-radius: 34px; }
+.slider.round:before { border-radius: 50%; }
 /* --- Print & Responsive --- */
 @media print { body { background-color: #fff !important; } .app-container, .no-print { display: none !important; } #print-area { display: block !important; } .printable-document { display: block !important; box-shadow: none; border: none; padding:0; } .printable-document h2, .printable-document p { margin: 0 0 10px 0; } #print-area table { table-layout: auto; } #print-area th, #print-area td { white-space: normal !important; word-break: break-word !important; overflow: visible !important; text-overflow: clip !important; font-size: 10pt; padding: 8px; } }
 @media (max-width: 1200px) { .report-generator-controls { flex-direction: column; align-items: stretch; } }
