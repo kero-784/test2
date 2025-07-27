@@ -1511,7 +1511,67 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('form-add-supplier').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { supplierCode: document.getElementById('supplier-code').value, name: document.getElementById('supplier-name').value, contact: document.getElementById('supplier-contact').value }; const result = await postData('addSupplier', data, btn); if (result) { showToast('Supplier added!', 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
         document.getElementById('form-add-branch').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { branchCode: document.getElementById('branch-code').value, name: document.getElementById('branch-name').value }; const result = await postData('addBranch', data, btn); if (result) { showToast('Branch added!', 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
         document.getElementById('form-add-section').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { sectionCode: document.getElementById('section-code').value, name: document.getElementById('section-name').value }; const result = await postData('addSection', data, btn); if (result) { showToast('Section added!', 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
+        // THIS IS THE FIX: Add a submit listener for the payment form
+        document.getElementById('form-record-payment').addEventListener('submit', async e => {
+            e.preventDefault(); // This is the most important line, it stops the page from reloading
+            const btn = e.target.querySelector('button[type="submit"]');
+            
+            const supplierCode = document.getElementById('payment-supplier-select').value;
+            const method = document.getElementById('payment-method').value;
+            
+            if (!supplierCode || state.invoiceModalSelections.size === 0) {
+                showToast('Please select a supplier and at least one invoice to pay.', 'error');
+                return;
+            }
 
+            const paymentId = `PAY-${Date.now()}`;
+            let totalAmount = 0;
+            const payments = [];
+
+            // Collect payment data from the input fields in the table
+            document.querySelectorAll('.payment-amount-input').forEach(input => {
+                const amount = parseFloat(input.value) || 0;
+                if (amount > 0) {
+                    totalAmount += amount;
+                    payments.push({
+                        paymentId: paymentId,
+                        date: new Date().toISOString(),
+                        supplierCode: supplierCode,
+                        invoiceNumber: input.dataset.invoice,
+                        amount: amount,
+                        method: method
+                    });
+                }
+            });
+
+            if (payments.length === 0) {
+                showToast('Payment amount must be greater than zero.', 'error');
+                return;
+            }
+
+            // This is the data structure the backend expects for the 'addPaymentBatch' action
+            const payload = {
+                supplierCode: supplierCode,
+                method: method,
+                date: new Date().toISOString(),
+                totalAmount: totalAmount,
+                payments: payments
+            };
+
+            const result = await postData('addPaymentBatch', payload, btn);
+
+            if (result) {
+                showToast('Payment recorded successfully!', 'success');
+                generatePaymentVoucher(payload); // Use the client-side payload to generate the voucher instantly
+                
+                // Reset the form and UI
+                state.invoiceModalSelections.clear();
+                document.getElementById('form-record-payment').reset();
+                document.getElementById('btn-select-invoices').disabled = true;
+                renderPaymentList(); // This will hide the list
+                await reloadDataAndRefreshUI(); // Refresh all app data
+            }
+        });
         // Transaction/PO Submit Buttons
         document.getElementById('btn-submit-receive-batch').addEventListener('click', async (e) => { const btn = e.currentTarget; const supplierCode = document.getElementById('receive-supplier').value, branchCode = document.getElementById('receive-branch').value, invoiceNumber = document.getElementById('receive-invoice').value, notes = document.getElementById('receive-notes').value, poId = document.getElementById('receive-po-select').value; if (!userCan('opReceiveWithoutPO') && !poId) { showToast('You must select a Purchase Order to receive stock.', 'error'); return; } if (!supplierCode || !branchCode || !invoiceNumber || state.currentReceiveList.length === 0) { showToast('Please fill all required fields and add items.', 'error'); return; } const payload = { type: 'receive', batchId: `GRN-${Date.now()}`, supplierCode, branchCode, invoiceNumber, poId, date: new Date().toISOString(), items: state.currentReceiveList, notes }; await handleTransactionSubmit(payload, btn); });
         document.getElementById('btn-submit-transfer-batch').addEventListener('click', async (e) => { const btn = e.currentTarget; const fromBranchCode = document.getElementById('transfer-from-branch').value, toBranchCode = document.getElementById('transfer-to-branch').value, notes = document.getElementById('transfer-notes').value, ref = document.getElementById('transfer-ref').value; if (!fromBranchCode || !toBranchCode || fromBranchCode === toBranchCode || state.currentTransferList.length === 0) { showToast('Please select valid branches and add at least one item.', 'error'); return; } const payload = { type: 'transfer_out', batchId: ref, ref: ref, fromBranchCode, toBranchCode, date: new Date().toISOString(), items: state.currentTransferList, notes }; await handleTransactionSubmit(payload, btn); });
