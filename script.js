@@ -12,7 +12,7 @@ window.printReport = function(elementId) {
 
 document.addEventListener('DOMContentLoaded', () => {
     // !!! IMPORTANT: PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzGYdL2TSK87y4ONuBOoqHjF6_7gsImODpJBmO-2eUTUa1WYSM1bCSkHcWFwIEU9VbW/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzVs-ZHkEM9F-hK5k-i_oJp3IXUceA2dWFyhii1-ATfYsIKiVS-4UsQLaBOhMdVbbzR/exec';
 
     const Logger = {
         info: (message, ...args) => console.log(`[StockWise INFO] ${message}`, ...args),
@@ -230,7 +230,8 @@ document.addEventListener('DOMContentLoaded', () => {
         modalSearchInput.value = '';
         modalContext = null;
     }
-
+    
+    // NEW & MODIFIED
     function openViewTransferModal(batchId) {
         const transferGroup = state.transactions.filter(t => t.batchId === batchId && t.type === 'transfer_out');
         if (transferGroup.length === 0) {
@@ -242,23 +243,38 @@ document.addEventListener('DOMContentLoaded', () => {
         const toBranch = findByKey(state.branches, 'branchCode', first.toBranchCode)?.name || first.toBranchCode;
 
         const modalBody = document.getElementById('view-transfer-modal-body');
-        let html = `<p><strong>From Branch:</strong> ${fromBranch}</p>
-                    <p><strong>To Branch:</strong> ${toBranch}</p>
-                    <p><strong>Reference:</strong> ${first.ref || 'N/A'}</p>
-                    <hr>
-                    <h4>Items in Shipment</h4>
-                    <table><thead><tr><th>Code</th><th>Name</th><th>Quantity</th></tr></thead><tbody>`;
-
-        transferGroup.forEach(itemTx => {
-            const item = findByKey(state.items, 'code', itemTx.itemCode) || { name: 'DELETED' };
-            html += `<tr><td>${itemTx.itemCode}</td><td>${item.name}</td><td>${itemTx.quantity}</td></tr>`;
+        const items = transferGroup.map(tx => {
+            const item = findByKey(state.items, 'code', tx.itemCode) || { name: 'DELETED' };
+            return { itemCode: tx.itemCode, itemName: item.name, quantity: tx.quantity };
         });
-        html += `</tbody></table>`;
-        modalBody.innerHTML = html;
-        document.getElementById('btn-confirm-receive-transfer').dataset.batchId = batchId;
-        document.getElementById('btn-reject-transfer').dataset.batchId = batchId;
+
+        let itemsHtml = items.map(item => `<tr><td>${item.itemCode}</td><td>${item.itemName}</td><td>${item.quantity}</td></tr>`).join('');
+
+        modalBody.innerHTML = `
+            <p><strong>From Branch:</strong> ${fromBranch}</p>
+            <p><strong>To Branch:</strong> ${toBranch}</p>
+            <p><strong>Reference:</strong> ${first.ref || 'N/A'}</p>
+            <hr>
+            <h4>Items in Shipment</h4>
+            <table><thead><tr><th>Code</th><th>Name</th><th>Quantity</th></tr></thead><tbody>${itemsHtml}</tbody></table>`;
+        
+        const modal = document.getElementById('view-transfer-modal');
+        modal.querySelector('.modal-footer').innerHTML = `
+            <button class="secondary modal-cancel">Cancel</button>
+            <button id="btn-print-transfer-receipt" class="secondary">Print Receipt</button>
+            <button id="btn-reject-transfer" class="danger" data-batch-id="${batchId}">Reject</button>
+            <button id="btn-confirm-receive-transfer" class="primary" data-batch-id="${batchId}">Confirm Receipt</button>
+        `;
+
+        // Attach event listener for the new print button
+        document.getElementById('btn-print-transfer-receipt').onclick = () => {
+            const dataToPrint = { ...first, items: items, date: new Date() };
+            generateTransferDocument(dataToPrint);
+        };
+
         viewTransferModal.classList.add('active');
     }
+
 
     function openEditModal(type, id) {
         let record, formHtml;
@@ -326,8 +342,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 editModalTitle.textContent = `Edit Permissions for ${record.RoleName}`;
 
-                // This is the complete, hardcoded list of all possible permissions.
-                // This prevents the error where checkboxes don't appear if the sheet is missing columns.
                 const permissionCategories = {
                     'General Access': ['viewDashboard', 'viewActivityLog'],
                     'User Management': ['manageUsers'],
@@ -343,8 +357,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 for (const category in permissionCategories) {
                     formHtml += `<h4 class="permission-category">${category}</h4><div class="form-grid permissions-grid">`;
                     permissionCategories[category].forEach(key => {
-                        // The fix is here: We check the record itself for the key.
-                        // This ensures that checkboxes render correctly for every defined permission.
                         const isChecked = record[key] === true || String(record[key]).toUpperCase() === 'TRUE';
                         formHtml += `<div class="form-group-checkbox"><input type="checkbox" id="edit-perm-${key}" name="${key}" ${isChecked ? 'checked' : ''}><label for="edit-perm-${key}">${key}</label></div>`;
                     });
@@ -930,8 +942,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     String(t.fromBranchCode) === branchCode ||
                     String(t.toBranchCode) === branchCode
                 );
-                // POs don't have a branch, so they are filtered out for branch-specific users
-                // unless we define a rule (e.g., show if created by user). For now, this is safer.
                 allPo = []; 
             }
         }
@@ -1031,6 +1041,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const generatePaymentVoucher = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; let invoicesHtml = ''; data.payments.forEach(p => { invoicesHtml += `<tr><td>${p.invoiceNumber}</td><td>${p.amount.toFixed(2)} EGP</td></tr>`; }); const content = `<div class="printable-document card"><h2>Payment Voucher</h2><p><strong>Voucher ID:</strong> ${data.payments[0].paymentId}</p><p><strong>Date:</strong> ${new Date(data.date).toLocaleString()}</p><hr><p><strong>Paid To:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><p><strong>Amount:</strong> ${data.totalAmount.toFixed(2)} EGP</p><p><strong>Method:</strong> ${data.method}</p><hr><h3>Payment Allocation</h3><table><thead><tr><th>Invoice #</th><th>Amount Paid</th></tr></thead><tbody>${invoicesHtml}</tbody></table><br><p><strong>Signature:</strong> _________________</p></div>`; printContent(content); };
     const generatePODocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; let itemsHtml = '', totalValue = 0; data.items.forEach(item => { const itemDetails = findByKey(state.items, 'code', item.itemCode) || {name: "N/A"}; const itemTotal = (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); totalValue += itemTotal; itemsHtml += `<tr><td>${item.itemCode}</td><td>${itemDetails.name}</td><td>${(parseFloat(item.quantity) || 0).toFixed(2)}</td><td>${(parseFloat(item.cost) || 0).toFixed(2)} EGP</td><td>${itemTotal.toFixed(2)} EGP</td></tr>`; }); const content = `<div class="printable-document card"><h2>Purchase Order</h2><p><strong>PO No:</strong> ${data.poId || data.batchId}</p><p><strong>Date:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>Supplier:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><hr><h3>Items Ordered</h3><table><thead><tr><th>Code</th><th>Item</th><th>Qty</th><th>Cost/Unit</th><th>Total</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">Total Value</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>Notes:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Authorized By:</strong> ${data.createdBy || state.currentUser.Name}</p></div>`; printContent(content); };
     const generateReturnDocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; const branch = findByKey(state.branches, 'branchCode', data.fromBranchCode) || { name: 'DELETED' }; let itemsHtml = '', totalValue = 0; data.items.forEach(item => { const itemTotal = item.quantity * item.cost; totalValue += itemTotal; itemsHtml += `<tr><td>${item.itemCode}</td><td>${item.itemName}</td><td>${item.quantity.toFixed(2)}</td><td>${item.cost.toFixed(2)} EGP</td><td>${itemTotal.toFixed(2)} EGP</td></tr>`; }); const content = `<div class="printable-document card"><h2>Supplier Return Note</h2><p><strong>Credit Note Ref:</strong> ${data.ref}</p><p><strong>Date:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>Returned To:</strong> ${supplier.name}</p><p><strong>Returned From:</strong> ${branch.name}</p><hr><h3>Items Returned</h3><table><thead><tr><th>Code</th><th>Item</th><th>Qty</th><th>Cost/Unit</th><th>Total</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">Total Value</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>Reason:</strong> ${data.notes || 'N/A'}</p></div>`; printContent(content); };
+    
+    // NEW HELPER
+    const generateRequestIssueDocument = (data) => {
+        const fromBranch = findByKey(state.branches, 'branchCode', data.fromBranchCode) || { name: 'DELETED' };
+        const toSection = findByKey(state.sections, 'sectionCode', data.sectionCode) || { name: 'DELETED' };
+        let itemsHtml = '';
+        data.items.forEach(item => {
+            const fullItem = findByKey(state.items, 'code', item.itemCode) || { name: 'DELETED', unit: 'N/A' };
+            itemsHtml += `<tr><td>${item.itemCode}</td><td>${item.itemName || fullItem.name}</td><td>${(item.quantity || 0).toFixed(2)}</td><td>${fullItem.unit}</td></tr>`;
+        });
+        const content = `<div class="printable-document card">
+            <h2>DRAFT Stock Issue Note (from Request)</h2>
+            <p><strong>Request ID:</strong> ${data.ref}</p>
+            <p><strong>Date:</strong> ${new Date(data.date).toLocaleString()}</p><hr>
+            <p><strong>From Branch:</strong> ${fromBranch.name} (${fromBranch.branchCode || ''})</p>
+            <p><strong>To Section:</strong> ${toSection.name} (${toSection.sectionCode || ''})</p><hr>
+            <h3>Items to be Issued</h3>
+            <table><thead><tr><th>Code</th><th>Item</th><th>Qty</th><th>Unit</th></tr></thead><tbody>${itemsHtml}</tbody></table><hr>
+            <p><strong>Notes:</strong> ${data.notes || 'N/A'}</p><br>
+            <p><strong>Issued By:</strong> _________________</p>
+            <p><strong>Received By:</strong> _________________</p>
+        </div>`;
+        printContent(content);
+    };
 // PART 4 OF 4: CALCULATION ENGINES, EVENT LISTENERS & INITIALIZATION
     function updateReceiveGrandTotal() { let grandTotal = 0; (state.currentReceiveList || []).forEach(item => { grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); }); document.getElementById('receive-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; }
     function updateTransferGrandTotal() { let grandTotalQty = 0; (state.currentTransferList || []).forEach(item => { grandTotalQty += (parseFloat(item.quantity) || 0); }); document.getElementById('transfer-grand-total').textContent = grandTotalQty.toFixed(2); }
@@ -1143,7 +1177,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const qty = parseFloat(t.quantity) || 0;
             let branchCode, costForUpdate, costForSnapshot;
     
-            // Determine branch and cost based on transaction type
             switch (t.type) {
                 case 'receive':
                     branchCode = t.branchCode;
@@ -1152,7 +1185,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     break;
                 case 'transfer_in':
                     branchCode = t.toBranchCode;
-                    // Get the cost from the corresponding 'transfer_out' snapshot, which should have already been created
                     costForUpdate = costSnapshots[`${t.batchId}-${t.itemCode}`] || (stock[t.fromBranchCode]?.[t.itemCode]?.avgCost) || item.cost;
                     costForSnapshot = costForUpdate;
                     break;
@@ -1160,28 +1192,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 case 'return_out':
                 case 'transfer_out':
                     branchCode = t.fromBranchCode;
-                    costForUpdate = null; // Cost doesn't change for outgoing stock, so no update needed based on a new cost.
+                    costForUpdate = null; 
                     costForSnapshot = stock[branchCode]?.[t.itemCode]?.avgCost || parseFloat(item.cost) || 0;
                     break;
                 default:
-                    return; // Skip unknown transaction types
+                    return;
             }
             
             if (!branchCode || !stock[branchCode]) return;
             
-            // Snapshot the cost for this item within this transaction batch.
             costSnapshots[`${t.batchId}-${t.itemCode}`] = costForSnapshot;
     
-            // Get current stock state
             const currentStock = stock[branchCode][t.itemCode] || { quantity: 0, avgCost: parseFloat(item.cost) || 0 };
     
-            // Update stock state for future calculations
             if (t.type === 'receive' || t.type === 'transfer_in') {
                 const totalValue = (currentStock.quantity * currentStock.avgCost) + (qty * costForUpdate);
                 const totalQty = currentStock.quantity + qty;
                 const newAvgCost = totalQty > 0 ? totalValue / totalQty : currentStock.avgCost;
                 stock[branchCode][t.itemCode] = { quantity: totalQty, avgCost: newAvgCost };
-            } else { // issue, return_out, transfer_out
+            } else {
                 stock[branchCode][t.itemCode] = { quantity: currentStock.quantity - qty, avgCost: currentStock.avgCost };
             }
         });
@@ -1519,20 +1548,15 @@ document.addEventListener('DOMContentLoaded', () => {
         globalRefreshBtn.addEventListener('click', reloadDataAndRefreshUI);
         document.querySelectorAll('#main-nav a:not(#btn-logout)').forEach(link => { link.addEventListener('click', e => { e.preventDefault(); showView(link.dataset.view); }); });
         
-        // Modal Trigger & Refresh (delegated)
         mainContent.addEventListener('click', e => {
             const btn = e.target.closest('button');
             if (!btn) return;
-            // Item Selector Modal Trigger
             if (btn.dataset.context) { openItemSelectorModal(e); }
-            // Invoice Selector Modal Trigger
             if (btn.id === 'btn-select-invoices') { openInvoiceSelectorModal(); }
-            // Edit/History/Add Buttons (Master Data, User Mgmt)
             if (btn.classList.contains('btn-edit')) { openEditModal(btn.dataset.type, btn.dataset.id); }
             if (btn.classList.contains('btn-history')) { openHistoryModal(btn.dataset.id); }
             if (btn.id === 'btn-add-new-user') { openEditModal('user', null); }
             if (btn.id === 'btn-add-new-role') { const roleName = prompt("Enter new role name:"); if(roleName) { postData('addRole', { RoleName: roleName }, btn).then(res => res && reloadDataAndRefreshUI()); } }
-            // Transaction History View/Print
             if (btn.classList.contains('btn-view-tx')) {
                  const batchId = btn.dataset.batchId;
                  const type = btn.dataset.type;
@@ -1557,11 +1581,9 @@ document.addEventListener('DOMContentLoaded', () => {
                          break;
                  }
             }
-            // Operations View Buttons
             if (btn.classList.contains('btn-receive-transfer')) { openViewTransferModal(btn.dataset.batchId); }
             if (btn.classList.contains('btn-edit-transfer')) { openTransferEditModal(btn.dataset.batchId); }
             if (btn.classList.contains('btn-cancel-transfer')) { const batchId = btn.dataset.batchId; if (confirm(`Are you sure you want to cancel transfer ${batchId}?`)) { postData('cancelTransfer', { batchId }, btn).then(res => res && reloadDataAndRefreshUI()); } }
-            // Requests View Buttons
             if(btn.classList.contains('btn-approve-request')) { openApproveRequestModal(btn.dataset.id); } 
             if (btn.classList.contains('btn-reject-request')) { const requestId = btn.dataset.id; if(confirm(`Are you sure you want to reject request ${requestId}?`)) { postData('rejectItemRequest', { requestId }, btn).then(res => res && reloadDataAndRefreshUI()); } }
             if (btn.id === 'btn-print-pending-requests') {
@@ -1571,16 +1593,37 @@ document.addEventListener('DOMContentLoaded', () => {
                     printContent(printableDoc);
                 }
             }
-            // PO View Buttons
             if (btn.classList.contains('btn-edit-po')) { openPOEditModal(btn.dataset.poId); }
         });
         
-        // Modal Buttons
-        document.body.addEventListener('click', (e) => { if (e.target.classList.contains('close-button') || e.target.classList.contains('modal-cancel')) { closeModal(); } });
+        document.body.addEventListener('click', (e) => { 
+            if (e.target.classList.contains('close-button') || e.target.classList.contains('modal-cancel')) { closeModal(); } 
+            
+            // MODIFIED: Event delegation for dynamically added modal buttons
+            if (e.target.id === 'btn-confirm-receive-transfer') {
+                const btn = e.target;
+                const batchId = btn.dataset.batchId;
+                const transferGroup = state.transactions.filter(t => t.batchId === batchId);
+                const payload = { originalBatchId: batchId, ref: transferGroup[0].ref, fromBranchCode: transferGroup[0].fromBranchCode, toBranchCode: transferGroup[0].toBranchCode, items: transferGroup.map(t => ({ itemCode: t.itemCode, quantity: t.quantity })), notes: `Received from ${batchId}` };
+                postData('receiveTransfer', payload, btn).then(result => {
+                    if (result) { showToast('Transfer received!', 'success'); closeModal(); reloadDataAndRefreshUI(); }
+                });
+            }
+            if (e.target.id === 'btn-reject-transfer') {
+                const btn = e.target;
+                const batchId = btn.dataset.batchId;
+                if(confirm('Are you sure you want to reject this transfer? This action cannot be undone.')) {
+                    postData('rejectTransfer', { batchId }, btn).then(result => {
+                        if (result) { showToast('Transfer rejected.', 'success'); closeModal(); reloadDataAndRefreshUI(); }
+                    });
+                }
+            }
+            if (e.target.id === 'btn-confirm-request-approval') { confirmRequestApproval(e); }
+            if (e.target.id === 'btn-save-po-changes') { savePOChanges(e); }
+        });
         document.getElementById('btn-confirm-modal-selection').addEventListener('click', confirmModalSelection);
         document.getElementById('btn-confirm-invoice-selection').addEventListener('click', confirmModalSelection);
         
-        // Form & Input Listeners
         document.getElementById('payment-supplier-select').addEventListener('change', e => { document.getElementById('btn-select-invoices').disabled = !e.target.value; state.invoiceModalSelections.clear(); renderPaymentList(); });
         document.getElementById('table-payment-list').addEventListener('input', handlePaymentInputChange);
         document.getElementById('invoice-selector-modal').addEventListener('change', handleInvoiceModalCheckboxChange);
@@ -1591,24 +1634,18 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('form-add-supplier').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { supplierCode: document.getElementById('supplier-code').value, name: document.getElementById('supplier-name').value, contact: document.getElementById('supplier-contact').value }; const result = await postData('addSupplier', data, btn); if (result) { showToast('Supplier added!', 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
         document.getElementById('form-add-branch').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { branchCode: document.getElementById('branch-code').value, name: document.getElementById('branch-name').value }; const result = await postData('addBranch', data, btn); if (result) { showToast('Branch added!', 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
         document.getElementById('form-add-section').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { sectionCode: document.getElementById('section-code').value, name: document.getElementById('section-name').value }; const result = await postData('addSection', data, btn); if (result) { showToast('Section added!', 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
-        // THIS IS THE FIX: Add a submit listener for the payment form
         document.getElementById('form-record-payment').addEventListener('submit', async e => {
-            e.preventDefault(); // This is the most important line, it stops the page from reloading
+            e.preventDefault(); 
             const btn = e.target.querySelector('button[type="submit"]');
-            
             const supplierCode = document.getElementById('payment-supplier-select').value;
             const method = document.getElementById('payment-method').value;
-            
             if (!supplierCode || state.invoiceModalSelections.size === 0) {
                 showToast('Please select a supplier and at least one invoice to pay.', 'error');
                 return;
             }
-
             const paymentId = `PAY-${Date.now()}`;
             let totalAmount = 0;
             const payments = [];
-
-            // Collect payment data from the input fields in the table
             document.querySelectorAll('.payment-amount-input').forEach(input => {
                 const amount = parseFloat(input.value) || 0;
                 if (amount > 0) {
@@ -1623,13 +1660,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
             });
-
             if (payments.length === 0) {
                 showToast('Payment amount must be greater than zero.', 'error');
                 return;
             }
-
-            // This is the data structure the backend expects for the 'addPaymentBatch' action
             const payload = {
                 supplierCode: supplierCode,
                 method: method,
@@ -1637,22 +1671,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 totalAmount: totalAmount,
                 payments: payments
             };
-
             const result = await postData('addPaymentBatch', payload, btn);
-
             if (result) {
                 showToast('Payment recorded successfully!', 'success');
-                generatePaymentVoucher(payload); // Use the client-side payload to generate the voucher instantly
-                
-                // Reset the form and UI
+                generatePaymentVoucher(payload); 
                 state.invoiceModalSelections.clear();
                 document.getElementById('form-record-payment').reset();
                 document.getElementById('btn-select-invoices').disabled = true;
-                renderPaymentList(); // This will hide the list
-                await reloadDataAndRefreshUI(); // Refresh all app data
+                renderPaymentList();
+                await reloadDataAndRefreshUI();
             }
         });
-        // Transaction/PO Submit Buttons
+        
         document.getElementById('btn-submit-receive-batch').addEventListener('click', async (e) => { const btn = e.currentTarget; const supplierCode = document.getElementById('receive-supplier').value, branchCode = document.getElementById('receive-branch').value, invoiceNumber = document.getElementById('receive-invoice').value, notes = document.getElementById('receive-notes').value, poId = document.getElementById('receive-po-select').value; if (!userCan('opReceiveWithoutPO') && !poId) { showToast('You must select a Purchase Order to receive stock.', 'error'); return; } if (!supplierCode || !branchCode || !invoiceNumber || state.currentReceiveList.length === 0) { showToast('Please fill all required fields and add items.', 'error'); return; } const payload = { type: 'receive', batchId: `GRN-${Date.now()}`, supplierCode, branchCode, invoiceNumber, poId, date: new Date().toISOString(), items: state.currentReceiveList, notes }; await handleTransactionSubmit(payload, btn); });
         document.getElementById('btn-submit-transfer-batch').addEventListener('click', async (e) => { const btn = e.currentTarget; const fromBranchCode = document.getElementById('transfer-from-branch').value, toBranchCode = document.getElementById('transfer-to-branch').value, notes = document.getElementById('transfer-notes').value, ref = document.getElementById('transfer-ref').value; if (!fromBranchCode || !toBranchCode || fromBranchCode === toBranchCode || state.currentTransferList.length === 0) { showToast('Please select valid branches and add at least one item.', 'error'); return; } const payload = { type: 'transfer_out', batchId: ref, ref: ref, fromBranchCode, toBranchCode, date: new Date().toISOString(), items: state.currentTransferList, notes }; await handleTransactionSubmit(payload, btn); });
         document.getElementById('btn-submit-issue-batch').addEventListener('click', async(e) => { const btn = e.currentTarget; const fromBranchCode = document.getElementById('issue-from-branch').value, sectionCode = document.getElementById('issue-to-section').value, ref = document.getElementById('issue-ref').value, notes = document.getElementById('issue-notes').value; if (!fromBranchCode || !sectionCode || !ref || state.currentIssueList.length === 0) { showToast('Please fill all issue details and select at least one item.', 'error'); return; } const payload = { type: 'issue', batchId: ref, ref: ref, fromBranchCode, sectionCode, date: new Date().toISOString(), items: state.currentIssueList, notes }; await handleTransactionSubmit(payload, btn); });
@@ -1660,7 +1690,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('btn-submit-return').addEventListener('click', async (e) => { const btn = e.currentTarget; const supplierCode = document.getElementById('return-supplier').value, fromBranchCode = document.getElementById('return-branch').value, ref = document.getElementById('return-ref').value, notes = document.getElementById('return-notes').value; if (!supplierCode || !fromBranchCode || !ref || state.currentReturnList.length === 0) { showToast('Please fill all required fields and add items.', 'error'); return; } const payload = { type: 'return_out', batchId: `RTN-${Date.now()}`, ref: ref, supplierCode, fromBranchCode, date: new Date().toISOString(), items: state.currentReturnList, notes }; await handleTransactionSubmit(payload, btn); });
         document.getElementById('btn-submit-request').addEventListener('click', async(e) => { const btn = e.currentTarget; const requestType = document.getElementById('request-type').value; const notes = document.getElementById('request-notes').value; if(state.currentRequestList.length === 0){ showToast('Please select items for your request.', 'error'); return; } const payload = { requestId: `REQ-${Date.now()}`, requestType, notes, items: state.currentRequestList }; const result = await postData('addItemRequest', payload, btn); if(result){ showToast('Request submitted successfully!', 'success'); state.currentRequestList = []; document.getElementById('form-create-request').reset(); renderRequestListTable(); reloadDataAndRefreshUI(); }});
         
-        // FIX for input field focus issue
         const handleTableInputUpdate = (e, listName, updaterFn) => {
             if (e.target.classList.contains('table-input')) {
                 const index = parseInt(e.target.dataset.index);
@@ -1670,14 +1699,14 @@ document.addEventListener('DOMContentLoaded', () => {
                    if (!isNaN(value)) {
                        state[listName][index][field] = value;
                    }
-                   if (updaterFn) updaterFn(); // This just updates the total, not the whole table
+                   if (updaterFn) updaterFn();
                 }
             }
         };
         const handleTableRemove = (e, listName, rendererFn) => { 
             if (e.target.classList.contains('danger') && e.target.dataset.index) {
                 state[listName].splice(e.target.dataset.index, 1); 
-                rendererFn(); // Re-render the table after removal
+                rendererFn(); 
             }
         };
         
@@ -1695,7 +1724,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setupInputTableListeners('table-issue-list', 'currentIssueList', renderIssueListTable, updateIssueGrandTotal);
         setupInputTableListeners('table-request-list', 'currentRequestList', renderRequestListTable, () => {});
 
-        // Report Generation Buttons
         document.getElementById('btn-generate-supplier-statement').addEventListener('click', () => { const supplierCode = document.getElementById('supplier-statement-select').value; const startDate = document.getElementById('statement-start-date').value; const endDate = document.getElementById('statement-end-date').value; if(!supplierCode) { showToast('Please select a supplier.', 'error'); return; } renderSupplierStatement(supplierCode, startDate, endDate); });
         document.getElementById('btn-generate-branch-consumption').addEventListener('click', () => { const branchCode = document.getElementById('branch-consumption-select').value; const startDate = document.getElementById('branch-consumption-start-date').value; const endDate = document.getElementById('branch-consumption-end-date').value; const itemFilter = document.getElementById('branch-consumption-item-filter').value; const categoryFilter = document.getElementById('branch-consumption-category-filter').value; if(!branchCode) { showToast('Please select a branch.', 'error'); return; } let filteredTx = state.transactions.filter(t => t.type === 'issue' && t.fromBranchCode === branchCode); const sDate = startDate ? new Date(startDate) : null; if(sDate) sDate.setHours(0,0,0,0); const eDate = endDate ? new Date(endDate) : null; if(eDate) eDate.setHours(23,59,59,999); if (sDate) filteredTx = filteredTx.filter(t => new Date(t.date) >= sDate); if (eDate) filteredTx = filteredTx.filter(t => new Date(t.date) <= eDate); if (itemFilter) filteredTx = filteredTx.filter(t => t.itemCode === itemFilter); if (categoryFilter) { const itemCodesInCategory = state.items.filter(i => i.category === categoryFilter).map(i => i.code); filteredTx = filteredTx.filter(t => itemCodesInCategory.includes(t.itemCode)); } const historicalCosts = calculateHistoricalCosts(); renderConsumptionReport({ resultsContainerId: 'branch-consumption-results', exportBtnId: 'btn-export-branch-consumption', data: filteredTx, title: 'Branch Consumption Report', entityName: findByKey(state.branches, 'branchCode', branchCode).name, dateHeader: `${startDate || 'Start'} to ${endDate || 'End'}`, historicalCosts: historicalCosts }); });
         document.getElementById('btn-generate-section-consumption').addEventListener('click', () => { const sectionCode = document.getElementById('section-consumption-select').value; const startDate = document.getElementById('section-consumption-start-date').value; const endDate = document.getElementById('section-consumption-end-date').value; const itemFilter = document.getElementById('section-consumption-item-filter').value; const categoryFilter = document.getElementById('section-consumption-category-filter').value; if(!sectionCode) { showToast('Please select a section.', 'error'); return; } let filteredTx = state.transactions.filter(t => t.type === 'issue' && t.sectionCode === sectionCode); const sDate = startDate ? new Date(startDate) : null; if(sDate) sDate.setHours(0,0,0,0); const eDate = endDate ? new Date(endDate) : null; if(eDate) eDate.setHours(23,59,59,999); if (sDate) filteredTx = filteredTx.filter(t => new Date(t.date) >= sDate); if (eDate) filteredTx = filteredTx.filter(t => new Date(t.date) <= eDate); if (itemFilter) filteredTx = filteredTx.filter(t => t.itemCode === itemFilter); if (categoryFilter) { const itemCodesInCategory = state.items.filter(i => i.category === categoryFilter).map(i => i.code); filteredTx = filteredTx.filter(t => itemCodesInCategory.includes(t.itemCode)); } const historicalCosts = calculateHistoricalCosts(); renderConsumptionReport({ resultsContainerId: 'section-consumption-results', exportBtnId: 'btn-export-section-consumption', data: filteredTx, title: 'Section Consumption Report', entityName: findByKey(state.sections, 'sectionCode', sectionCode).name, dateHeader: `${startDate || 'Start'} to ${endDate || 'End'}`, historicalCosts: historicalCosts }); });
@@ -1732,12 +1760,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             renderReceiveListTable();
         });
-
-        // Modal specific listeners
-        document.getElementById('btn-save-po-changes').addEventListener('click', savePOChanges);
-        document.getElementById('btn-confirm-request-approval').addEventListener('click', confirmRequestApproval);
-        document.getElementById('btn-confirm-receive-transfer').addEventListener('click', async (e) => { const btn = e.currentTarget; const batchId = btn.dataset.batchId; const transferGroup = state.transactions.filter(t => t.batchId === batchId); const payload = { originalBatchId: batchId, ref: transferGroup[0].ref, fromBranchCode: transferGroup[0].fromBranchCode, toBranchCode: transferGroup[0].toBranchCode, items: transferGroup.map(t => ({ itemCode: t.itemCode, quantity: t.quantity })), notes: `Received from ${batchId}` }; const result = await postData('receiveTransfer', payload, btn); if (result) { showToast('Transfer received!', 'success'); closeModal(); reloadDataAndRefreshUI(); } });
-        document.getElementById('btn-reject-transfer').addEventListener('click', async (e) => { const btn = e.currentTarget; const batchId = btn.dataset.batchId; if(confirm('Are you sure you want to reject this transfer? This action cannot be undone.')) { const result = await postData('rejectTransfer', { batchId }, btn); if (result) { showToast('Transfer rejected.', 'success'); closeModal(); reloadDataAndRefreshUI(); } } });
     }
     
     function setupRoleBasedNav() {
@@ -1771,7 +1793,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setupSearch('stock-levels-search', renderItemCentricStockView, 'items', ['name', 'code']);
         document.getElementById('item-inquiry-search').addEventListener('input', e => renderItemInquiry(e.target.value.toLowerCase()));
         
-        // Export buttons
         document.getElementById('btn-export-items').addEventListener('click', () => exportToExcel('table-items', 'ItemList.xlsx'));
         document.getElementById('btn-export-suppliers').addEventListener('click', () => exportToExcel('table-suppliers', 'SupplierList.xlsx'));
         document.getElementById('btn-export-branches').addEventListener('click', () => exportToExcel('table-branches', 'BranchList.xlsx'));
@@ -1800,6 +1821,7 @@ document.addEventListener('DOMContentLoaded', () => {
         displayEl.textContent = displayText;
     }
 
+    // NEW & MODIFIED
     function openPOEditModal(poId) {
         const po = findByKey(state.purchaseOrders, 'poId', poId);
         if (!po) return;
@@ -1817,18 +1839,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const modalBody = document.getElementById('edit-po-modal-body');
         modalBody.innerHTML = `
             <div class="form-grid">
-                <div class="form-group">
-                    <label>PO Number</label>
-                    <input type="text" value="${po.poId}" readonly>
-                </div>
-                <div class="form-group">
-                    <label>Supplier</label>
-                    <input type="text" value="${findByKey(state.suppliers, 'supplierCode', po.supplierCode)?.name}" readonly>
-                </div>
-                <div class="form-group span-full">
-                    <label for="edit-po-notes">Notes</label>
-                    <textarea id="edit-po-notes" rows="2">${po.notes || ''}</textarea>
-                </div>
+                <div class="form-group"><label>PO Number</label><input type="text" id="edit-po-id" value="${po.poId}" readonly></div>
+                <div class.form-group"><label>Supplier</label><input type="text" value="${findByKey(state.suppliers, 'supplierCode', po.supplierCode)?.name}" readonly></div>
+                <div class="form-group span-full"><label for="edit-po-notes">Notes</label><textarea id="edit-po-notes" rows="2">${po.notes || ''}</textarea></div>
             </div>
             <div class="card" style="margin-top: 20px;">
                 <h2>Items to Order</h2>
@@ -1837,12 +1850,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     <tbody></tbody>
                     <tfoot><tr style="font-weight: bold; background-color: var(--bg-color);"><td colspan="4" style="text-align: right;">Grand Total:</td><td id="edit-po-grand-total" colspan="2">0.00 EGP</td></tr></tfoot>
                 </table>
-                <div style="margin-top: 20px;">
-                    <button type="button" data-context="edit-po" class="secondary">Add More Items</button>
-                </div>
+                <div style="margin-top: 20px;"><button type="button" data-context="edit-po" class="secondary">Add More Items</button></div>
             </div>
         `;
-        document.getElementById('btn-save-po-changes').dataset.poId = poId;
+        
+        const modal = document.getElementById('edit-po-modal');
+        modal.querySelector('.modal-footer').innerHTML = `
+            <button class="secondary modal-cancel">Cancel</button>
+            <button id="btn-print-draft-po" class="secondary">Print Draft</button>
+            <button id="btn-save-po-changes" class="primary" data-po-id="${po.poId}">Save Changes</button>
+        `;
+        
+        document.getElementById('btn-print-draft-po').onclick = () => {
+            const supplier = findByKey(state.suppliers, 'supplierCode', po.supplierCode);
+            const dataToPrint = {
+                poId: document.getElementById('edit-po-id').value,
+                date: new Date(),
+                supplierCode: po.supplierCode,
+                notes: document.getElementById('edit-po-notes').value,
+                items: state.currentEditingPOList,
+                createdBy: po.createdBy || state.currentUser.Name
+            };
+            generatePODocument(dataToPrint);
+        };
+
         renderPOEditListTable();
         editPOModal.classList.add('active');
     }
@@ -1866,6 +1897,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // NEW & MODIFIED
     function openApproveRequestModal(requestId) {
         const requestGroup = state.itemRequests.filter(r => r.RequestID === requestId);
         if (requestGroup.length === 0) return;
@@ -1906,7 +1938,38 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
         
-        document.getElementById('btn-confirm-request-approval').dataset.requestId = requestId;
+        const modal = document.getElementById('approve-request-modal');
+        modal.querySelector('.modal-footer').innerHTML = `
+            <button class="secondary modal-cancel">Cancel</button>
+            <button id="btn-print-draft-issue-note" class="secondary">Print Draft Note</button>
+            <button id="btn-confirm-request-approval" class="primary" data-request-id="${requestId}">Confirm and Issue</button>
+        `;
+        
+        document.getElementById('btn-print-draft-issue-note').onclick = () => {
+            const itemsToPrint = [];
+            document.querySelectorAll('#table-approve-request-items tbody tr').forEach(tr => {
+                const input = tr.querySelector('input');
+                const itemCode = input.dataset.itemCode;
+                const quantity = parseFloat(input.value) || 0;
+                if (quantity > 0) {
+                    itemsToPrint.push({
+                        itemCode: itemCode,
+                        itemName: findByKey(state.items, 'code', itemCode)?.name,
+                        quantity: quantity
+                    });
+                }
+            });
+            const dataToPrint = {
+                ref: requestId,
+                date: new Date(),
+                fromBranchCode: first.ToBranch,
+                sectionCode: first.FromSection,
+                notes: document.getElementById('approve-status-notes').value,
+                items: itemsToPrint
+            };
+            generateRequestIssueDocument(dataToPrint);
+        };
+        
         approveRequestModal.classList.add('active');
     }
     
