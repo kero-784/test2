@@ -250,13 +250,31 @@ document.addEventListener('DOMContentLoaded', () => {
     async function openHistoryModal(itemCode) {
         const item = findByKey(state.items, 'code', itemCode);
         if (!item) return;
+
         document.getElementById('history-modal-title').textContent = `History for: ${item.name} (${item.code})`;
         const historyModalBody = document.getElementById('history-modal-body');
-        historyModalBody.querySelector('#subview-price-history').innerHTML = '<div class="spinner"></div>';
-        historyModalBody.querySelector('#subview-movement-history').innerHTML = '<div class="spinner"></div>';
+        const priceHistoryContainer = historyModalBody.querySelector('#subview-price-history');
+        const movementHistoryContainer = historyModalBody.querySelector('#subview-movement-history');
+        const subNav = historyModalBody.querySelector('.sub-nav');
+
+        priceHistoryContainer.innerHTML = '<div class="spinner"></div>';
+        movementHistoryContainer.innerHTML = '<div class="spinner"></div>';
         historyModal.classList.add('active');
         
-        const firstTab = historyModalBody.querySelector('.sub-nav-item');
+        // ** THE FIX IS HERE **
+        // Attach a specific listener for this modal's sub-navigation
+        subNav.addEventListener('click', (e) => {
+            if (!e.target.classList.contains('sub-nav-item')) return;
+            const subviewId = e.target.dataset.subview;
+            subNav.querySelectorAll('.sub-nav-item').forEach(btn => btn.classList.remove('active'));
+            e.target.classList.add('active');
+            historyModalBody.querySelectorAll('.sub-view').forEach(view => view.classList.remove('active'));
+            const subViewToShow = historyModalBody.querySelector(`#subview-${subviewId}`);
+            if (subViewToShow) subViewToShow.classList.add('active');
+        });
+
+        // Activate the first tab by default
+        const firstTab = subNav.querySelector('.sub-nav-item');
         if (firstTab) firstTab.click();
 
         const result = await postData('getItemHistory', { itemCode }, null);
@@ -264,8 +282,8 @@ document.addEventListener('DOMContentLoaded', () => {
             renderPriceHistory(result.data.priceHistory);
             renderMovementHistory(result.data.movementHistory, itemCode);
         } else {
-            historyModalBody.querySelector('#subview-price-history').innerHTML = '<p>Could not load price history.</p>';
-            historyModalBody.querySelector('#subview-movement-history').innerHTML = '<p>Could not load movement history.</p>';
+            priceHistoryContainer.innerHTML = '<p>Could not load price history.</p>';
+            movementHistoryContainer.innerHTML = '<p>Could not load movement history.</p>';
         }
     }
 
@@ -563,7 +581,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 const newItem = { itemCode: item.code, itemName: item.name, quantity: 1, cost: item.cost };
                 if (modalContext === 'adjustment') {
-                    newItem.physicalCount = 0; // Initialize physical count for adjustments
+                    newItem.physicalCount = 0;
                 }
                 newList.push(newItem);
             }
@@ -1709,7 +1727,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function setupSearch(inputId, renderFn, dataKey, searchKeys) { const searchInput = document.getElementById(inputId); if (!searchInput) return; searchInput.addEventListener('input', e => { const searchTerm = e.target.value.toLowerCase(); const dataToFilter = state[dataKey] || []; renderFn(searchTerm ? dataToFilter.filter(item => searchKeys.some(key => item[key] && String(item[key]).toLowerCase().includes(searchTerm))) : dataToFilter); }); }
     
-    function attachSubNavListeners() { document.querySelectorAll('.sub-nav').forEach(nav => { nav.addEventListener('click', e => { if (!e.target.classList.contains('sub-nav-item')) return; const subviewId = e.target.dataset.subview; const parentView = e.target.closest('.view'); parentView.querySelectorAll('.sub-nav-item').forEach(btn => btn.classList.remove('active')); e.target.classList.add('active'); parentView.querySelectorAll('.sub-view').forEach(view => view.classList.remove('active')); const subViewToShow = parentView.querySelector(`#subview-${subviewId}`); if (subViewToShow) subViewToShow.classList.add('active'); }); }); }
+    function attachSubNavListeners() { document.querySelectorAll('.sub-nav').forEach(nav => { nav.addEventListener('click', e => { if (!e.target.classList.contains('sub-nav-item')) return; const subviewId = e.target.dataset.subview; const parentView = e.target.closest('.view, .modal-body'); if (!parentView) return; parentView.querySelectorAll('.sub-nav-item').forEach(btn => btn.classList.remove('active')); e.target.classList.add('active'); parentView.querySelectorAll('.sub-view').forEach(view => view.classList.remove('active')); const subViewToShow = parentView.querySelector(`#subview-${subviewId}`); if (subViewToShow) subViewToShow.classList.add('active'); }); }); }
     
     function attachEventListeners() {
         btnLogout.addEventListener('click', logout);
@@ -1899,6 +1917,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         };
+
         const handleTableRemove = (e, listName, rendererFn) => { 
             const btn = e.target.closest('button');
             if (btn && btn.classList.contains('danger') && btn.dataset.index) {
@@ -1907,19 +1926,21 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
         
-        const setupInputTableListeners = (tableId, listName, rendererFn, totalUpdaterFn) => {
+        const setupInputTableListeners = (tableId, listName, rendererFn) => {
             const table = document.getElementById(tableId);
             if (!table) return;
-            table.addEventListener('input', e => handleTableInputUpdate(e, listName, rendererFn));
+            // *** THE FIX IS HERE: Changed from 'input' to 'change' ***
+            table.addEventListener('change', e => handleTableInputUpdate(e, listName, rendererFn));
             table.addEventListener('click', e => handleTableRemove(e, listName, rendererFn));
         };
-        setupInputTableListeners('table-receive-list', 'currentReceiveList', renderReceiveListTable, updateReceiveGrandTotal);
-        setupInputTableListeners('table-po-list', 'currentPOList', renderPOListTable, updatePOGrandTotal);
-        setupInputTableListeners('table-edit-po-list', 'currentEditingPOList', renderPOEditListTable, updatePOEditGrandTotal);
-        setupInputTableListeners('table-return-list', 'currentReturnList', renderReturnListTable, updateReturnGrandTotal);
-        setupInputTableListeners('table-transfer-list', 'currentTransferList', renderTransferListTable, updateTransferGrandTotal);
-        setupInputTableListeners('table-issue-list', 'currentIssueList', renderIssueListTable, updateIssueGrandTotal);
-        setupInputTableListeners('table-request-list', 'currentRequestList', renderRequestListTable, () => {});
+
+        setupInputTableListeners('table-receive-list', 'currentReceiveList', renderReceiveListTable);
+        setupInputTableListeners('table-po-list', 'currentPOList', renderPOListTable);
+        setupInputTableListeners('table-edit-po-list', 'currentEditingPOList', renderPOEditListTable);
+        setupInputTableListeners('table-return-list', 'currentReturnList', renderReturnListTable);
+        setupInputTableListeners('table-transfer-list', 'currentTransferList', renderTransferListTable);
+        setupInputTableListeners('table-issue-list', 'currentIssueList', renderIssueListTable);
+        setupInputTableListeners('table-request-list', 'currentRequestList', renderRequestListTable);
         setupInputTableListeners('table-adjustment-list', 'currentAdjustmentList', renderAdjustmentListTable);
         
         document.getElementById('btn-submit-adjustment').addEventListener('click', async (e) => {
