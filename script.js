@@ -12,7 +12,7 @@ window.printReport = function(elementId) {
 
 document.addEventListener('DOMContentLoaded', () => {
     // !!! IMPORTANT: PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwIlTFhE2TUbxHzmsGm9-JjM4Lojw0YqTu_e5tRZZZX29rwBDyHZzo6wSlTZuGXyeg5/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwtjsaDp7ZlkIR3fyVdBIJ2FgsBHS8GLU1v0a8mvAV1hRJoaTqWbh9DVVMLMr7uiOLb/exec';
 
     const Logger = {
         info: (message, ...args) => console.log(`[StockWise INFO] ${message}`, ...args),
@@ -1479,7 +1479,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const populateOptions = (el, data, ph, valueKey, textKey, textKey2) => { 
         if (!el) {
-            console.warn(`populateOptions failed: element is null.`);
+            console.warn(`populateOptions failed: element is null for placeholder "${ph}"`);
             return;
         }
         el.innerHTML = `<option value="">${ph}</option>`; 
@@ -1699,11 +1699,24 @@ document.addEventListener('DOMContentLoaded', () => {
         tbody.innerHTML = '';
         
         const pendingPOs = (state.purchaseOrders || []).filter(po => po.Status === 'Pending Approval');
-        const pendingReceives = (state.transactions || []).filter(t => t.type === 'receive' && (t.isApproved === false || String(t.isApproved).toUpperCase() === 'FALSE'));
-        
+        const pendingReceivesGroups = {};
+        (state.transactions || []).filter(t => t.type === 'receive' && (t.isApproved === false || String(t.isApproved).toUpperCase() === 'FALSE')).forEach(t => {
+            if (!pendingReceivesGroups[t.batchId]) {
+                pendingReceivesGroups[t.batchId] = {
+                    date: t.date,
+                    txType: 'receive',
+                    ref: t.invoiceNumber,
+                    batchId: t.batchId,
+                    details: `GRN from ${findByKey(state.suppliers, 'supplierCode', t.supplierCode)?.name || 'N/A'}`,
+                    totalValue: 0
+                };
+            }
+            pendingReceivesGroups[t.batchId].totalValue += (parseFloat(t.quantity) || 0) * (parseFloat(t.cost) || 0);
+        });
+
         let allPending = [
             ...pendingPOs.map(po => ({...po, txType: 'po', ref: po.poId, value: po.totalValue, details: `PO for ${findByKey(state.suppliers, 'supplierCode', po.supplierCode)?.name || 'N/A'}`})),
-            ...pendingReceives.map(rcv => ({...rcv, txType: 'receive', ref: rcv.invoiceNumber, value: rcv.quantity * rcv.cost, details: `GRN from ${findByKey(state.suppliers, 'supplierCode', rcv.supplierCode)?.name || 'N/A'}`}))
+            ...Object.values(pendingReceivesGroups).map(rcv => ({...rcv, value: rcv.totalValue}))
         ];
 
         if (allPending.length === 0) {
@@ -1721,8 +1734,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${(parseFloat(item.value) || 0).toFixed(2)} EGP</td>
                 <td>
                     <div class="action-buttons">
-                        <button class="primary small btn-approve-financial" data-id="${item.ref}" data-type="${item.txType}">Approve</button>
-                        <button class="danger small btn-reject-financial" data-id="${item.ref}" data-type="${item.txType}">Reject</button>
+                        <button class="primary small btn-approve-financial" data-id="${item.txType === 'po' ? item.poId : item.batchId}" data-type="${item.txType}">Approve</button>
+                        <button class="danger small btn-reject-financial" data-id="${item.txType === 'po' ? item.poId : item.batchId}" data-type="${item.txType}">Reject</button>
                     </div>
                 </td>
             `;
@@ -1940,6 +1953,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             if (btn.classList.contains('btn-edit-po')) { openPOEditModal(btn.dataset.poId); }
+            if (btn.classList.contains('btn-approve-financial') || btn.classList.contains('btn-reject-financial')) {
+                const id = btn.dataset.id;
+                const type = btn.dataset.type;
+                const action = btn.classList.contains('btn-approve-financial') ? 'approveFinancial' : 'rejectFinancial';
+                const confirmationText = action === 'approveFinancial' ? `Are you sure you want to approve this ${type.toUpperCase()}?` : `Are you sure you want to reject this ${type.toUpperCase()}? This action cannot be undone.`;
+                
+                if (confirm(confirmationText)) {
+                    postData(action, { id, type }, btn).then(result => {
+                        if (result) {
+                            showToast(`${type.toUpperCase()} ${action}ed successfully!`, 'success');
+                            reloadDataAndRefreshUI();
+                        }
+                    });
+                }
+            }
         });
         
         document.body.addEventListener('click', (e) => { 
