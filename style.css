@@ -73,17 +73,7 @@ body {
 #view-title { font-size: 32px; font-weight: 700; margin: 0; flex-shrink: 0; }
 .pending-requests-widget { display: flex; align-items: center; gap: 8px; background-color: var(--warning-color); color: white; padding: 6px 12px; border-radius: var(--border-radius); font-weight: 600; font-size: 14px; margin-left: 24px; cursor: pointer; }
 .pending-requests-widget .icon { width: 20px; height: 20px; }
-.user-branch-display {
-    margin-left: auto; /* Pushes this to the very right */
-    background-color: var(--primary-light);
-    color: var(--primary-dark);
-    font-size: 14px;
-    font-weight: 600;
-    padding: 6px 12px;
-    border-radius: 8px;
-    flex-shrink: 0;
-}
-
+.user-branch-display { margin-left: auto; background-color: var(--primary-light); color: var(--primary-dark); font-size: 14px; font-weight: 600; padding: 6px 12px; border-radius: 8px; flex-shrink: 0; }
 
 /* --- Sub-Navigation for Tabs --- */
 .sub-nav { display: flex; gap: 8px; border-bottom: 2px solid var(--border-color); margin-bottom: 24px; flex-wrap: wrap;}
@@ -180,7 +170,7 @@ tbody tr:hover { background-color: #f7faff; }
 .modal-header h2 { margin: 0; border: none; padding: 0; font-size: 18px; font-weight: 600; }
 .close-button { background: transparent; border: none; font-size: 28px; cursor: pointer; padding: 0; line-height: 1; color: var(--text-light-color); transition: color 0.2s; }
 .close-button:hover { color: var(--text-color); }
-.modal-body { flex-grow: 1; overflow-y: auto; padding: 24px; min-height: 0; /* THE DEFINITIVE FIX */ }
+.modal-body { flex-grow: 1; overflow-y: auto; padding: 24px; min-height: 0; }
 #modal-search-items { margin-bottom: 16px; }
 .modal-item-list { display: flex; flex-direction: column; }
 .modal-item { display: flex; align-items: center; padding: 12px; border-radius: var(--border-radius); cursor: pointer; transition: background-color 0.2s; }
@@ -190,7 +180,7 @@ tbody tr:hover { background-color: #f7faff; }
 .modal-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 20px 24px; border-top: 1px solid var(--border-color); background-color: #F7F8FC; flex-shrink: 0; }
 
 /* --- Component-Specific Styles --- */
-#table-receive-list input, #table-transfer-list input, #table-issue-list input, #table-po-list input, #table-return-list input, #table-request-list input, #table-edit-po-list input { padding: 8px; font-size: 14px; max-width: 120px; background-color: white; }
+#table-receive-list input, #table-transfer-list input, #table-issue-list input, #table-po-list input, #table-return-list input, #table-request-list input, #table-edit-po-list input, #table-adjustment-list input { padding: 8px; font-size: 14px; max-width: 120px; background-color: white; }
 .kpi-card { background-color: var(--card-bg-color); padding: 20px; border-radius: var(--border-radius); box-shadow: var(--shadow-sm); border: 1px solid var(--border-color); text-align: center; }
 .kpi-label { font-size: 14px; color: var(--text-light-color); margin-bottom: 8px; font-weight: 500; }
 .kpi-value { font-size: 28px; font-weight: 700; color: var(--text-color); }
@@ -207,6 +197,7 @@ tbody tr:hover { background-color: #f7faff; }
 .permissions-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
 #view-transfer-modal-body p { margin: 4px 0; font-size: 16px; }
 #view-transfer-modal-body p strong { color: var(--text-light-color); display: inline-block; width: 120px; }
+
 /* --- Toggle Switch Styles --- */
 .form-group-toggle { display: flex; align-items: center; justify-content: space-between; max-width: 400px; }
 .form-group-toggle label { margin-bottom: 0; font-weight: 600; }
@@ -219,6 +210,7 @@ input:focus + .slider { box-shadow: 0 0 1px var(--primary-color); }
 input:checked + .slider:before { transform: translateX(26px); }
 .slider.round { border-radius: 34px; }
 .slider.round:before { border-radius: 50%; }
+
 /* --- Print & Responsive --- */
 @media print { body { background-color: #fff !important; } .app-container, .no-print { display: none !important; } #print-area { display: block !important; } .printable-document { display: block !important; box-shadow: none; border: none; padding:0; } .printable-document h2, .printable-document p { margin: 0 0 10px 0; } #print-area table { table-layout: auto; } #print-area th, #print-area td { white-space: normal !important; word-break: break-word !important; overflow: visible !important; text-overflow: clip !important; font-size: 10pt; padding: 8px; } }
 @media (max-width: 1200px) { .report-generator-controls { flex-direction: column; align-items: stretch; } }
