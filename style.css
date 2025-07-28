@@ -188,7 +188,7 @@ tbody tr:hover { background-color: #f7faff; }
 .status-paid, .status-completed, .status-approved { background-color: #E6F8F3; color: #008761; }
 .status-unpaid, .status-rejected, .status-cancelled { background-color: #FDEDE9; color: var(--danger-color); }
 .status-partial { background-color: #FFF6E0; color: #E89500; }
-.status-pending, .status-intransit { background-color: #eaf2fc; color: var(--primary-dark); }
+.status-pending, .status-intransit, .status-pendingapproval { background-color: #eaf2fc; color: var(--primary-dark); }
 .report-area { overflow-x: auto; }
 #item-centric-stock-container table, .printable-area table { table-layout: auto; }
 #item-centric-stock-container td, .printable-area td, #history-modal-body td { white-space: normal; }
@@ -210,6 +210,13 @@ input:focus + .slider { box-shadow: 0 0 1px var(--primary-color); }
 input:checked + .slider:before { transform: translateX(26px); }
 .slider.round { border-radius: 34px; }
 .slider.round:before { border-radius: 50%; }
+
+/* --- FIX FOR PERMISSIONS MODAL --- */
+#edit-modal-body .permissions-grid {
+    max-height: 50vh;
+    overflow-y: auto;
+    padding-right: 10px;
+}
 
 /* --- Print & Responsive --- */
 @media print { body { background-color: #fff !important; } .app-container, .no-print { display: none !important; } #print-area { display: block !important; } .printable-document { display: block !important; box-shadow: none; border: none; padding:0; } .printable-document h2, .printable-document p { margin: 0 0 10px 0; } #print-area table { table-layout: auto; } #print-area th, #print-area td { white-space: normal !important; word-break: break-word !important; overflow: visible !important; text-overflow: clip !important; font-size: 10pt; padding: 8px; } }
