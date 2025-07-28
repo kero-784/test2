@@ -12,7 +12,7 @@ window.printReport = function(elementId) {
 
 document.addEventListener('DOMContentLoaded', () => {
     // !!! IMPORTANT: PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwtjsaDp7ZlkIR3fyVdBIJ2FgsBHS8GLU1v0a8mvAV1hRJoaTqWbh9DVVMLMr7uiOLb/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzsdo78mOdRAk56mvfmVmmKs2_X9z9ydNg2gf2WrBvK7A6640Yx6x1Vmvk9Koj5bYJ4/exec';
 
     const Logger = {
         info: (message, ...args) => console.log(`[StockWise INFO] ${message}`, ...args),
@@ -1699,6 +1699,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tbody.innerHTML = '';
         
         const pendingPOs = (state.purchaseOrders || []).filter(po => po.Status === 'Pending Approval');
+        
         const pendingReceivesGroups = {};
         (state.transactions || []).filter(t => t.type === 'receive' && (t.isApproved === false || String(t.isApproved).toUpperCase() === 'FALSE')).forEach(t => {
             if (!pendingReceivesGroups[t.batchId]) {
@@ -1962,7 +1963,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (confirm(confirmationText)) {
                     postData(action, { id, type }, btn).then(result => {
                         if (result) {
-                            showToast(`${type.toUpperCase()} ${action}ed successfully!`, 'success');
+                            showToast(`${type.toUpperCase()} ${action.replace('Financial', '')}ed successfully!`, 'success');
                             reloadDataAndRefreshUI();
                         }
                     });
