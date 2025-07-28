@@ -97,7 +97,7 @@
                 <div id="subview-receive" class="sub-view active">
                     <div class="card" id="pending-transfers-card" style="display: none;"><h2>Pending Incoming Transfers</h2><div class="report-area"><table id="table-pending-transfers"><thead><tr><th>Date Sent</th><th>From Branch</th><th>Reference #</th><th>Items</th><th>Actions</th></tr></thead><tbody></tbody></table></div></div>
                     <div class="card"><h2>Receive Stock from Supplier</h2><form id="form-receive-details" class="form-grid" onsubmit="return false;"><div class="form-group"><label for="receive-po-select">Receive Against PO <small>(Optional)</small></label><select id="receive-po-select"><option value="">Select a Purchase Order</option></select></div><div class="form-group"><label for="receive-supplier">Supplier</label><select id="receive-supplier" required></select></div><div class="form-group"><label for="receive-invoice">Invoice Number</label><input type="text" id="receive-invoice" required></div><div class="form-group"><label for="receive-branch">To Branch</label><select id="receive-branch" required></select></div><div class="form-group span-full"><label for="receive-notes">Notes (Optional)</label><textarea id="receive-notes" rows="2"></textarea></div></form></div>
-                    <div class="card" id="receive-list-card"><h2>Items to be Received</h2><table id="table-receive-list"><thead><tr><th>Code</th><th>Item Name</th><th>Quantity</th><th>Cost/Unit</th><th>Total</th><th>Action</th></tr></thead><tbody></tbody><tfoot><tr style="font-weight: bold; background-color: var(--bg-color);"><td colspan="4" style="text-align: right;">Grand Total:</td><td id="receive-grand-total" colspan="2">0.00 EGP</td></tr></tfoot></table><div style="margin-top: 20px; display: flex; gap: 10px;"><button type="button" data-context="receive" class="secondary">Select Items</button><button id="btn-submit-receive-batch" class="primary">Confirm & Receive All Items</button></div></div>
+                    <div class="card" id="receive-list-card"><h2>Items to be Received</h2><table id="table-receive-list"><thead><tr><th>Code</th><th>Item Name</th><th>Quantity</th><th>Cost/Unit</th><th>Total</th><th>Action</th></tr></thead><tbody></tbody><tfoot><tr style="font-weight: bold; background-color: var(--bg-color);"><td colspan="4" style="text-align: right;">Grand Total:</td><td id="receive-grand-total" colspan="2">0.00 EGP</td></tr></tfoot></table><div style="margin-top: 20px; display: flex; gap: 10px;"><button type="button" data-context="receive" class="secondary">Select Items</button><button id="btn-submit-receive-batch" class="primary">Submit for Approval</button></div></div>
                 </div>
                 <div id="subview-issue" class="sub-view"><div class="card"><h2>Issue Note Details</h2><form id="form-issue-details" class="form-grid" onsubmit="return false;"><div class="form-group"><label for="issue-from-branch">From Branch</label><select id="issue-from-branch" required></select></div><div class="form-group"><label for="issue-to-section">To Section</label><select id="issue-to-section" required></select></div><div class="form-group"><label for="issue-ref">Issue Ref #</label><input type="text" id="issue-ref" readonly></div><div class="form-group span-full"><label for="issue-notes">Notes (Optional)</label><textarea id="issue-notes" rows="2"></textarea></div></form></div><div class="card" id="issue-list-card"><h2>Items to be Issued</h2><table id="table-issue-list"><thead><tr><th>Code</th><th>Item Name</th><th>Available</th><th>Quantity to Issue</th><th>Action</th></tr></thead><tbody></tbody><tfoot><tr style="font-weight: bold; background-color: var(--bg-color);"><td colspan="3" style="text-align: right;">Total Items to Issue:</td><td id="issue-grand-total" colspan="2">0.00</td></tr></tfoot></table><div style="margin-top: 20px; display: flex; gap: 10px;"><button type="button" data-context="issue" class="secondary">Select Items</button><button id="btn-submit-issue-batch" class="primary">Confirm & Issue All Items</button></div></div></div>
                 <div id="subview-transfer" class="sub-view"><div class="card"><h2>Send Stock to Another Branch</h2><form id="form-transfer-details" class="form-grid" onsubmit="return false;"><div class="form-group"><label for="transfer-from-branch">From Branch</label><select id="transfer-from-branch" required></select></div><div class="form-group"><label for="transfer-to-branch">To Branch</label><select id="transfer-to-branch" required></select></div><div class="form-group"><label for="transfer-ref">Transfer Reference #</label><input type="text" id="transfer-ref" readonly></div><div class="form-group span-full"><label for="transfer-notes">Notes (Optional)</label><textarea id="transfer-notes" rows="2"></textarea></div></form></div><div class="card" id="transfer-list-card"><h2>Items to be Transferred</h2><table id="table-transfer-list"><thead><tr><th>Code</th><th>Item Name</th><th>Available</th><th>Quantity to Transfer</th><th>Action</th></tr></thead><tbody></tbody><tfoot><tr style="font-weight: bold; background-color: var(--bg-color);"><td colspan="3" style="text-align: right;">Total Items to Transfer:</td><td id="transfer-grand-total" colspan="2">0.00</td></tr></tfoot></table><div style="margin-top: 20px; display: flex; gap: 10px;"><button type="button" data-context="transfer" class="secondary">Select Items</button><button id="btn-submit-transfer-batch" class="primary">Confirm & Transfer All Items</button></div></div></div>
@@ -138,13 +138,27 @@
                 <div class="sub-nav">
                     <button class="sub-nav-item active" data-subview="create-po">Create Purchase Order</button>
                     <button class="sub-nav-item" data-subview="view-pos">View Purchase Orders</button>
+                    <button class="sub-nav-item" data-subview="pending-financial-approval">Pending Approval</button>
                 </div>
                 <div id="subview-create-po" class="sub-view active">
                     <div class="card"><h2>Purchase Order Details</h2><form id="form-po-details" class="form-grid" onsubmit="return false;"><div class="form-group"><label for="po-supplier">Supplier</label><select id="po-supplier" required></select></div><div class="form-group"><label for="po-ref">PO Reference #</label><input type="text" id="po-ref" readonly></div><div class="form-group span-full"><label for="po-notes">Notes (Optional)</label><textarea id="po-notes" rows="2"></textarea></div></form></div>
-                    <div class="card" id="po-list-card"><h2>Items to Order</h2><table id="table-po-list"><thead><tr><th>Code</th><th>Item Name</th><th>Quantity</th><th>Cost/Unit</th><th>Total</th><th>Action</th></tr></thead><tbody></tbody><tfoot><tr style="font-weight: bold; background-color: var(--bg-color);"><td colspan="4" style="text-align: right;">Grand Total:</td><td id="po-grand-total" colspan="2">0.00 EGP</td></tr></tfoot></table><div style="margin-top: 20px; display: flex; gap: 10px;"><button type="button" data-context="po" class="secondary">Select Items</button><button id="btn-submit-po" class="primary">Create Purchase Order</button></div></div>
+                    <div class="card" id="po-list-card"><h2>Items to Order</h2><table id="table-po-list"><thead><tr><th>Code</th><th>Item Name</th><th>Quantity</th><th>Cost/Unit</th><th>Total</th><th>Action</th></tr></thead><tbody></tbody><tfoot><tr style="font-weight: bold; background-color: var(--bg-color);"><td colspan="4" style="text-align: right;">Grand Total:</td><td id="po-grand-total" colspan="2">0.00 EGP</td></tr></tfoot></table><div style="margin-top: 20px; display: flex; gap: 10px;"><button type="button" data-context="po" class="secondary">Select Items</button><button id="btn-submit-po" class="primary">Submit for Approval</button></div></div>
                 </div>
                 <div id="subview-view-pos" class="sub-view">
                     <div class="card"><h2>Purchase Order List</h2><div class="report-area"><table id="table-po-viewer"><thead><tr><th>PO #</th><th>Date</th><th>Supplier</th><th>Items</th><th>Total Value</th><th>Status</th><th>Actions</th></tr></thead><tbody></tbody></table></div></div>
+                </div>
+                <div id="subview-pending-financial-approval" class="sub-view">
+                    <div class="card">
+                        <h2>Transactions Pending Financial Approval</h2>
+                        <div class="report-area">
+                            <table id="table-pending-financial-approval">
+                                <thead>
+                                    <tr><th>Date</th><th>Type</th><th>Reference #</th><th>Details</th><th>Amount</th><th>Actions</th></tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div id="view-requests" class="view">
@@ -173,11 +187,11 @@
                     <div class="toolbar">
                         <h2>Transaction Log</h2>
                         <div class="filters-container">
+                            <input type="date" id="tx-filter-start-date" class="small">
+                            <input type="date" id="tx-filter-end-date" class="small">
                             <select id="tx-filter-type" class="small"><option value="">All Types</option></select>
                             <select id="tx-filter-branch" class="small"><option value="">All Branches</option></select>
-                            <select id="tx-filter-section" class="small"><option value="">All Sections</option></select>
-                            <select id="tx-filter-supplier" class="small"><option value="">All Suppliers</option></select>
-                            <input type="search" id="transaction-search" class="search-bar-input small" placeholder="Search by Ref #, Item..." style="width: 250px;">
+                            <input type="search" id="transaction-search" class="search-bar-input small" placeholder="Search by Ref#, Item Code/Name..." style="width: 250px;">
                         </div>
                     </div>
                     <div class="report-area">
@@ -188,7 +202,7 @@
                     </div>
                 </div>
             </div>
-            <div id="view-user-management" class="view"><div class="card"><div class="toolbar"><h2>Users</h2><button id="btn-add-new-user" class="primary">Add New User</button></div><div class="report-area"><table id="table-users"><thead><tr><th>Username</th><th>Full Name</th><th>Role</th><th>Assigned Branch/Section</th><th>Actions</th></tr></thead><tbody></tbody></table></div></div><div class="card"><div class="toolbar"><h2>Roles</h2><button id="btn-add-new-role" class="primary">Add New Role</button></div><div class="report-area"><table id="table-roles"><thead><tr><th>Role Name</th><th>Actions</th></tr></thead><tbody></tbody></table></div></div></div>
+            <div id="view-user-management" class="view"><div class="card"><div class="toolbar"><h2>Users</h2><button id="btn-add-new-user" class="primary">Add New User</button></div><div class="report-area"><table id="table-users"><thead><tr><th>Username</th><th>Full Name</th><th>Role</th><th>Assigned Branch/Section</th><th>Status</th><th>Actions</th></tr></thead><tbody></tbody></table></div></div><div class="card"><div class="toolbar"><h2>Roles</h2><button id="btn-add-new-role" class="primary">Add New Role</button></div><div class="report-area"><table id="table-roles"><thead><tr><th>Role Name</th><th>Actions</th></tr></thead><tbody></tbody></table></div></div></div>
             <div id="view-activity-log" class="view"><div class="card"><h2>System Activity Log</h2><div class="report-area"><table id="table-activity-log"><thead><tr><th>Timestamp</th><th>User</th><th>Action</th><th>Description</th></tr></thead><tbody></tbody></table></div></div></div>
         </main>
     </div>
@@ -197,38 +211,10 @@
     <div id="invoice-selector-modal" class="modal-overlay"><div class="modal-content"><div class="modal-header"><h2>Select Invoices to Pay</h2><button class="close-button">×</button></div><div class="modal-body"><div id="modal-invoice-list" class="modal-item-list"></div></div><div class="modal-footer"><button class="secondary modal-cancel">Cancel</button><button id="btn-confirm-invoice-selection" class="primary">Confirm Selection</button></div></div></div>
     <div id="edit-modal" class="modal-overlay"><div class="modal-content"><div class="modal-header"><h2 id="edit-modal-title">Edit</h2><button class="close-button">×</button></div><form id="form-edit-record"><div class="modal-body" id="edit-modal-body"></div><div class="modal-footer"><button type="button" class="secondary modal-cancel">Cancel</button><button type="submit" class="primary">Save Changes</button></div></form></div></div>
     <div id="view-transfer-modal" class="modal-overlay"><div class="modal-content"><div class="modal-header"><h2 id="view-transfer-modal-title">Confirm Transfer Receipt</h2><button class="close-button">×</button></div><div class="modal-body" id="view-transfer-modal-body"></div><div class="modal-footer"><button class="secondary modal-cancel">Cancel</button><button id="btn-reject-transfer" class="danger">Reject</button><button id="btn-confirm-receive-transfer" class="primary">Confirm Receipt</button></div></div></div>
-    <div id="history-modal" class="modal-overlay"><div class="modal-content" style="max-width: 900px;"><div class="modal-header"><h2 id="history-modal-title">Item History</h2><button class="close-button">×</button></div><div class="modal-body" id="history-modal-body"><div class="sub-nav"><button class="sub-nav-item active" data-subview="price-history">Price History</button><button class="sub-nav-item" data-subview="movement-history">Movement History</button></div><div id="subview-price-history" class="sub-view active report-area"></div><div id="subview-movement-history" class="sub-view report-area"></div></div><div class="modal-footer"><button class="secondary modal-cancel">Close</button></div></div></div>
+    <div id="history-modal" class="modal-overlay"><div class="modal-content" style="max-width: 900px;"><div class="modal-header"><h2 id="history-modal-title">Item History</h2><button class="close-button">×</button></div><div class="modal-body" id="history-modal-body"><div class="sub-nav"><button class="sub-nav-item active" data-subview="price-history">Price History</button><button class="sub-nav-item" data-subview="movement-history">Movement History</button></div><div id="subview-price-history" class="sub-view active report-area"></div><div id="subview-movement-history" class="sub-view report-area"><div class="filters-container" style="padding: 10px 0; gap: 10px;"><input type="date" id="history-filter-start-date" class="small"><input type="date" id="history-filter-end-date" class="small"><select id="history-filter-type" class="small"><option value="">All Types</option></select><select id="history-filter-branch" class="small"><option value="">All Branches</option></select></div><div id="movement-history-table-container"></div></div></div><div class="modal-footer"><button class="secondary modal-cancel">Close</button></div></div></div>
     <div id="edit-po-modal" class="modal-overlay"><div class="modal-content" style="max-width: 900px;"><div class="modal-header"><h2 id="edit-po-modal-title">Edit Purchase Order</h2><button class="close-button">×</button></div><div class="modal-body" id="edit-po-modal-body"></div><div class="modal-footer"><button class="secondary modal-cancel">Cancel</button><button id="btn-save-po-changes" class="primary">Save Changes</button></div></div></div>
     <div id="approve-request-modal" class="modal-overlay"><div class="modal-content" style="max-width: 900px;"><div class="modal-header"><h2 id="approve-request-modal-title">Approve Item Request</h2><button class="close-button">×</button></div><div class="modal-body" id="approve-request-modal-body"></div><div class="modal-footer"><button class="secondary modal-cancel">Cancel</button><button id="btn-confirm-request-approval" class="primary">Confirm and Issue</button></div></div></div>
-
-    <div id="restore-modal" class="modal-overlay">
-        <div class="modal-content" style="max-width: 600px;">
-            <div class="modal-header">
-                <h2 id="restore-modal-title">Restore from Backup</h2>
-                <button class="close-button">×</button>
-            </div>
-            <div class="modal-body" id="restore-modal-body">
-                <p>You are about to restore data from the backup file:</p>
-                <p><strong id="restore-filename-display"></strong></p>
-                <hr>
-                <p><strong>1. Select which data sheets to restore.</strong></p>
-                <div id="restore-sheet-list" class="form-grid permissions-grid"></div>
-                <hr>
-                <div class="form-group" style="margin-top: 20px;">
-                    <label><strong>2. Confirm this irreversible action.</strong></label>
-                    <div style="padding: 15px; background-color: #FDEDE9; border: 1px solid var(--danger-color); border-radius: 8px;">
-                        <strong style="color: var(--danger-color);">EXTREME DANGER:</strong> This will permanently delete the current data in the selected live sheets and replace it with the data from the backup. This action CANNOT be undone.
-                    </div>
-                    <p style="margin-top: 15px;">Please type <strong>RESTORE</strong> into the box below to proceed.</p>
-                    <input type="text" id="restore-confirmation-input" autocomplete="off">
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="secondary modal-cancel">Cancel</button>
-                <button id="btn-confirm-restore" class="danger" disabled>Confirm and Restore Data</button>
-            </div>
-        </div>
-    </div>
+    <div id="restore-modal" class="modal-overlay"><div class="modal-content" style="max-width: 600px;"><div class="modal-header"><h2 id="restore-modal-title">Restore from Backup</h2><button class="close-button">×</button></div><div class="modal-body" id="restore-modal-body"><p>You are about to restore data from the backup file:</p><p><strong id="restore-filename-display"></strong></p><hr><p><strong>1. Select which data sheets to restore.</strong></p><div id="restore-sheet-list" class="form-grid permissions-grid"></div><hr><div class="form-group" style="margin-top: 20px;"><label><strong>2. Confirm this irreversible action.</strong></label><div style="padding: 15px; background-color: #FDEDE9; border: 1px solid var(--danger-color); border-radius: 8px;"><strong style="color: var(--danger-color);">EXTREME DANGER:</strong> This will permanently delete the current data in the selected live sheets and replace it with the data from the backup. This action CANNOT be undone.</div><p style="margin-top: 15px;">Please type <strong>RESTORE</strong> into the box below to proceed.</p><input type="text" id="restore-confirmation-input" autocomplete="off"></div></div><div class="modal-footer"><button class="secondary modal-cancel">Cancel</button><button id="btn-confirm-restore" class="danger" disabled>Confirm and Restore Data</button></div></div></div>
 
     <div id="print-area" style="display: none;"></div>
     <div id="toast-container"></div>
