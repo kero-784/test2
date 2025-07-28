@@ -649,7 +649,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (type === 'error') Logger.error(`User Toast: ${message}`);
         const container = document.getElementById('toast-container');
         if (!container) {
-            console.error("Toast container not found!");
+            console.error("Toast container not found! Message:", message);
             return;
         }
         const toast = document.createElement('div');
@@ -1478,7 +1478,10 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const populateOptions = (el, data, ph, valueKey, textKey, textKey2) => { 
-        if (!el) return; // FIX: Prevent error if element doesn't exist
+        if (!el) {
+            console.warn(`populateOptions failed: element is null.`);
+            return;
+        }
         el.innerHTML = `<option value="">${ph}</option>`; 
         (data || []).forEach(item => { el.innerHTML += `<option value="${item[valueKey]}">${item[textKey]}${textKey2 && item[textKey2] ? ' (' + item[textKey2] + ')' : ''}</option>`; }); 
     };
@@ -1686,6 +1689,42 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button class="secondary small btn-view-tx" data-batch-id="${po.poId}" data-type="po">View/Print</button>
                     ${canEditPO ? `<button class="secondary small btn-edit-po" data-po-id="${po.poId}">Edit</button>` : ''}
                 </div></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function renderPendingFinancials() {
+        const tbody = document.getElementById('table-pending-financial-approval').querySelector('tbody');
+        tbody.innerHTML = '';
+        
+        const pendingPOs = (state.purchaseOrders || []).filter(po => po.Status === 'Pending Approval');
+        const pendingReceives = (state.transactions || []).filter(t => t.type === 'receive' && (t.isApproved === false || String(t.isApproved).toUpperCase() === 'FALSE'));
+        
+        let allPending = [
+            ...pendingPOs.map(po => ({...po, txType: 'po', ref: po.poId, value: po.totalValue, details: `PO for ${findByKey(state.suppliers, 'supplierCode', po.supplierCode)?.name || 'N/A'}`})),
+            ...pendingReceives.map(rcv => ({...rcv, txType: 'receive', ref: rcv.invoiceNumber, value: rcv.quantity * rcv.cost, details: `GRN from ${findByKey(state.suppliers, 'supplierCode', rcv.supplierCode)?.name || 'N/A'}`}))
+        ];
+
+        if (allPending.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No items are pending financial approval.</td></tr>';
+            return;
+        }
+
+        allPending.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${new Date(item.date).toLocaleDateString()}</td>
+                <td>${item.txType.toUpperCase()}</td>
+                <td>${item.ref}</td>
+                <td>${item.details}</td>
+                <td>${(parseFloat(item.value) || 0).toFixed(2)} EGP</td>
+                <td>
+                    <div class="action-buttons">
+                        <button class="primary small btn-approve-financial" data-id="${item.ref}" data-type="${item.txType}">Approve</button>
+                        <button class="danger small btn-reject-financial" data-id="${item.ref}" data-type="${item.txType}">Reject</button>
+                    </div>
+                </td>
             `;
             tbody.appendChild(tr);
         });
@@ -2323,7 +2362,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const modal = document.getElementById('approve-request-modal');
         const confirmBtn = modal.querySelector('#btn-confirm-request-approval');
-        confirmBtn.dataset.requestId = requestId; // Ensure requestId is set on the button
+        confirmBtn.dataset.requestId = requestId;
         
         document.getElementById('btn-print-draft-issue-note').onclick = () => {
             const itemsToPrint = [];
@@ -2355,7 +2394,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     async function confirmRequestApproval(e) {
         const btn = e.currentTarget;
-        const requestId = btn.dataset.requestId; // Read requestId from the button
+        const requestId = btn.dataset.requestId;
         if (!requestId) {
             showToast('Error: Request ID is missing.', 'error');
             return;
