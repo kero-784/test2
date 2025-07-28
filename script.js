@@ -12,7 +12,7 @@ window.printReport = function(elementId) {
 
 document.addEventListener('DOMContentLoaded', () => {
     // !!! IMPORTANT: PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwdKK4k9nRso7tZlksi-sRwtrHgSK41fis-76gZ7YagMx7CJdG6lkrOdv7upX-5yZH9/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwIlTFhE2TUbxHzmsGm9-JjM4Lojw0YqTu_e5tRZZZX29rwBDyHZzo6wSlTZuGXyeg5/exec';
 
     const Logger = {
         info: (message, ...args) => console.log(`[StockWise INFO] ${message}`, ...args),
@@ -290,7 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderPriceHistory(result.data.priceHistory);
             
             const renderFilteredMovementHistory = () => renderMovementHistory(result.data.movementHistory, itemCode);
-            renderFilteredMovementHistory();
+            renderFilteredMovementHistory(); 
 
             ['history-filter-start-date', 'history-filter-end-date', 'history-filter-type', 'history-filter-branch'].forEach(id => {
                 const element = document.getElementById(id);
@@ -648,6 +648,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function showToast(message, type = 'success') {
         if (type === 'error') Logger.error(`User Toast: ${message}`);
         const container = document.getElementById('toast-container');
+        if (!container) {
+            console.error("Toast container not found!");
+            return;
+        }
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
         toast.textContent = message;
@@ -1327,7 +1331,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const tempAvgCosts = {};
         sortedTransactions.forEach(t => {
             const isApproved = t.isApproved === true || String(t.isApproved).toUpperCase() === 'TRUE';
-            if (t.type === 'receive' && !isApproved) return; // Skip unapproved receive transactions from stock calculation
+            if (t.type === 'receive' && !isApproved) return;
             
             const item = findByKey(state.items, 'code', t.itemCode);
             if (!item) return;
@@ -1473,7 +1477,11 @@ document.addEventListener('DOMContentLoaded', () => {
         return costSnapshots;
     };
 
-    const populateOptions = (el, data, ph, valueKey, textKey, textKey2) => { el.innerHTML = `<option value="">${ph}</option>`; (data || []).forEach(item => { el.innerHTML += `<option value="${item[valueKey]}">${item[textKey]}${textKey2 && item[textKey2] ? ' (' + item[textKey2] + ')' : ''}</option>`; }); };
+    const populateOptions = (el, data, ph, valueKey, textKey, textKey2) => { 
+        if (!el) return; // FIX: Prevent error if element doesn't exist
+        el.innerHTML = `<option value="">${ph}</option>`; 
+        (data || []).forEach(item => { el.innerHTML += `<option value="${item[valueKey]}">${item[textKey]}${textKey2 && item[textKey2] ? ' (' + item[textKey2] + ')' : ''}</option>`; }); 
+    };
     
     function getVisibleBranchesForCurrentUser() { if (!state.currentUser) return []; if (userCan('viewAllBranches')) { return state.branches; } if (state.currentUser.AssignedBranchCode) { return state.branches.filter(b => String(b.branchCode) === String(state.currentUser.AssignedBranchCode)); } return []; }
     
@@ -1554,7 +1562,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 populateOptions(document.getElementById('return-branch'), state.branches, 'Select Branch', 'branchCode', 'name');
                 populateOptions(document.getElementById('adjustment-branch'), state.branches, 'Select Branch', 'branchCode', 'name');
                 populateOptions(document.getElementById('fin-adj-supplier'), state.suppliers, 'Select Supplier', 'supplierCode', 'name');
-                const openPOs = (state.purchaseOrders || []).filter(po => po.Status === 'Pending Approval');
+                const openPOs = (state.purchaseOrders || []).filter(po => po.Status === 'Approved');
                 populateOptions(document.getElementById('receive-po-select'), openPOs, 'Select a Purchase Order', 'poId', 'poId', 'supplierCode');
                 document.getElementById('issue-ref').value = generateId('ISN'); document.getElementById('transfer-ref').value = generateId('TRN');
                 renderReceiveListTable(); renderIssueListTable(); renderTransferListTable(); renderReturnListTable(); renderPendingTransfers(); renderInTransitReport(); renderAdjustmentListTable();
@@ -1811,7 +1819,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function setupSearch(inputId, renderFn, dataKey, searchKeys) { const searchInput = document.getElementById(inputId); if (!searchInput) return; searchInput.addEventListener('input', e => { const searchTerm = e.target.value.toLowerCase(); const dataToFilter = state[dataKey] || []; renderFn(searchTerm ? dataToFilter.filter(item => searchKeys.some(key => item[key] && String(item[key]).toLowerCase().includes(searchTerm))) : dataToFilter); }); }
     
-    function attachSubNavListeners() { document.querySelectorAll('.sub-nav').forEach(nav => { nav.addEventListener('click', e => { if (!e.target.classList.contains('sub-nav-item')) return; const subviewId = e.target.dataset.subview; const parentView = e.target.closest('.view'); if (!parentView) return; parentView.querySelectorAll('.sub-nav-item').forEach(btn => btn.classList.remove('active')); e.target.classList.add('active'); parentView.querySelectorAll('.sub-view').forEach(view => view.classList.remove('active')); const subViewToShow = parentView.querySelector(`#subview-${subviewId}`); if (subViewToShow) subViewToShow.classList.add('active'); }); }); }
+    function attachSubNavListeners() { document.querySelectorAll('.sub-nav').forEach(nav => { if(nav.closest('#history-modal')) return; nav.addEventListener('click', e => { if (!e.target.classList.contains('sub-nav-item')) return; const subviewId = e.target.dataset.subview; const parentView = e.target.closest('.view'); if (!parentView) return; parentView.querySelectorAll('.sub-nav-item').forEach(btn => btn.classList.remove('active')); e.target.classList.add('active'); parentView.querySelectorAll('.sub-view').forEach(view => view.classList.remove('active')); const subViewToShow = parentView.querySelector(`#subview-${subviewId}`); if (subViewToShow) subViewToShow.classList.add('active'); }); }); }
     
     function attachEventListeners() {
         btnLogout.addEventListener('click', logout);
@@ -2150,7 +2158,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (navItem) { 
                 let hasPermission = userCan(permission);
                 if (view === 'requests') { hasPermission = userCan('opRequestItems') || userCan('opApproveIssueRequest') || userCan('opApproveResupplyRequest'); }
-                if (view === 'operations') { hasPermission = userCan('viewOperations') || userCan('opStockAdjustment') || userCan('opFinancialAdjustment'); } // Also show for adjustments
+                if (view === 'operations') { hasPermission = userCan('viewOperations') || userCan('opStockAdjustment') || userCan('opFinancialAdjustment'); }
                 navItem.parentElement.style.display = hasPermission ? '' : 'none'; 
             }
         }
@@ -2314,11 +2322,8 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         
         const modal = document.getElementById('approve-request-modal');
-        modal.querySelector('.modal-footer').innerHTML = `
-            <button class="secondary modal-cancel">Cancel</button>
-            <button id="btn-print-draft-issue-note" class="secondary">Print Draft Note</button>
-            <button id="btn-confirm-request-approval" class="primary" data-request-id="${requestId}">Confirm and Issue</button>
-        `;
+        const confirmBtn = modal.querySelector('#btn-confirm-request-approval');
+        confirmBtn.dataset.requestId = requestId; // Ensure requestId is set on the button
         
         document.getElementById('btn-print-draft-issue-note').onclick = () => {
             const itemsToPrint = [];
@@ -2350,7 +2355,11 @@ document.addEventListener('DOMContentLoaded', () => {
     
     async function confirmRequestApproval(e) {
         const btn = e.currentTarget;
-        const requestId = btn.dataset.requestId;
+        const requestId = btn.dataset.requestId; // Read requestId from the button
+        if (!requestId) {
+            showToast('Error: Request ID is missing.', 'error');
+            return;
+        }
         const statusNotes = document.getElementById('approve-status-notes').value;
         const editedItems = [];
         document.querySelectorAll('#table-approve-request-items tbody tr').forEach(tr => {
