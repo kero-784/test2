@@ -371,6 +371,52 @@ function getText(key, ...args) {
     return text;
 }
 
+// MOVED TO TOP: This function needs to be available globally before init() is called.
+function switchLanguage(lang) {
+    if (!['en', 'ar'].includes(lang)) lang = 'en';
+    
+    // Prevent re-running if language is already set, unless the app is running
+    if (lang === currentLang && document.body.classList.contains(`lang-${lang}`) && !state.currentUser) return;
+    
+    currentLang = lang;
+    localStorage.setItem('stockAppLang', lang);
+
+    // Update static text on all elements with data-lang
+    document.querySelectorAll('[data-lang]').forEach(el => {
+        const key = el.dataset.lang;
+        const translation = getText(key);
+        // Handle specific elements that have different properties for text
+        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+            if(el.type !== 'submit' && el.type !== 'button') el.placeholder = translation;
+        } else {
+            el.textContent = translation;
+        }
+    });
+    
+    // Update placeholders for elements that need dynamic translation
+    document.querySelectorAll('[data-lang-placeholder]').forEach(el => {
+         const key = el.dataset.langPlaceholder;
+         el.placeholder = getText(key);
+    });
+
+    // Update HTML direction and body class for CSS
+    document.documentElement.lang = lang;
+    document.body.className = lang === 'ar' ? 'lang-ar' : '';
+
+    // Update active button in the language switcher
+    document.querySelectorAll('.lang-switcher button').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.lang === lang);
+    });
+    
+    // If the app is already running (user is logged in), refresh the UI to apply changes
+    if (state.currentUser) {
+        const currentView = document.querySelector('.nav-item a.active')?.dataset.view || 'dashboard';
+        refreshViewData(currentView);
+        initializeAppUI(); // Re-initialize parts of UI that depend on language
+    }
+    Logger.info(`Language switched to ${lang}`);
+}
+
 
 document.addEventListener('DOMContentLoaded', () => {
     // !!! IMPORTANT: PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
