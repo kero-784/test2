@@ -6,7 +6,8 @@ window.printReport = function(elementId) {
         setTimeout(() => window.print(), 100);
     } else {
         console.error(`Could not find content to print in #${elementId}`);
-        alert(getText('error_report_content_not_found'));
+        // Note: getText() will only work after the main script is loaded.
+        alert("Error: Report content not found.");
     }
 };
 
@@ -371,53 +372,6 @@ function getText(key, ...args) {
     return text;
 }
 
-// MOVED TO TOP: This function needs to be available globally before init() is called.
-function switchLanguage(lang) {
-    if (!['en', 'ar'].includes(lang)) lang = 'en';
-    
-    // Prevent re-running if language is already set, unless the app is running
-    if (lang === currentLang && document.body.classList.contains(`lang-${lang}`) && !state.currentUser) return;
-    
-    currentLang = lang;
-    localStorage.setItem('stockAppLang', lang);
-
-    // Update static text on all elements with data-lang
-    document.querySelectorAll('[data-lang]').forEach(el => {
-        const key = el.dataset.lang;
-        const translation = getText(key);
-        // Handle specific elements that have different properties for text
-        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-            if(el.type !== 'submit' && el.type !== 'button') el.placeholder = translation;
-        } else {
-            el.textContent = translation;
-        }
-    });
-    
-    // Update placeholders for elements that need dynamic translation
-    document.querySelectorAll('[data-lang-placeholder]').forEach(el => {
-         const key = el.dataset.langPlaceholder;
-         el.placeholder = getText(key);
-    });
-
-    // Update HTML direction and body class for CSS
-    document.documentElement.lang = lang;
-    document.body.className = lang === 'ar' ? 'lang-ar' : '';
-
-    // Update active button in the language switcher
-    document.querySelectorAll('.lang-switcher button').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.lang === lang);
-    });
-    
-    // If the app is already running (user is logged in), refresh the UI to apply changes
-    if (state.currentUser) {
-        const currentView = document.querySelector('.nav-item a.active')?.dataset.view || 'dashboard';
-        refreshViewData(currentView);
-        initializeAppUI(); // Re-initialize parts of UI that depend on language
-    }
-    Logger.info(`Language switched to ${lang}`);
-}
-
-
 document.addEventListener('DOMContentLoaded', () => {
     // !!! IMPORTANT: PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw6ILWFJPd8gsFQY-h4ZVZSByQfSXIzl6OpKk2m488Ihu9u1TCFSxsWAjvkW5Ws65NU/exec';
@@ -463,6 +417,45 @@ document.addEventListener('DOMContentLoaded', () => {
         backups: []
     };
     let modalContext = null;
+
+    // CORRECTED: switchLanguage is now defined inside the DOMContentLoaded scope,
+    // before it is called by init().
+    function switchLanguage(lang) {
+        if (!['en', 'ar'].includes(lang)) lang = 'en';
+        
+        currentLang = lang;
+        localStorage.setItem('stockAppLang', lang);
+
+        // Update static text on all elements with data-lang
+        document.querySelectorAll('[data-lang]').forEach(el => {
+            const key = el.dataset.lang;
+            const translation = getText(key);
+            if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+                if(el.type !== 'submit' && el.type !== 'button') el.placeholder = translation;
+            } else {
+                el.textContent = translation;
+            }
+        });
+        
+        document.querySelectorAll('[data-lang-placeholder]').forEach(el => {
+             const key = el.dataset.langPlaceholder;
+             el.placeholder = getText(key);
+        });
+
+        document.documentElement.lang = lang;
+        document.body.className = lang === 'ar' ? 'lang-ar' : '';
+
+        document.querySelectorAll('.lang-switcher button').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.lang === lang);
+        });
+        
+        if (state.currentUser) {
+            const currentView = document.querySelector('.nav-item a.active')?.dataset.view || 'dashboard';
+            refreshViewData(currentView);
+            initializeAppUI();
+        }
+        Logger.info(`Language switched to ${lang}`);
+    }
 
     const userCan = (permission) => {
         if (!state.currentUser || !state.currentUser.permissions) return false;
@@ -531,7 +524,6 @@ document.addEventListener('DOMContentLoaded', () => {
             loginContainer.style.display = 'none';
             appContainer.style.display = 'flex';
             
-            // Apply language setting and initialize UI
             switchLanguage(currentLang);
             initializeAppUI();
         } catch (error) {
