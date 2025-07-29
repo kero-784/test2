@@ -1627,6 +1627,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const result = await postData('getAllUsersAndRoles', {}, null);
                 if (result) { state.allUsers = result.data.users; state.allRoles = result.data.roles; renderUserManagementUI(); }
                 break;
+            case 'activity-log':
+                renderActivityLog();
+                break;
         }
         applyUserUIConstraints();
     };
@@ -2002,6 +2005,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (e.target.id === 'btn-confirm-request-approval') { confirmRequestApproval(e); }
             if (e.target.id === 'btn-save-po-changes') { savePOChanges(e); }
+            if (e.target.id === 'btn-save-invoice-changes') { saveInvoiceChanges(e); }
         });
         document.getElementById('btn-confirm-modal-selection').addEventListener('click', confirmModalSelection);
         document.getElementById('btn-confirm-invoice-selection').addEventListener('click', confirmModalSelection);
@@ -2337,6 +2341,60 @@ document.addEventListener('DOMContentLoaded', () => {
         renderPOEditListTable();
         editPOModal.classList.add('active');
     }
+
+    // --- NEW FUNCTION TO FIX EDIT INVOICE BUTTON ---
+    function openInvoiceEditModal(batchId) {
+        const txGroup = state.transactions.filter(t => t.batchId === batchId && t.type === 'receive');
+        if (txGroup.length === 0) {
+            showToast('Could not find invoice data to edit.', 'error');
+            return;
+        }
+        const firstTx = txGroup[0];
+
+        // Reuse the PO editing list and renderer for consistency
+        state.currentEditingPOList = txGroup.map(tx => {
+            const masterItem = findByKey(state.items, 'code', tx.itemCode);
+            return {
+                itemCode: tx.itemCode,
+                itemName: masterItem?.name || 'N/A',
+                quantity: parseFloat(tx.quantity),
+                cost: parseFloat(tx.cost)
+            };
+        });
+
+        const modalBody = document.getElementById('edit-po-modal-body');
+        const supplier = findByKey(state.suppliers, 'supplierCode', firstTx.supplierCode);
+        const branch = findByKey(state.branches, 'branchCode', firstTx.branchCode);
+
+        modalBody.innerHTML = `
+            <div class="form-grid">
+                <div class="form-group"><label>Batch ID</label><input type="text" value="${batchId}" readonly></div>
+                <div class="form-group"><label>Supplier</label><input type="text" value="${supplier?.name || 'N/A'}" readonly></div>
+                <div class="form-group"><label>Branch</label><input type="text" value="${branch?.name || 'N/A'}" readonly></div>
+                <div class="form-group"><label for="edit-invoice-number">Invoice Number</label><input type="text" id="edit-invoice-number" value="${firstTx.invoiceNumber || ''}" required></div>
+                <div class="form-group span-full"><label for="edit-invoice-notes">Notes</label><textarea id="edit-invoice-notes" rows="2">${firstTx.notes || ''}</textarea></div>
+            </div>
+            <div class="card" style="margin-top: 20px;">
+                <h2>Items Received</h2>
+                <table id="table-edit-po-list">
+                    <thead><tr><th>Code</th><th>Item Name</th><th>Quantity</th><th>Cost/Unit</th><th>Total</th><th>Action</th></tr></thead>
+                    <tbody></tbody>
+                    <tfoot><tr style="font-weight: bold; background-color: var(--bg-color);"><td colspan="4" style="text-align: right;">Grand Total:</td><td id="edit-po-grand-total" colspan="2">0.00 EGP</td></tr></tfoot>
+                </table>
+                <div style="margin-top: 20px;"><button type="button" data-context="edit-po" class="secondary">Add/Edit Items</button></div>
+            </div>
+        `;
+
+        const modal = document.getElementById('edit-po-modal');
+        document.getElementById('edit-po-modal-title').textContent = 'Edit Invoice / GRN';
+        modal.querySelector('.modal-footer').innerHTML = `
+            <button type="button" class="secondary modal-cancel">Cancel</button>
+            <button id="btn-save-invoice-changes" class="primary" data-batch-id="${batchId}">Save Changes</button>
+        `;
+
+        renderPOEditListTable();
+        editPOModal.classList.add('active');
+    }
     
     async function savePOChanges(e) {
         const btn = e.currentTarget;
@@ -2352,6 +2410,32 @@ document.addEventListener('DOMContentLoaded', () => {
         const result = await postData('editPurchaseOrder', payload, btn);
         if (result) {
             showToast('PO updated successfully!', 'success');
+            closeModal();
+            reloadDataAndRefreshUI();
+        }
+    }
+
+    // --- NEW FUNCTION TO SAVE INVOICE CHANGES ---
+    async function saveInvoiceChanges(e) {
+        const btn = e.currentTarget;
+        const batchId = btn.dataset.batchId;
+        const notes = document.getElementById('edit-invoice-notes').value;
+        const invoiceNumber = document.getElementById('edit-invoice-number').value;
+
+        if (!invoiceNumber) {
+            showToast('Invoice Number is required.', 'error');
+            return;
+        }
+
+        const payload = {
+            batchId,
+            invoiceNumber,
+            notes,
+            items: state.currentEditingPOList
+        };
+        const result = await postData('editInvoice', payload, btn);
+        if (result) {
+            showToast('Invoice updated successfully!', 'success');
             closeModal();
             reloadDataAndRefreshUI();
         }
