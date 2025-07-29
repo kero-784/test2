@@ -6,9 +6,248 @@ window.printReport = function(elementId) {
         setTimeout(() => window.print(), 100);
     } else {
         console.error(`Could not find content to print in #${elementId}`);
-        alert("Error: Report content not found.");
+        alert(getText('error_report_content_not_found'));
     }
 };
+
+const translations = {
+    // English
+    en: {
+        // General & UI
+        app_title: "Packing Stock Control",
+        login_title: "Packing Stock",
+        login_prompt: "Please enter your credentials to continue.",
+        login_username_label: "Username",
+        login_password_label: "Password / Login Code",
+        login_button: "Login",
+        login_signing_in: "Signing in...",
+        refresh_all_data: "Refresh All Data",
+        nav_dashboard: "Dashboard",
+        nav_operations: "Stock Operations",
+        nav_purchasing: "Purchasing",
+        nav_requests: "Requests",
+        nav_payments: "Payments",
+        nav_reports: "Reports",
+        nav_stock_levels: "Stock Levels",
+        nav_transaction_history: "Transaction History",
+        nav_setup: "Add Data",
+        nav_master_data: "Master Data",
+        nav_user_management: "User Management",
+        nav_backup: "Backup",
+        nav_activity_log: "Activity Log",
+        nav_logout: "Logout",
+        pending_requests: "Pending Requests",
+        total_items: "Total Items",
+        total_stock_value: "Total Stock Value",
+        total_suppliers: "Total Suppliers",
+        total_branches: "Total Branches",
+        add_new_item: "Add New Item",
+        item_code_label: "Item Code (Unique ID)",
+        item_barcode_label: "Barcode",
+        item_name_label: "Item Name",
+        item_unit_label: "Unit (e.g., PCS, KG)",
+        item_category_label: "Category",
+        item_supplier_label: "Default Supplier",
+        item_cost_label: "Default Cost",
+        add_item_button: "Add Item",
+        add_new_supplier: "Add New Supplier",
+        supplier_code_label: "Supplier Code (Unique ID)",
+        supplier_name_label: "Supplier Name",
+        supplier_contact_label: "Contact Info",
+        add_supplier_button: "Add Supplier",
+        add_new_branch: "Add New Branch",
+        branch_code_label: "Branch Code (Unique ID)",
+        branch_name_label: "Branch Name",
+        add_branch_button: "Add Branch",
+        add_new_section: "Add New Section",
+        section_code_label: "Section Code (Unique ID)",
+        section_name_label: "Section Name",
+        add_section_button: "Add Section",
+        auto_backup_settings: "Automatic Backup Settings",
+        auto_backup_desc: "Enable automatic backups to save a copy of your data periodically. Backups are stored in \"StockApp Backups\" in Google Drive.",
+        enable_auto_backups: "Enable Automatic Backups",
+        backup_frequency: "Backup Frequency",
+        daily_backup: "Daily (at 2am)",
+        weekly_backup: "Weekly (Sunday at 2am)",
+        manual_backup_restore: "Manual Backup & Restore",
+        manual_backup_desc: "Create an immediate backup or restore from a previously created file.",
+        create_new_manual_backup: "Create New Manual Backup",
+        available_backups: "Available Backups",
+        loading_backups: "Loading backup list...",
+        tab_items: "Items",
+        tab_suppliers: "Suppliers",
+        tab_branches: "Branches",
+        tab_sections: "Sections",
+        item_list: "Item List",
+        search_items_placeholder: "Search by name, code, category...",
+        export_to_excel: "Export to Excel",
+        header_code: "Code",
+        header_name: "Name",
+        header_category: "Category",
+        header_unit: "Unit",
+        header_default_cost: "Default Cost",
+        header_actions: "Actions",
+        // Dynamic & Messages
+        hi_user: "Hi, {0}",
+        user_branch: "Branch: {0}",
+        user_section: "Section: {0}",
+        history_for: "History for: {0} ({1})",
+        edit_item_title: "Edit Item",
+        edit_supplier_title: "Edit Supplier",
+        edit_branch_title: "Edit Branch",
+        edit_section_title: "Edit Section",
+        edit_user_title: "Edit User",
+        add_user_title: "Add New User",
+        edit_role_title: "Edit Permissions for {0}",
+        toast_success_item_added: "Item added!",
+        toast_success_item_updated: "Item updated successfully!",
+        toast_confirm_backup: "This will create a full, manual backup of the current spreadsheet. Continue?",
+        toast_backup_created: "Backup created: {0}",
+        toast_data_refreshed: "Data refreshed!",
+        error_report_content_not_found: "Error: Report content not found.",
+        confirm_delete_role: "Are you sure you want to delete this role? This cannot be undone.",
+        session_error_logout: "Session error. Please logout and login again.",
+        action_failed: "Action Failed: {0}",
+    },
+    // Arabic
+    ar: {
+        // General & UI
+        app_title: "برنامج مخازن التعبئة",
+        login_title: "مخازن التعبئة",
+        login_prompt: "الرجاء إدخال بيانات الاعتماد الخاصة بك للمتابعة.",
+        login_username_label: "اسم المستخدم",
+        login_password_label: "كلمة المرور / رمز الدخول",
+        login_button: "تسجيل الدخول",
+        login_signing_in: "جاري تسجيل الدخول...",
+        refresh_all_data: "تحديث كل البيانات",
+        nav_dashboard: "الرئيسية",
+        nav_operations: "عمليات المخزن",
+        nav_purchasing: "المشتريات",
+        nav_requests: "الطلبات",
+        nav_payments: "المدفوعات",
+        nav_reports: "التقارير",
+        nav_stock_levels: "أرصدة المخزون",
+        nav_transaction_history: "سجل الحركات",
+        nav_setup: "إضافة بيانات",
+        nav_master_data: "البيانات الرئيسية",
+        nav_user_management: "إدارة المستخدمين",
+        nav_backup: "النسخ الاحتياطي",
+        nav_activity_log: "سجل النشاط",
+        nav_logout: "تسجيل الخروج",
+        pending_requests: "طلبات معلقة",
+        total_items: "إجمالي الأصناف",
+        total_stock_value: "قيمة المخزون",
+        total_suppliers: "إجمالي الموردين",
+        total_branches: "إجمالي الفروع",
+        add_new_item: "إضافة صنف جديد",
+        item_code_label: "كود الصنف (ID فريد)",
+        item_barcode_label: "باركود",
+        item_name_label: "اسم الصنف",
+        item_unit_label: "الوحدة (مثل: قطعة، كجم)",
+        item_category_label: "الفئة",
+        item_supplier_label: "المورد الافتراضي",
+        item_cost_label: "التكلفة الافتراضية",
+        add_item_button: "إضافة صنف",
+        add_new_supplier: "إضافة مورد جديد",
+        supplier_code_label: "كود المورد (ID فريد)",
+        supplier_name_label: "اسم المورد",
+        supplier_contact_label: "بيانات الاتصال",
+        add_supplier_button: "إضافة مورد",
+        add_new_branch: "إضافة فرع جديد",
+        branch_code_label: "كود الفرع (ID فريد)",
+        branch_name_label: "اسم الفرع",
+        add_branch_button: "إضافة فرع",
+        add_new_section: "إضافة قسم جديد",
+        section_code_label: "كود القسم (ID فريد)",
+        section_name_label: "اسم القسم",
+        add_section_button: "إضافة قسم",
+        auto_backup_settings: "إعدادات النسخ الاحتياطي التلقائي",
+        auto_backup_desc: "قم بتمكين النسخ الاحتياطي التلقائي لحفظ نسخة من بياناتك بشكل دوري. يتم تخزين النسخ الاحتياطية في مجلد \"StockApp Backups\" في Google Drive.",
+        enable_auto_backups: "تمكين النسخ الاحتياطي التلقائي",
+        backup_frequency: "تكرار النسخ الاحتياطي",
+        daily_backup: "يوميًا (الساعة 2 صباحًا)",
+        weekly_backup: "أسبوعيًا (الأحد الساعة 2 صباحًا)",
+        manual_backup_restore: "النسخ الاحتياطي والاستعادة اليدوي",
+        manual_backup_desc: "أنشئ نسخة احتياطية فورية أو قم بالاستعادة من ملف تم إنشاؤه مسبقًا.",
+        create_new_manual_backup: "إنشاء نسخة احتياطية يدوية جديدة",
+        available_backups: "النسخ الاحتياطية المتاحة",
+        loading_backups: "جاري تحميل قائمة النسخ الاحتياطية...",
+        tab_items: "الأصناف",
+        tab_suppliers: "الموردون",
+        tab_branches: "الفروع",
+        tab_sections: "الأقسام",
+        item_list: "قائمة الأصناف",
+        search_items_placeholder: "ابحث بالاسم، الكود، الفئة...",
+        export_to_excel: "تصدير إلى Excel",
+        header_code: "الكود",
+        header_name: "الاسم",
+        header_category: "الفئة",
+        header_unit: "الوحدة",
+        header_default_cost: "التكلفة",
+        header_actions: "إجراءات",
+        // Dynamic & Messages
+        hi_user: "مرحباً، {0}",
+        user_branch: "الفرع: {0}",
+        user_section: "القسم: {0}",
+        history_for: "سجل الصنف: {0} ({1})",
+        edit_item_title: "تعديل صنف",
+        edit_supplier_title: "تعديل مورد",
+        edit_branch_title: "تعديل فرع",
+        edit_section_title: "تعديل قسم",
+        edit_user_title: "تعديل مستخدم",
+        add_user_title: "إضافة مستخدم جديد",
+        edit_role_title: "تعديل صلاحيات دور {0}",
+        toast_success_item_added: "تمت إضافة الصنف بنجاح!",
+        toast_success_item_updated: "تم تعديل الصنف بنجاح!",
+        toast_confirm_backup: "سيؤدي هذا إلى إنشاء نسخة احتياطية يدوية كاملة من جدول البيانات الحالي. هل تريد المتابعة؟",
+        toast_backup_created: "تم إنشاء النسخة الاحتياطية: {0}",
+        toast_data_refreshed: "تم تحديث البيانات بنجاح!",
+        error_report_content_not_found: "خطأ: لم يتم العثور على محتوى التقرير.",
+        confirm_delete_role: "هل أنت متأكد من رغبتك في حذف هذا الدور؟ لا يمكن التراجع عن هذا الإجراء.",
+        session_error_logout: "خطأ في الجلسة. يرجى تسجيل الخروج والدخول مرة أخرى.",
+        action_failed: "فشل الإجراء: {0}",
+    }
+};
+
+let currentLang = 'en';
+
+function getText(key, ...args) {
+    let text = translations[currentLang][key] || translations['en'][key] || `MISSING_KEY: ${key}`;
+    args.forEach((arg, index) => {
+        text = text.replace(`{${index}}`, arg);
+    });
+    return text;
+}
+
+function switchLanguage(lang) {
+    if (lang === currentLang) return;
+    currentLang = lang;
+    localStorage.setItem('stockAppLang', lang);
+
+    // Update static text
+    document.querySelectorAll('[data-lang]').forEach(el => {
+        const key = el.dataset.lang;
+        const translation = getText(key);
+        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+            el.placeholder = translation;
+        } else {
+            el.textContent = translation;
+        }
+    });
+
+    // Update HTML attributes and body class for CSS
+    document.documentElement.lang = lang;
+    document.body.className = lang === 'ar' ? 'lang-ar' : '';
+
+    // Update active button in switcher
+    document.querySelectorAll('.lang-switcher button').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.lang === lang);
+    });
+    
+    // Refresh UI components that might have dynamic text
+    initializeAppUI();
+    Logger.info(`Language switched to ${lang}`);
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     // !!! IMPORTANT: PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
@@ -122,6 +361,11 @@ document.addEventListener('DOMContentLoaded', () => {
             Logger.info(`Login successful for user: ${state.currentUser.Name} (Role: ${state.currentUser.RoleName})`);
             loginContainer.style.display = 'none';
             appContainer.style.display = 'flex';
+            
+            // Apply language setting before initializing UI
+            const savedLang = localStorage.getItem('stockAppLang') || 'en';
+            switchLanguage(savedLang);
+
             initializeAppUI();
         } catch (error) {
             const userMsg = error.message.includes('Network error') ? 'Failed to connect to server.' : error.message;
@@ -143,7 +387,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } = state;
         if (!username || !loginCode) {
             Logger.error("Authentication token missing. Cannot perform action.");
-            showToast('Session error. Please logout and login again.', 'error');
+            showToast(getText('session_error_logout'), 'error');
             setButtonLoading(false, buttonEl);
             return null;
         }
@@ -164,7 +408,7 @@ document.addEventListener('DOMContentLoaded', () => {
             Logger.info(`POST successful for ${action}`, result);
             return result;
         } catch (error) {
-            const userMsg = `Action Failed: ${error.message}`;
+            const userMsg = getText('action_failed', error.message);
             Logger.error(userMsg, error);
             showToast(userMsg, 'error');
             return null;
@@ -254,7 +498,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const item = findByKey(state.items, 'code', itemCode);
         if (!item) return;
 
-        document.getElementById('history-modal-title').textContent = `History for: ${item.name} (${item.code})`;
+        document.getElementById('history-modal-title').textContent = getText('history_for', item.name, item.code);
         const historyModalBody = document.getElementById('history-modal-body');
         const priceHistoryContainer = historyModalBody.querySelector('#subview-price-history');
         const movementHistoryContainer = historyModalBody.querySelector('#subview-movement-history');
@@ -359,7 +603,7 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'item':
                 record = findByKey(state.items, 'code', id);
                 if (!record) return;
-                editModalTitle.textContent = 'Edit Item';
+                editModalTitle.textContent = getText('edit_item_title');
                 formHtml = `<div class="form-grid"><div class="form-group"><label>Item Code</label><input type="text" value="${record.code}" readonly></div><div class="form-group"><label for="edit-item-barcode">Barcode</label><input type="text" id="edit-item-barcode" name="barcode" value="${record.barcode || ''}"></div><div class="form-group"><label for="edit-item-name">Item Name</label><input type="text" id="edit-item-name" name="name" value="${record.name}" required></div><div class="form-group"><label for="edit-item-unit">Unit</label><input type="text" id="edit-item-unit" name="unit" value="${record.unit}" required></div><div class="form-group"><label for="edit-item-category">Category</label><select id="edit-item-category" name="category" required><option value="Packing">Packing</option><option value="Cleaning">Cleaning</option></select></div><div class="form-group"><label for="edit-item-supplier">Default Supplier</label><select id="edit-item-supplier" name="supplierCode"></select></div><div class="form-group span-full"><label for="edit-item-cost">Default Cost</label><input type="number" id="edit-item-cost" name="cost" step="0.01" min="0" value="${record.cost}" required></div></div>`;
                 editModalBody.innerHTML = formHtml;
                 document.getElementById('edit-item-category').value = record.category;
@@ -370,28 +614,28 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'supplier':
                 record = findByKey(state.suppliers, 'supplierCode', id);
                 if (!record) return;
-                editModalTitle.textContent = 'Edit Supplier';
+                editModalTitle.textContent = getText('edit_supplier_title');
                 formHtml = `<div class="form-grid"><div class="form-group"><label>Supplier Code</label><input type="text" value="${record.supplierCode}" readonly></div><div class="form-group"><label for="edit-supplier-name">Supplier Name</label><input type="text" id="edit-supplier-name" name="name" value="${record.name}" required></div><div class="form-group"><label for="edit-supplier-contact">Contact Info</label><input type="text" id="edit-supplier-contact" name="contact" value="${record.contact || ''}"></div></div>`;
                 editModalBody.innerHTML = formHtml;
                 break;
             case 'branch':
                 record = findByKey(state.branches, 'branchCode', id);
                 if (!record) return;
-                editModalTitle.textContent = 'Edit Branch';
+                editModalTitle.textContent = getText('edit_branch_title');
                 formHtml = `<div class="form-grid"><div class="form-group"><label>Branch Code</label><input type="text" value="${record.branchCode}" readonly></div><div class="form-group"><label for="edit-branch-name">Branch Name</label><input type="text" id="edit-branch-name" name="name" value="${record.name}" required></div></div>`;
                 editModalBody.innerHTML = formHtml;
                 break;
             case 'section':
                 record = findByKey(state.sections, 'sectionCode', id);
                 if (!record) return;
-                editModalTitle.textContent = 'Edit Section';
+                editModalTitle.textContent = getText('edit_section_title');
                 formHtml = `<div class="form-grid"><div class="form-group"><label>Section Code</label><input type="text" value="${record.sectionCode}" readonly></div><div class="form-group"><label for="edit-section-name">Section Name</label><input type="text" id="edit-section-name" name="name" value="${record.name}" required></div></div>`;
                 editModalBody.innerHTML = formHtml;
                 break;
             case 'user':
                 record = findByKey(state.allUsers, 'Username', id);
                 if (!record && id !== null) return;
-                editModalTitle.textContent = id ? 'Edit User' : 'Add New User';
+                editModalTitle.textContent = id ? getText('edit_user_title') : getText('add_user_title');
                 const isUserDisabled = record ? (record.isDisabled === true || String(record.isDisabled).toUpperCase() === 'TRUE') : false;
                 const currentUsername = record ? record.Username : '';
                 const currentName = record ? record.Name : '';
@@ -434,7 +678,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     showToast('Role data not found. Please refresh and try again.', 'error');
                     return;
                 }
-                editModalTitle.textContent = `Edit Permissions for ${record.RoleName}`;
+                editModalTitle.textContent = getText('edit_role_title', record.RoleName);
 
                 const permissionCategories = {
                     'General Access': ['viewDashboard', 'viewActivityLog'],
@@ -1652,7 +1896,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updatePendingRequestsWidget(); 
             await refreshViewData(currentView); 
             Logger.info('Reload complete.'); 
-            showToast('Data refreshed!', 'success'); 
+            showToast(getText('toast_data_refreshed'), 'success'); 
         } catch (err) { 
             Logger.error('Data reload failed:', err); 
             showToast('Could not refresh data. Please try again.', 'error'); 
@@ -1675,7 +1919,7 @@ document.addEventListener('DOMContentLoaded', () => {
         rolesTbody.innerHTML = '';
         (state.allRoles || []).forEach(role => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${role.RoleName}</td><td><button class="secondary small btn-edit" data-type="role" data-id="${role.RoleName}">Edit</button></td>`;
+            tr.innerHTML = `<td>${role.RoleName}</td><td><div class="action-buttons"><button class="secondary small btn-edit" data-type="role" data-id="${role.RoleName}">Edit</button><button class="danger small btn-delete-role" data-id="${role.RoleName}">Delete</button></div></td>`;
             rolesTbody.appendChild(tr);
         });
     }
@@ -1890,10 +2134,10 @@ document.addEventListener('DOMContentLoaded', () => {
         
         document.getElementById('btn-create-backup').addEventListener('click', async (e) => {
             const btn = e.currentTarget;
-            if (confirm('This will create a full, manual backup of the current spreadsheet. Continue?')) {
+            if (confirm(getText('toast_confirm_backup'))) {
                 const result = await postData('createBackup', {}, btn);
                 if (result && result.data) {
-                    showToast(`Backup created: ${result.data.fileName}`, 'success');
+                    showToast(getText('toast_backup_created', result.data.fileName), 'success');
                     await loadAndRenderBackups();
                 }
             }
@@ -1927,6 +2171,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (btn.classList.contains('btn-history')) { openHistoryModal(btn.dataset.id); }
             if (btn.id === 'btn-add-new-user') { openEditModal('user', null); }
             if (btn.id === 'btn-add-new-role') { const roleName = prompt("Enter new role name:"); if(roleName) { postData('addRole', { RoleName: roleName }, btn).then(res => res && reloadDataAndRefreshUI()); } }
+            if (btn.classList.contains('btn-delete-role')) { const roleName = btn.dataset.id; if(confirm(getText('confirm_delete_role'))) { postData('deleteRole', { roleName }, btn).then(res => res && reloadDataAndRefreshUI()); } }
             if (btn.classList.contains('btn-view-tx')) {
                  const batchId = btn.dataset.batchId;
                  const type = btn.dataset.type;
@@ -2016,7 +2261,7 @@ document.addEventListener('DOMContentLoaded', () => {
         modalItemList.addEventListener('change', handleModalCheckboxChange);
         modalSearchInput.addEventListener('input', e => renderItemsInModal(e.target.value));
         formEditRecord.addEventListener('submit', handleUpdateSubmit);
-        document.getElementById('form-add-item').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { code: document.getElementById('item-code').value, barcode: document.getElementById('item-barcode').value, name: document.getElementById('item-name').value, unit: document.getElementById('item-unit').value, category: document.getElementById('item-category').value, supplierCode: document.getElementById('item-supplier').value, cost: parseFloat(document.getElementById('item-cost').value) }; const result = await postData('addItem', data, btn); if (result) { showToast('Item added!', 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
+        document.getElementById('form-add-item').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { code: document.getElementById('item-code').value, barcode: document.getElementById('item-barcode').value, name: document.getElementById('item-name').value, unit: document.getElementById('item-unit').value, category: document.getElementById('item-category').value, supplierCode: document.getElementById('item-supplier').value, cost: parseFloat(document.getElementById('item-cost').value) }; const result = await postData('addItem', data, btn); if (result) { showToast(getText('toast_success_item_added'), 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
         document.getElementById('form-add-supplier').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { supplierCode: document.getElementById('supplier-code').value, name: document.getElementById('supplier-name').value, contact: document.getElementById('supplier-contact').value }; const result = await postData('addSupplier', data, btn); if (result) { showToast('Supplier added!', 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
         document.getElementById('form-add-branch').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { branchCode: document.getElementById('branch-code').value, name: document.getElementById('branch-name').value }; const result = await postData('addBranch', data, btn); if (result) { showToast('Branch added!', 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
         document.getElementById('form-add-section').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { sectionCode: document.getElementById('section-code').value, name: document.getElementById('section-name').value }; const result = await postData('addSection', data, btn); if (result) { showToast('Section added!', 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
@@ -2231,7 +2476,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function setupRoleBasedNav() {
         const user = state.currentUser; if (!user) return;
         const userFirstName = user.Name.split(' ')[0];
-        document.querySelector('.sidebar-header h1').textContent = `Hi, ${userFirstName}`;
+        document.querySelector('.sidebar-header h1').textContent = getText('hi_user', userFirstName);
         const navMap = { 'dashboard': 'viewDashboard', 'operations': 'viewOperations', 'purchasing': 'viewPurchasing', 'requests': 'viewRequests', 'payments': 'viewPayments', 'reports': 'viewReports', 'stock-levels': 'viewStockLevels', 'transaction-history': 'viewTransactionHistory', 'setup': 'viewSetup', 'master-data': 'viewMasterData', 'user-management': 'manageUsers', 'backup': 'opBackupRestore', 'activity-log': 'viewActivityLog' };
         for (const [view, permission] of Object.entries(navMap)) {
             const navItem = document.querySelector(`[data-view="${view}"]`);
@@ -2281,8 +2526,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const branch = findByKey(state.branches, 'branchCode', state.currentUser.AssignedBranchCode);
         const section = findByKey(state.sections, 'sectionCode', state.currentUser.AssignedSectionCode);
         let displayText = '';
-        if (branch) displayText += `Branch: ${branch.name}`;
-        if (section) displayText += `${displayText ? ' / ' : ''}Section: ${section.name}`;
+        if (branch) displayText += getText('user_branch', branch.name);
+        if (section) displayText += `${displayText ? ' / ' : ''}` + getText('user_section', section.name);
         displayEl.textContent = displayText;
     }
 
@@ -2326,7 +2571,6 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         
         document.getElementById('btn-print-draft-po').onclick = () => {
-            const supplier = findByKey(state.suppliers, 'supplierCode', po.supplierCode);
             const dataToPrint = {
                 poId: document.getElementById('edit-po-id').value,
                 date: new Date(),
@@ -2485,6 +2729,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const confirmBtn = modal.querySelector('#btn-confirm-request-approval');
         confirmBtn.dataset.requestId = requestId;
         
+        modal.querySelector('.modal-footer').innerHTML = `
+            <button class="secondary modal-cancel">Cancel</button>
+            <button id="btn-print-draft-issue-note" class="secondary">Print Draft</button>
+            <button id="btn-confirm-request-approval" class="primary" data-request-id="${requestId}">Confirm and Issue</button>
+        `;
+
         document.getElementById('btn-print-draft-issue-note').onclick = () => {
             const itemsToPrint = [];
             document.querySelectorAll('#table-approve-request-items tbody tr').forEach(tr => {
@@ -2540,6 +2790,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function init() {
+        // Language switcher logic
+        const langSwitcher = document.createElement('div');
+        langSwitcher.className = 'lang-switcher';
+        langSwitcher.innerHTML = `
+            <button data-lang="en" class="active">EN</button>
+            <button data-lang="ar">AR</button>
+        `;
+        document.querySelector('.main-header').appendChild(langSwitcher);
+        langSwitcher.addEventListener('click', (e) => {
+            if (e.target.tagName === 'BUTTON') {
+                switchLanguage(e.target.dataset.lang);
+            }
+        });
+
+        // Set initial language from localStorage or default
+        const savedLang = localStorage.getItem('stockAppLang') || 'en';
+        switchLanguage(savedLang);
+
         loginContainer.style.display = 'flex';
         appContainer.style.display = 'none';
         loginForm.addEventListener('submit', (e) => {
