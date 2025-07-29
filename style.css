@@ -285,6 +285,10 @@ body.lang-ar .pending-requests-widget {
     margin-left: 0;
     margin-right: 24px;
 }
+body.lang-ar .lang-switcher {
+    margin-left: 0;
+    margin-right: 16px;
+}
 body.lang-ar th, body.lang-ar td {
     text-align: right;
 }
@@ -326,11 +330,11 @@ body.lang-ar .form-group-checkbox {
     flex-direction: row-reverse;
     justify-content: flex-end;
 }
-body.lang-ar button .icon {
-    order: 2;
+body.lang-ar button {
+    flex-direction: row-reverse;
 }
-body.lang-ar button span {
-    order: 1;
+body.lang-ar tfoot td[style*="text-align:right"] {
+    text-align: left !important;
 }
 
 /* --- Print & Responsive --- */
