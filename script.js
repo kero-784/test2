@@ -1961,6 +1961,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             if (btn.classList.contains('btn-edit-po')) { openPOEditModal(btn.dataset.poId); }
+            if (btn.classList.contains('btn-edit-invoice')) { openInvoiceEditModal(btn.dataset.batchId); }
             if (btn.classList.contains('btn-approve-financial') || btn.classList.contains('btn-reject-financial')) {
                 const id = btn.dataset.id;
                 const type = btn.dataset.type;
