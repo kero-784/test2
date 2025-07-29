@@ -212,42 +212,13 @@ const translations = {
 let currentLang = 'en';
 
 function getText(key, ...args) {
-    let text = translations[currentLang][key] || translations['en'][key] || `MISSING_KEY: ${key}`;
+    let text = (translations[currentLang] && translations[currentLang][key]) || translations['en'][key] || `MISSING_KEY: ${key}`;
     args.forEach((arg, index) => {
         text = text.replace(`{${index}}`, arg);
     });
     return text;
 }
 
-function switchLanguage(lang) {
-    if (lang === currentLang) return;
-    currentLang = lang;
-    localStorage.setItem('stockAppLang', lang);
-
-    // Update static text
-    document.querySelectorAll('[data-lang]').forEach(el => {
-        const key = el.dataset.lang;
-        const translation = getText(key);
-        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-            el.placeholder = translation;
-        } else {
-            el.textContent = translation;
-        }
-    });
-
-    // Update HTML attributes and body class for CSS
-    document.documentElement.lang = lang;
-    document.body.className = lang === 'ar' ? 'lang-ar' : '';
-
-    // Update active button in switcher
-    document.querySelectorAll('.lang-switcher button').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.lang === lang);
-    });
-    
-    // Refresh UI components that might have dynamic text
-    initializeAppUI();
-    Logger.info(`Language switched to ${lang}`);
-}
 
 document.addEventListener('DOMContentLoaded', () => {
     // !!! IMPORTANT: PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
@@ -362,10 +333,8 @@ document.addEventListener('DOMContentLoaded', () => {
             loginContainer.style.display = 'none';
             appContainer.style.display = 'flex';
             
-            // Apply language setting before initializing UI
-            const savedLang = localStorage.getItem('stockAppLang') || 'en';
-            switchLanguage(savedLang);
-
+            // Apply language setting and initialize UI
+            switchLanguage(currentLang); // Refresh text with potentially new keys
             initializeAppUI();
         } catch (error) {
             const userMsg = error.message.includes('Network error') ? 'Failed to connect to server.' : error.message;
@@ -1763,6 +1732,46 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // MOVED: This function is now defined here, before it is called.
+    function switchLanguage(lang) {
+        if (!['en', 'ar'].includes(lang)) lang = 'en';
+        if (lang === currentLang && document.body.classList.contains(`lang-${lang}`)) return;
+        currentLang = lang;
+        localStorage.setItem('stockAppLang', lang);
+
+        // Update static text
+        document.querySelectorAll('[data-lang]').forEach(el => {
+            const key = el.dataset.lang;
+            const translation = getText(key);
+            if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+                el.placeholder = translation;
+            } else {
+                el.textContent = translation;
+            }
+        });
+        
+        // Update placeholders for elements without data-lang attribute
+        document.querySelectorAll('[data-lang-placeholder]').forEach(el => {
+             const key = el.dataset.langPlaceholder;
+             el.placeholder = getText(key);
+        });
+
+        // Update HTML attributes and body class for CSS
+        document.documentElement.lang = lang;
+        document.body.className = lang === 'ar' ? 'lang-ar' : '';
+
+        // Update active button in switcher
+        document.querySelectorAll('.lang-switcher button').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.lang === lang);
+        });
+        
+        // If the app is already running, refresh the UI
+        if (state.currentUser) {
+            initializeAppUI();
+        }
+        Logger.info(`Language switched to ${lang}`);
+    }
+
     const refreshViewData = async (viewId) => {
         if (!state.currentUser) return;
         Logger.debug(`Refreshing view: ${viewId}`);
@@ -2586,7 +2595,6 @@ document.addEventListener('DOMContentLoaded', () => {
         editPOModal.classList.add('active');
     }
 
-    // --- NEW FUNCTION TO FIX EDIT INVOICE BUTTON ---
     function openInvoiceEditModal(batchId) {
         const txGroup = state.transactions.filter(t => t.batchId === batchId && t.type === 'receive');
         if (txGroup.length === 0) {
@@ -2595,7 +2603,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const firstTx = txGroup[0];
 
-        // Reuse the PO editing list and renderer for consistency
         state.currentEditingPOList = txGroup.map(tx => {
             const masterItem = findByKey(state.items, 'code', tx.itemCode);
             return {
@@ -2659,7 +2666,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- NEW FUNCTION TO SAVE INVOICE CHANGES ---
     async function saveInvoiceChanges(e) {
         const btn = e.currentTarget;
         const batchId = btn.dataset.batchId;
