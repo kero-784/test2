@@ -12,7 +12,7 @@ window.printReport = function(elementId) {
 
 document.addEventListener('DOMContentLoaded', () => {
     // !!! IMPORTANT: PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzsdo78mOdRAk56mvfmVmmKs2_X9z9ydNg2gf2WrBvK7A6640Yx6x1Vmvk9Koj5bYJ4/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwYz-rD5CWhT7SNNw3ApcnH0Si3Hswo2daxHTYcmyW3QDbS7hANUw0lKM4sqGrzOo9c/exec';
 
     const Logger = {
         info: (message, ...args) => console.log(`[StockWise INFO] ${message}`, ...args),
@@ -443,7 +443,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Stock Operations': ['viewOperations', 'opReceive', 'opReceiveWithoutPO', 'opIssue', 'opTransfer', 'opReturn', 'opStockAdjustment'],
                     'Purchasing': ['viewPurchasing', 'opCreatePO'],
                     'Item Requests': ['viewRequests', 'opRequestItems', 'opApproveIssueRequest', 'opApproveResupplyRequest'],
-                    'Financials': ['viewPayments', 'opRecordPayment', 'opFinancialAdjustment', 'opApproveFinancials'],
+                    'Financials': ['viewPayments', 'opRecordPayment', 'opFinancialAdjustment', 'opApproveFinancials', 'opEditInvoice'],
                     'Reporting': ['viewReports', 'viewStockLevels', 'viewTransactionHistory', 'viewAllBranches'],
                 };
                 
@@ -1106,6 +1106,12 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.values(grouped).sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(group => {
             const first = group.transactions[0];
             let details = '', statusTag = '', refNum = first.ref || first.batchId, typeDisplay = first.type.replace(/_/g, ' ').toUpperCase();
+            const canEditInvoice = userCan('opEditInvoice') && first.type === 'receive' && (first.isApproved !== true && String(first.isApproved).toUpperCase() !== 'TRUE');
+
+            let actionsHtml = `<button class="secondary small btn-view-tx" data-batch-id="${group.batchId}" data-type="${first.type}">View/Print</button>`;
+            if(canEditInvoice){
+                actionsHtml += `<button class="secondary small btn-edit-invoice" data-batch-id="${group.batchId}">Edit</button>`;
+            }
 
             switch(first.type) {
                 case 'receive':
@@ -1139,7 +1145,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${new Date(first.date).toLocaleString()}</td><td>${typeDisplay}</td><td>${refNum}</td><td>${details}</td><td>${statusTag}</td><td><button class="secondary small no-print btn-view-tx" data-batch-id="${group.batchId}" data-type="${first.type}">View/Print</button></td>`;
+            tr.innerHTML = `<td>${new Date(first.date).toLocaleString()}</td><td>${typeDisplay}</td><td>${refNum}</td><td>${details}</td><td>${statusTag}</td><td><div class="action-buttons">${actionsHtml}</div></td>`;
             tbody.appendChild(tr);
         });
     }
@@ -1309,10 +1315,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const result = await postData(action, payload, buttonEl);
         if (result) {
             let message = `${payload.type.replace(/_/g,' ').toUpperCase()} processed!`;
+            if(payload.type === 'receive' || payload.type === 'po') message += " Submitted for approval.";
             if (payload.type === 'receive') { state.currentReceiveList = []; document.getElementById('form-receive-details').reset(); renderReceiveListTable(); }
             else if (payload.type === 'transfer_out') { generateTransferDocument(result.data); state.currentTransferList = []; document.getElementById('form-transfer-details').reset(); document.getElementById('transfer-ref').value = generateId('TRN'); renderTransferListTable(); }
             else if (payload.type === 'issue') { generateIssueDocument(result.data); state.currentIssueList = []; document.getElementById('form-issue-details').reset(); document.getElementById('issue-ref').value = generateId('ISN'); renderIssueListTable(); }
-            else if (payload.type === 'po') { message = "Purchase Order created!"; state.currentPOList = []; document.getElementById('form-po-details').reset(); document.getElementById('po-ref').value = generateId('PO'); renderPOListTable(); }
+            else if (payload.type === 'po') { state.currentPOList = []; document.getElementById('form-po-details').reset(); document.getElementById('po-ref').value = generateId('PO'); renderPOListTable(); }
             else if (payload.type === 'return_out') { generateReturnDocument(result.data); state.currentReturnList = []; document.getElementById('form-return-details').reset(); renderReturnListTable(); }
             showToast(message, 'success');
             await reloadDataAndRefreshUI();
