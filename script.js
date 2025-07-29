@@ -372,6 +372,7 @@ function getText(key, ...args) {
     return text;
 }
 
+
 document.addEventListener('DOMContentLoaded', () => {
     // !!! IMPORTANT: PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw6ILWFJPd8gsFQY-h4ZVZSByQfSXIzl6OpKk2m488Ihu9u1TCFSxsWAjvkW5Ws65NU/exec';
@@ -418,8 +419,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     let modalContext = null;
 
-    // CORRECTED: switchLanguage is now defined inside the DOMContentLoaded scope,
-    // before it is called by init().
+    // CORRECTED: All functions are now declared within the DOMContentLoaded scope.
+    // The language switcher is defined first so it can be used by other functions.
     function switchLanguage(lang) {
         if (!['en', 'ar'].includes(lang)) lang = 'en';
         
