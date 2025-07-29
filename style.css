@@ -25,6 +25,8 @@
 }
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap');
+
 
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -37,7 +39,37 @@ body {
     -moz-osx-font-smoothing: grayscale;
 }
 
+body.lang-ar {
+    font-family: 'Cairo', sans-serif;
+}
+
 .app-container { display: flex; }
+
+/* --- Language Switcher --- */
+.lang-switcher {
+    display: flex;
+    gap: 4px;
+    background-color: var(--primary-light);
+    border-radius: 8px;
+    padding: 4px;
+    margin-left: 16px;
+}
+.lang-switcher button {
+    background: transparent;
+    border: none;
+    padding: 4px 10px;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--primary-dark);
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+.lang-switcher button.active {
+    background-color: var(--primary-color);
+    color: white;
+    box-shadow: var(--shadow-sm);
+}
 
 /* --- Login Screen --- */
 #login-container { display: flex; justify-content: center; align-items: center; height: 100vh; background-color: var(--bg-color); }
@@ -211,7 +243,97 @@ input:checked + .slider:before { transform: translateX(26px); }
 .slider.round { border-radius: 34px; }
 .slider.round:before { border-radius: 50%; }
 
+/* --- RTL (ARABIC) STYLES --- */
+body.lang-ar {
+    direction: rtl;
+}
+body.lang-ar .login-box .form-group {
+    text-align: right;
+}
+body.lang-ar .sidebar {
+    left: auto;
+    right: 0;
+    border-right: none;
+    border-left: 1px solid var(--border-color);
+}
+body.lang-ar .main-content {
+    margin-left: 0;
+    margin-right: var(--sidebar-width);
+}
+body.lang-ar .sidebar-header {
+    align-items: flex-start;
+}
+body.lang-ar .nav-item a {
+    flex-direction: row-reverse;
+}
+body.lang-ar .nav-item a .icon {
+    margin-left: 0;
+    margin-right: 0;
+}
+body.lang-ar #btn-logout .icon {
+    transform: scaleX(-1);
+}
+body.lang-ar .main-header {
+    justify-content: flex-start;
+    flex-direction: row-reverse;
+}
+body.lang-ar .user-branch-display {
+    margin-left: 0;
+    margin-right: auto;
+}
+body.lang-ar .pending-requests-widget {
+    margin-left: 0;
+    margin-right: 24px;
+}
+body.lang-ar th, body.lang-ar td {
+    text-align: right;
+}
+body.lang-ar .form-group label {
+    text-align: right;
+}
+body.lang-ar .search-bar input {
+    padding-left: 16px;
+    padding-right: 16px; 
+}
+body.lang-ar .toolbar .filters-container {
+    margin-left: 0;
+    margin-right: auto;
+}
+body.lang-ar .modal-footer {
+    justify-content: flex-start;
+    flex-direction: row-reverse;
+}
+body.lang-ar .modal-header {
+    flex-direction: row-reverse;
+}
+body.lang-ar .modal-item {
+    flex-direction: row-reverse;
+}
+body.lang-ar .modal-item input[type="checkbox"] {
+    margin-right: 0;
+    margin-left: 16px;
+}
+body.lang-ar #toast-container {
+    right: auto;
+    left: 20px;
+    align-items: flex-end;
+}
+body.lang-ar .toast {
+    transform: translateX(calc(-100% - 20px));
+}
+body.lang-ar @keyframes slideIn { to { transform: translateX(0); } }
+body.lang-ar .form-group-checkbox {
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+}
+body.lang-ar button .icon {
+    order: 2;
+}
+body.lang-ar button span {
+    order: 1;
+}
+
 /* --- Print & Responsive --- */
 @media print { body { background-color: #fff !important; } .app-container, .no-print { display: none !important; } #print-area { display: block !important; } .printable-document { display: block !important; box-shadow: none; border: none; padding:0; } .printable-document h2, .printable-document p { margin: 0 0 10px 0; } #print-area table { table-layout: auto; } #print-area th, #print-area td { white-space: normal !important; word-break: break-word !important; overflow: visible !important; text-overflow: clip !important; font-size: 10pt; padding: 8px; } }
 @media (max-width: 1200px) { .report-generator-controls { flex-direction: column; align-items: stretch; } }
-@media (max-width: 768px) { :root { --sidebar-width: 0px; } .sidebar { width: 100%; height: auto; bottom: 0; top: auto; flex-direction: row; justify-content: space-around; padding: 5px; background-color: var(--sidebar-bg); border-top: 1px solid var(--border-color); box-shadow: 0 -2px 10px rgba(0,0,0,0.05); } .sidebar-header { display: none; } .sidebar-nav { display: flex; width: 100%; padding: 0; overflow-x: auto; flex-direction: row; } .nav-item { flex-shrink: 0; text-align: center; } .nav-item a { flex-direction: column; gap: 4px; padding: 8px 5px; font-size: 11px; font-weight: 500; border-radius: 8px; } .nav-item a .icon { width: 24px; height: 24px; } .nav-item a.active { color: var(--primary-color); background-color: var(--primary-light); } .nav-item-logout { margin-top: 0; padding-top: 0; border-top: none; } .main-content { margin-left: 0; padding: 20px 20px 100px 20px; } #view-title { font-size: 24px; } .modal-content { max-width: 95vw; } .main-header { flex-wrap: wrap; } .pending-requests-widget { order: 3; width: 100%; margin-left: 0; margin-top: 10px; justify-content: center;} }
+@media (max-width: 768px) { :root { --sidebar-width: 0px; } .sidebar { width: 100%; height: auto; bottom: 0; top: auto; flex-direction: row; justify-content: space-around; padding: 5px; background-color: var(--sidebar-bg); border-top: 1px solid var(--border-color); box-shadow: 0 -2px 10px rgba(0,0,0,0.05); } .sidebar-header { display: none; } .sidebar-nav { display: flex; width: 100%; padding: 0; overflow-x: auto; flex-direction: row; } .nav-item { flex-shrink: 0; text-align: center; } .nav-item a { flex-direction: column; gap: 4px; padding: 8px 5px; font-size: 11px; font-weight: 500; border-radius: 8px; } .nav-item a .icon { width: 24px; height: 24px; } .nav-item a.active { color: var(--primary-color); background-color: var(--primary-light); } .nav-item-logout { margin-top: 0; padding-top: 0; border-top: none; } .main-content { margin-left: 0; margin-right: 0; padding: 20px 20px 100px 20px; } #view-title { font-size: 24px; } .modal-content { max-width: 95vw; } .main-header { flex-wrap: wrap; } .pending-requests-widget { order: 3; width: 100%; margin-left: 0; margin-right: 0; margin-top: 10px; justify-content: center;} }
