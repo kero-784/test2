@@ -111,6 +111,20 @@ html[dir="rtl"] body {
     height: 150px;
     padding: 8px;
 }
+.report-selection-control {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.report-selection-control button {
+    flex-shrink: 0;
+}
+.report-selection-control span {
+    font-size: 14px;
+    color: var(--text-light-color);
+    font-style: italic;
+    flex-shrink: 0;
+}
 /* --- Form Elements --- */
 .form-group { margin-bottom: 16px; }
 .form-group label { display: block; font-weight: 500; font-size: 14px; margin-bottom: 8px; color: var(--text-light-color); }
