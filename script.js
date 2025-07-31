@@ -12,7 +12,7 @@ window.printReport = function(elementId) {
 
 document.addEventListener('DOMContentLoaded', () => {
     // !!! IMPORTANT: PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzbJJGrP57WZ_A5jE6k_QrYM29qKu0nD6G_N9rX4scFq8LZ7_MLj1PAJ-d1mPki6Dv_/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyHlW16TDABrOZVU5fORRIre-okbhSJJaqcij5_QWkOQV8EACmCdX1v7fpOZkPhrYQ/exec';
 
     const Logger = {
         info: (message, ...args) => console.log(`[StockWise INFO] ${message}`, ...args),
@@ -55,6 +55,13 @@ document.addEventListener('DOMContentLoaded', () => {
         allRoles: [],
         backups: [],
         adminContextPromise: {},
+        reportSelectedBranches: new Set(),
+        reportSelectedSections: new Set(),
+        reportSelectedItems: new Set(),
+        currentSelectionModal: {
+            type: null,
+            tempSelections: new Set()
+        },
     };
     let modalContext = null;
 
@@ -816,6 +823,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const historyModal = document.getElementById('history-modal');
     const editPOModal = document.getElementById('edit-po-modal');
     const approveRequestModal = document.getElementById('approve-request-modal');
+    const selectionModal = document.getElementById('selection-modal');
     
     const modalItemList = document.getElementById('modal-item-list');
     const modalSearchInput = document.getElementById('modal-search-items');
@@ -1658,7 +1666,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (eDate) {
             dateHeader = _t('report_period_until', {endDate: eDate.toLocaleDateString()});
         }
-        resultsContainer.innerHTML = `<div class="printable-document"><div class="printable-header"><div><h2>${_t('supplier_statement_title', {supplierName: supplier.name})}</h2><p style="margin:0; color: var(--text-light-color);">${_t('report_period_all_time')} ${dateHeader}</p></div><button class="secondary small no-print" onclick="printReport('supplier-statement-results')">${_t('print_list')}</button></div><p><strong>${_t('date_generated')}</strong> ${new Date().toLocaleString()}</p><div class="report-area"><table id="table-supplier-statement-report"><thead><tr><th>${_t('table_h_date')}</th><th>${_t('table_h_type')}</th><th>${_t('reference')}</th><th>${_t('table_h_debit')}</th><th>${_t('table_h_credit')}</th><th>${_t('table_h_balance')}</th></tr></thead><tbody>${tableBodyHtml}</tbody><tfoot><tr style="font-weight:bold; background-color: var(--bg-color);"><td colspan="5" style="text-align:right;">${_t('closing_balance')}</td><td>${balance.toFixed(2)} EGP</td></tr></tfoot></table></div></div>`;
+        resultsContainer.innerHTML =`<div class="printable-document"><div class="printable-header"><div><h2>${_t('supplier_statement_title', {supplierName: supplier.name})}</h2><p style="margin:0; color: var(--text-light-color);">${_t('report_period_all_time')} ${dateHeader}</p></div><button class="secondary small no-print" onclick="printReport('supplier-statement-results')">${_t('print_list')}</button></div><p><strong>${_t('date_generated')}</strong> ${new Date().toLocaleString()}</p><div class="report-area"><table id="table-supplier-statement-report"><thead><tr><th>${_t('table_h_date')}</th><th>${_t('table_h_type')}</th><th>${_t('reference')}</th><th>${_t('table_h_debit')}</th><th>${_t('table_h_credit')}</th><th>${_t('table_h_balance')}</th></tr></thead><tbody>${tableBodyHtml}</tbody><tfoot><tr style="font-weight:bold; background-color: var(--bg-color);"><td colspan="5" style="text-align:right;">${_t('closing_balance')}</td><td>${balance.toFixed(2)} EGP</td></tr></tfoot></table></div></div>`;
         resultsContainer.style.display = 'block';
         exportBtn.disabled = false;
     }
@@ -1667,9 +1675,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const resultsContainer = document.getElementById('consumption-report-results');
         const exportBtn = document.getElementById('btn-export-consumption-report');
         
-        const selectedBranches = Array.from(document.getElementById('consumption-branch-filter').selectedOptions).map(o => o.value);
-        const selectedSections = Array.from(document.getElementById('consumption-section-filter').selectedOptions).map(o => o.value);
-        const selectedItems = Array.from(document.getElementById('consumption-item-filter').selectedOptions).map(o => o.value);
+        const selectedBranches = Array.from(state.reportSelectedBranches);
+        const selectedSections = Array.from(state.reportSelectedSections);
+        const selectedItems = Array.from(state.reportSelectedItems);
         const startDate = document.getElementById('consumption-start-date').value;
         const endDate = document.getElementById('consumption-end-date').value;
 
@@ -2264,16 +2272,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const el = document.getElementById(id);
                 if (el && !userCan('viewAllBranches')) { el.value = branchCode; el.disabled = true; el.dispatchEvent(new Event('change')); }
             });
-            if (!userCan('viewAllBranches')) {
-                ['branch-consumption-select', 'resupply-branch-filter', 'tx-filter-branch'].forEach(id => {
-                    // This is handled by the new multi-select logic or removed
-                });
-            }
-        }
-        if (sectionCode && !userCan('viewAllBranches')) {
-            ['section-consumption-select', 'tx-filter-section'].forEach(id => {
-                // This is handled by the new multi-select logic or removed
-            });
         }
     }
 
@@ -2355,16 +2353,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 break;
             case 'reports':
                 populateOptions(document.getElementById('supplier-statement-select'), state.suppliers, _t('select_a_supplier'), 'supplierCode', 'name');
-                // For multi-select, we don't need a placeholder option
-                const branchSelect = document.getElementById('consumption-branch-filter');
-                branchSelect.innerHTML = '';
-                getVisibleBranchesForCurrentUser().forEach(b => branchSelect.innerHTML += `<option value="${b.branchCode}">${b.branchName}</option>`);
-                const sectionSelect = document.getElementById('consumption-section-filter');
-                sectionSelect.innerHTML = '';
-                state.sections.forEach(s => sectionSelect.innerHTML += `<option value="${s.sectionCode}">${s.sectionName}</option>`);
-                const itemSelect = document.getElementById('consumption-item-filter');
-                itemSelect.innerHTML = '';
-                state.items.forEach(i => itemSelect.innerHTML += `<option value="${i.code}">${i.name} (${i.code})</option>`);
+                document.getElementById('consumption-branch-count').textContent = `${state.reportSelectedBranches.size} selected`;
+                document.getElementById('consumption-section-count').textContent = `${state.reportSelectedSections.size} selected`;
+                document.getElementById('consumption-item-count').textContent = `${state.reportSelectedItems.size} selected`;
                 break;
             case 'stock-levels':
                 document.getElementById('stock-levels-title').textContent = userCan('viewAllBranches') ? _t('stock_by_item_all_branches') : _t('stock_by_item_your_branch');
@@ -2688,6 +2679,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const btn = e.target.closest('button');
             if (!btn) return;
             if (btn.dataset.context) { openItemSelectorModal(e); }
+            if (btn.dataset.selectionType) { openSelectionModal(btn.dataset.selectionType); }
             if (btn.id === 'btn-select-invoices') { openInvoiceSelectorModal(); } 
             if (btn.classList.contains('btn-edit')) { openEditModal(btn.dataset.type, btn.dataset.id); }
             if (btn.classList.contains('btn-history')) { openHistoryModal(btn.dataset.id); }
@@ -2775,6 +2767,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         document.getElementById('btn-confirm-modal-selection').addEventListener('click', confirmModalSelection);
         document.getElementById('btn-confirm-invoice-selection').addEventListener('click', confirmModalSelection);
+        document.getElementById('btn-confirm-report-selection').addEventListener('click', confirmReportSelection);
         
         document.getElementById('payment-supplier-select').addEventListener('change', e => { document.getElementById('btn-select-invoices').disabled = !e.target.value; state.invoiceModalSelections.clear(); renderPaymentList(); }); 
         document.getElementById('table-payment-list').addEventListener('input', handlePaymentInputChange);
@@ -3328,6 +3321,109 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- NEW SELECTION MODAL LOGIC FOR REPORTS ---
+    function openSelectionModal(type) {
+        state.currentSelectionModal.type = type;
+        const titleEl = document.getElementById('selection-modal-title');
+        const searchEl = document.getElementById('selection-modal-search');
+        let tempSet;
+        switch (type) {
+            case 'branches':
+                titleEl.textContent = 'Select Branches';
+                searchEl.placeholder = 'Search branches...';
+                tempSet = state.reportSelectedBranches;
+                break;
+            case 'sections':
+                titleEl.textContent = 'Select Sections';
+                searchEl.placeholder = 'Search sections...';
+                tempSet = state.reportSelectedSections;
+                break;
+            case 'items':
+                titleEl.textContent = 'Select Items';
+                searchEl.placeholder = 'Search items...';
+                tempSet = state.reportSelectedItems;
+                break;
+        }
+        state.currentSelectionModal.tempSelections = new Set(tempSet);
+        renderSelectionModalContent();
+        selectionModal.classList.add('active');
+    }
+
+    function renderSelectionModalContent(filter = '') {
+        const listEl = document.getElementById('selection-modal-list');
+        listEl.innerHTML = '';
+        const { type, tempSelections } = state.currentSelectionModal;
+        const lowerFilter = filter.toLowerCase();
+        let data, idKey, nameKey, subtextKey;
+
+        switch (type) {
+            case 'branches':
+                data = state.branches;
+                idKey = 'branchCode'; nameKey = 'branchName';
+                break;
+            case 'sections': {
+                const issueTx = (state.transactions || []).filter(t => t.type === 'issue');
+                const branchSelection = Array.from(state.reportSelectedBranches);
+                const relevantSectionCodes = new Set(
+                    (branchSelection.length > 0 ? issueTx.filter(t => branchSelection.includes(t.fromBranchCode)) : issueTx)
+                    .map(t => t.sectionCode)
+                );
+                data = state.sections.filter(s => relevantSectionCodes.has(s.sectionCode));
+                idKey = 'sectionCode'; nameKey = 'sectionName';
+                break;
+            }
+            case 'items': {
+                const issueTx = (state.transactions || []).filter(t => t.type === 'issue');
+                const branchSelection = Array.from(state.reportSelectedBranches);
+                const sectionSelection = Array.from(state.reportSelectedSections);
+                let relevantTx = issueTx;
+                if(branchSelection.length > 0) relevantTx = relevantTx.filter(t => branchSelection.includes(t.fromBranchCode));
+                if(sectionSelection.length > 0) relevantTx = relevantTx.filter(t => sectionSelection.includes(t.sectionCode));
+                const relevantItemCodes = new Set(relevantTx.map(t => t.itemCode));
+                data = state.items.filter(i => relevantItemCodes.has(i.code));
+                idKey = 'code'; nameKey = 'name'; subtextKey = 'code';
+                break;
+            }
+        }
+        
+        data.filter(item => item[nameKey].toLowerCase().includes(lowerFilter) || (subtextKey && item[subtextKey].toLowerCase().includes(lowerFilter)))
+            .forEach(item => {
+                const isChecked = tempSelections.has(item[idKey]);
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'modal-item';
+                const subtext = subtextKey ? `<br><small style="color:var(--text-light-color)">Code: ${item[subtextKey]}</small>` : '';
+                itemDiv.innerHTML = `<input type="checkbox" id="sel-item-${item[idKey]}" data-id="${item[idKey]}" ${isChecked ? 'checked' : ''}><label for="sel-item-${item[idKey]}"><strong>${item[nameKey]}</strong>${subtext}</label>`;
+                listEl.appendChild(itemDiv);
+            });
+    }
+
+    function confirmReportSelection() {
+        const { type, tempSelections } = state.currentSelectionModal;
+        switch (type) {
+            case 'branches':
+                state.reportSelectedBranches = new Set(tempSelections);
+                document.getElementById('consumption-branch-count').textContent = `${state.reportSelectedBranches.size} selected`;
+                // If branches change, clear section/item selections as they depend on it
+                state.reportSelectedSections.clear();
+                state.reportSelectedItems.clear();
+                document.getElementById('consumption-section-count').textContent = '0 selected';
+                document.getElementById('consumption-item-count').textContent = '0 selected';
+                break;
+            case 'sections':
+                state.reportSelectedSections = new Set(tempSelections);
+                document.getElementById('consumption-section-count').textContent = `${state.reportSelectedSections.size} selected`;
+                // If sections change, clear item selections
+                state.reportSelectedItems.clear();
+                document.getElementById('consumption-item-count').textContent = '0 selected';
+                break;
+            case 'items':
+                state.reportSelectedItems = new Set(tempSelections);
+                document.getElementById('consumption-item-count').textContent = `${state.reportSelectedItems.size} selected`;
+                break;
+        }
+        selectionModal.classList.remove('active');
+    }
+
     function init() {
         // Set up language switcher
         const langSwitcher = document.getElementById('lang-switcher');
@@ -3360,6 +3456,28 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (state.adminContextPromise.resolve) state.adminContextPromise.resolve(context);
             modal.classList.remove('active');
+        });
+        
+        // Listeners for new selection modal
+        document.getElementById('selection-modal-search').addEventListener('input', e => renderSelectionModalContent(e.target.value));
+        document.getElementById('selection-modal-list').addEventListener('change', e => {
+            if (e.target.type === 'checkbox') {
+                const id = e.target.dataset.id;
+                if (e.target.checked) state.currentSelectionModal.tempSelections.add(id);
+                else state.currentSelectionModal.tempSelections.delete(id);
+            }
+        });
+        document.getElementById('selection-modal-select-all').addEventListener('click', () => {
+            document.querySelectorAll('#selection-modal-list input[type="checkbox"]').forEach(cb => {
+                cb.checked = true;
+                state.currentSelectionModal.tempSelections.add(cb.dataset.id);
+            });
+        });
+        document.getElementById('selection-modal-deselect-all').addEventListener('click', () => {
+            document.querySelectorAll('#selection-modal-list input[type="checkbox"]').forEach(cb => {
+                cb.checked = false;
+                state.currentSelectionModal.tempSelections.delete(cb.dataset.id);
+            });
         });
 
 
