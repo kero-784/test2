@@ -375,7 +375,7 @@ function getText(key, ...args) {
 
 document.addEventListener('DOMContentLoaded', () => {
     // !!! IMPORTANT: PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw6ILWFJPd8gsFQY-h4ZVZSByQfSXIzl6OpKk2m488Ihu9u1TCFSxsWAjvkW5Ws65NU/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyO6FKABPv5zbkeLesNwtfPmpSuHef3OhvwZUv_HL6VI8mKtn-4kX4STVOWE3mG57PG/exec';
 
     const Logger = {
         info: (message, ...args) => console.log(`[StockWise INFO] ${message}`, ...args),
