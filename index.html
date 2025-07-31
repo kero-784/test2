@@ -119,9 +119,27 @@
                     <div class="card">
                         <p data-translate-key="consumption_report_desc" style="color: var(--text-light-color); margin-top: -10px;">Generate a detailed report of item consumption across selected branches and sections.</p>
                         <div class="form-grid report-area" style="gap: 16px 24px;">
-                            <div class="form-group"><label data-translate-key="branches">Branches</label><select id="consumption-branch-filter" multiple></select></div>
-                            <div class="form-group"><label data-translate-key="sections">Sections</label><select id="consumption-section-filter" multiple></select></div>
-                            <div class="form-group"><label data-translate-key="items">Items</label><select id="consumption-item-filter" multiple></select></div>
+                            <div class="form-group">
+                                <label data-translate-key="branches">Branches</label>
+                                <div class="report-selection-control">
+                                    <button type="button" class="secondary small" data-selection-type="branches">Select Branches</button>
+                                    <span id="consumption-branch-count">0 selected</span>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label data-translate-key="sections">Sections</label>
+                                <div class="report-selection-control">
+                                    <button type="button" class="secondary small" data-selection-type="sections">Select Sections</button>
+                                    <span id="consumption-section-count">0 selected</span>
+                                </div>
+                            </div>
+                             <div class="form-group">
+                                <label data-translate-key="items">Items</label>
+                                <div class="report-selection-control">
+                                    <button type="button" class="secondary small" data-selection-type="items">Select Items</button>
+                                    <span id="consumption-item-count">0 selected</span>
+                                </div>
+                            </div>
                             <div class="form-group"><label>Start Date</label><input type="date" id="consumption-start-date"></div>
                             <div class="form-group"><label>End Date</label><input type="date" id="consumption-end-date"></div>
                             <div style="align-self: end; display: flex; gap: 10px;">
@@ -257,7 +275,8 @@
     <div id="approve-request-modal" class="modal-overlay"><div class="modal-content" style="max-width: 900px;"><div class="modal-header"><h2 id="approve-request-modal-title" data-translate-key="approve_request_modal_title">Approve Item Request</h2><button class="close-button">×</button></div><div class="modal-body" id="approve-request-modal-body"></div><div class="modal-footer"><button class="secondary modal-cancel" data-translate-key="cancel">Cancel</button><button id="btn-print-draft-issue-note" class="secondary" data-translate-key="print_list">Print Draft</button><button id="btn-confirm-request-approval" class="primary" data-translate-key="confirm_and_issue">Confirm and Issue</button></div></div></div>
     <div id="restore-modal" class="modal-overlay"><div class="modal-content" style="max-width: 600px;"><div class="modal-header"><h2 id="restore-modal-title" data-translate-key="restore_from_backup_modal_title">Restore from Backup</h2><button class="close-button">×</button></div><div class="modal-body" id="restore-modal-body"><p data-translate-key="restore_from_backup_desc">You are about to restore data from the backup file:</p><p><strong id="restore-filename-display"></strong></p><hr><p><strong data-translate-key="restore_step1">1. Select which data sheets to restore.</strong></p><div id="restore-sheet-list" class="form-grid permissions-grid"></div><hr><div class="form-group" style="margin-top: 20px;"><label><strong data-translate-key="restore_step2">2. Confirm this irreversible action.</strong></label><div style="padding: 15px; background-color: #FDEDE9; border: 1px solid var(--danger-color); border-radius: 8px;"><strong style="color: var(--danger-color);" data-translate-key="restore_danger_warning">EXTREME DANGER:</strong> <span data-translate-key="restore_danger_text">This will permanently delete the current data in the selected live sheets and replace it with the data from the backup. This action CANNOT be undone.</span></div><p style="margin-top: 15px;" data-translate-key="restore_prompt">Please type <strong>RESTORE</strong> into the box below to proceed.</p><input type="text" id="restore-confirmation-input" autocomplete="off"></div></div><div class="modal-footer"><button class="secondary modal-cancel" data-translate-key="cancel">Cancel</button><button id="btn-confirm-restore" class="danger" disabled data-translate-key="confirm_and_restore">Confirm and Restore Data</button></div></div></div>
     <div id="context-selector-modal" class="modal-overlay"><div class="modal-content" style="max-width: 500px;"><div class="modal-header"><h2 id="context-modal-title">Select Operational Context</h2></div><div class="modal-body"><p id="context-modal-message">Before you can proceed, please select the branch or section you are operating on behalf of for this session.</p><div id="context-modal-fromBranch-group" class="form-group" style="display: none;"><label for="context-from-branch-select">Select From Branch</label><select id="context-from-branch-select"></select></div><div id="context-modal-toBranch-group" class="form-group" style="display: none;"><label for="context-to-branch-select">Select To Branch</label><select id="context-to-branch-select"></select></div><div id="context-modal-branch-group" class="form-group" style="display: none;"><label for="context-branch-select">Select Branch</label><select id="context-branch-select"></select></div><div id="context-modal-fromSection-group" class="form-group" style="display: none;"><label for="context-from-section-select">Select From Section</label><select id="context-from-section-select"></select></div><div id="context-modal-toSection-group" class="form-group" style="display: none;"><label for="context-to-section-select">Select To Section</label><select id="context-to-section-select"></select></div></div><div class="modal-footer"><button id="btn-confirm-context" class="primary">Confirm Selection</button></div></div></div>
-
+    <div id="selection-modal" class="modal-overlay"><div class="modal-content" style="max-width: 600px;"><div class="modal-header"><h2 id="selection-modal-title">Select Items</h2><button class="close-button">×</button></div><div class="modal-body"><div class="toolbar" style="margin-bottom: 16px;"><div class="search-bar" style="flex-grow: 1;"><input type="search" id="selection-modal-search" class="search-bar-input" placeholder="Search..."></div><div class="action-buttons"><button id="selection-modal-select-all" class="secondary small">Select All</button><button id="selection-modal-deselect-all" class="secondary small">Deselect All</button></div></div><div id="selection-modal-list" class="modal-item-list" style="max-height: 40vh; overflow-y: auto;"></div></div><div class="modal-footer"><button class="secondary modal-cancel">Cancel</button><button id="btn-confirm-report-selection" class="primary">Confirm Selection</button></div></div></div>
+    
     <div id="print-area" style="display: none;"></div>
     <div id="toast-container"></div>
     <script src="script.js"></script>
