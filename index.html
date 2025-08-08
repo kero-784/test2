@@ -7,7 +7,6 @@
     <title>Kero Assistance - Home</title>
     <link rel="icon" type="image/png" href="favicon.ico">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <!-- ADDED JSZIP LIBRARY FOR CREATING ZIP FILES -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" />
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -53,7 +52,7 @@
     </style>
 </head>
 <body>
-    <div class="version">v7.3 Zipped Exports</div>
+    <div class="version">v7.4 Styled Exports</div>
 
     <div id="homePage" class="container page">
         <h1><span id="kero-assistance">Kero Assistance</span></h1>
@@ -114,10 +113,7 @@
         const branchCodeToNameMap = new Map();
         locations.forEach(location => {
             const match = location.id.match(/\d+$/);
-            if (match) {
-                const code = match[0];
-                branchCodeToNameMap.set(code, location.text);
-            }
+            if (match) { branchCodeToNameMap.set(match[0], location.text); }
         });
 
         document.addEventListener('DOMContentLoaded', function() {
@@ -217,6 +213,43 @@
             reader.readAsArrayBuffer(file);
         }
 
+        // ##### NEW HELPER FUNCTION TO APPLY STYLES #####
+        function applyStylesToWorksheet(ws) {
+            // Define styles
+            const border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
+            const headerStyle = {
+                font: { bold: true },
+                fill: { fgColor: { rgb: "E9E9E9" } }, // Light grey background
+                border: border,
+                alignment: { horizontal: 'center' }
+            };
+            const cellStyle = { border: border };
+
+            // Get worksheet range
+            const range = XLSX.utils.decode_range(ws['!ref']);
+            for (let R = range.s.r; R <= range.e.r; ++R) {
+                for (let C = range.s.c; C <= range.e.c; ++C) {
+                    const cell_address = { c: C, r: R };
+                    const cell_ref = XLSX.utils.encode_cell(cell_address);
+                    if (!ws[cell_ref]) continue; // Skip empty cells
+                    
+                    // Apply style based on row
+                    if (R === 0) { // Header row
+                        ws[cell_ref].s = headerStyle;
+                    } else { // Data rows
+                        ws[cell_ref].s = cellStyle;
+                    }
+                }
+            }
+
+            // Set print layout options
+            ws['!pageSetup'] = {
+                orientation: 'landscape',
+                fitToWidth: 1, // Fit to one page wide
+                fitToHeight: 0 // Allow multiple pages long
+            };
+        }
+
         function clearQuantity() { transferListData = null; document.getElementById('quantityFile').value = ''; showMessage('Transfer file has been cleared.', 'info'); }
         function clearBarcodes() { barcodeData = null; document.getElementById('barcodeFile').value = ''; showMessage('Barcode file has been cleared.', 'info'); }
 
@@ -232,11 +265,7 @@
 
             try {
                 const uniqueCodes = [...new Set(transferListData.map(item => item.code))];
-                const payloadForServer = {
-                    action: 'processTransfer',
-                    sheetName: GOOGLE_SHEET_NAME_TO_USE,
-                    payload: uniqueCodes.map(code => ({ code: code, quantity: 1 }))
-                };
+                const payloadForServer = { action: 'processTransfer', sheetName: GOOGLE_SHEET_NAME_TO_USE, payload: uniqueCodes.map(code => ({ code: code })) };
 
                 const response = await fetch(SCRIPT_URL, { method: 'POST', mode: 'cors', body: JSON.stringify(payloadForServer) });
                 if (!response.ok) throw new Error(`Server returned an error: ${response.statusText}`);
@@ -253,13 +282,10 @@
                     const { branch, code, quantity } = item;
                     if (!acc[branch]) acc[branch] = [];
                     const details = itemDetailsMap.get(code);
-                    if (details) {
-                        acc[branch].push({ code, quantity, ...details });
-                    }
+                    if (details) acc[branch].push({ code, quantity, ...details });
                     return acc;
                 }, {});
 
-                // MODIFIED LOGIC: Use JSZip to create a zip file
                 const zip = new JSZip();
                 const sheetHeader = ["Code", "Barcode", "Name", "Quantity"];
                 
@@ -267,34 +293,34 @@
                     const itemsForBranch = transfersByBranch[branchCode];
                     const sheetData = itemsForBranch.map(item => [item.code, item.barcode, item.name, item.quantity]);
                     
-                    const wb = XLSX.utils.book_new(); // Create a new workbook for each branch
-                    const ws = XLSX.utils.aoa_to_sheet([sheetHeader, ...sheetData]);
+                    const wb = XLSX.utils.book_new();
+                    let ws = XLSX.utils.aoa_to_sheet([sheetHeader, ...sheetData]);
                     ws['!cols'] = [{ wch: 15 }, { wch: 20 }, { wch: 50 }, { wch: 10 }];
+
+                    // MODIFIED: Apply styles before adding to workbook
+                    applyStylesToWorksheet(ws);
+                    
                     XLSX.utils.book_append_sheet(wb, ws, "Transfer Data");
 
                     const fullBranchName = branchCodeToNameMap.get(branchCode) || branchCode;
                     const fileName = `Transfer to ${fullBranchName}.xlsx`;
-
-                    // Generate Excel file as a binary buffer
                     const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'arraybuffer' });
-                    // Add the Excel file to the zip
                     zip.file(fileName, excelBuffer);
                 }
 
                 const unmatchedCodes = uniqueCodes.filter(code => !itemDetailsMap.has(code));
                 if (unmatchedCodes.length > 0) {
                     const wb = XLSX.utils.book_new();
-                    const wsUnmatched = XLSX.utils.aoa_to_sheet([["Code", "Reason"], ...unmatchedCodes.map(code => [code, "Code not found in master product list"])]);
+                    let wsUnmatched = XLSX.utils.aoa_to_sheet([["Code", "Reason"], ...unmatchedCodes.map(code => [code, "Code not found in master product list"])]);
                     wsUnmatched['!cols'] = [{ wch: 15 }, { wch: 40 }];
+                    applyStylesToWorksheet(wsUnmatched); // Also style the unmatched sheet
                     XLSX.utils.book_append_sheet(wb, wsUnmatched, "Unmatched Codes");
                     const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'arraybuffer' });
                     zip.file("Unmatched Codes.xlsx", excelBuffer);
                 }
-
-                // Generate the zip file and trigger download
+                
                 const formattedDate = new Date().toISOString().slice(0, 10);
                 const zipFileName = `Transfers from ${locationFrom} ${formattedDate}.zip`;
-
                 zip.generateAsync({ type: 'blob' }).then(function(content) {
                     const link = document.createElement('a');
                     link.href = URL.createObjectURL(content);
@@ -305,7 +331,7 @@
                     URL.revokeObjectURL(link.href);
                 });
 
-                showMessage('Success! A zip file with all transfer sheets has been downloaded.', 'success');
+                showMessage('Success! A zip file with all styled transfer sheets has been downloaded.', 'success');
 
             } catch (error) { 
                 showMessage(`Processing Error: ${error.message}`, 'error'); 
@@ -321,20 +347,19 @@
             button.disabled = true;
             showMessage(`Validating ${barcodeData.length} barcodes on server... Please wait.`, 'info');
             try {
-                const payloadForServer = {
-                    action: 'validateBarcodes',
-                    sheetName: GOOGLE_SHEET_NAME_TO_USE,
-                    payload: barcodeData.map(row => String(row.barcode).trim())
-                };
+                const payloadForServer = { action: 'validateBarcodes', sheetName: GOOGLE_SHEET_NAME_TO_USE, payload: barcodeData.map(row => String(row.barcode).trim()) };
                 const response = await fetch(SCRIPT_URL, { method: 'POST', mode: 'cors', body: JSON.stringify(payloadForServer) });
                 if (!response.ok) throw new Error(`Server returned an error: ${response.statusText}`);
                 const result = await response.json();
                 if (result.status === 'error') throw new Error(result.message);
+                
                 const wb = XLSX.utils.book_new();
                 const header = ["Barcode", "Validation Status", "Code", "Name", "Supplier"];
-                const ws = XLSX.utils.aoa_to_sheet([header, ...result.results]);
+                let ws = XLSX.utils.aoa_to_sheet([header, ...result.results]);
                 ws['!cols'] = [{ wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 50 }, { wch: 30 }];
+                applyStylesToWorksheet(ws); // Apply styles here too
                 XLSX.utils.book_append_sheet(wb, ws, "Validation Results");
+                
                 const formattedDate = new Date().toISOString().slice(0, 10);
                 XLSX.writeFile(wb, `Barcode_Validation_Results_${formattedDate}.xlsx`);
                 showMessage('Success! Barcodes validated and results downloaded.', 'success');
