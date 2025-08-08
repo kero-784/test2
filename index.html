@@ -7,6 +7,8 @@
     <title>Kero Assistance - Home</title>
     <link rel="icon" type="image/png" href="favicon.ico">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- ADDED JSZIP LIBRARY FOR CREATING ZIP FILES -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" />
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
@@ -51,7 +53,7 @@
     </style>
 </head>
 <body>
-    <div class="version">v 7.2 Named Sheets</div>
+    <div class="version">v7.3 Zipped Exports</div>
 
     <div id="homePage" class="container page">
         <h1><span id="kero-assistance">Kero Assistance</span></h1>
@@ -93,9 +95,7 @@
     </div>
 
     <script>
-        // ########## IMPORTANT: PASTE YOUR NEW WEB APP URL HERE ##########
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxBUnVmysM6WSP1uW3ittU2eU3HxwGax2QlwhXd3cbt3sIMsDEnTCcDCInCk-nOAB7wmw/exec';
-        
         const GOOGLE_SHEET_NAME_TO_USE = 'Products';
 
         let transferListData = null;
@@ -111,10 +111,9 @@
             { id: "مخزن الساحل 202", text: "مخزن الساحل 202" },{ id: "فوكا باي 117", text: "فوكا باي 117" },
         ];
 
-        // ##### NEW CODE BLOCK 1: Create a lookup map for branch names #####
         const branchCodeToNameMap = new Map();
         locations.forEach(location => {
-            const match = location.id.match(/\d+$/); // Extracts numbers from the end of the string
+            const match = location.id.match(/\d+$/);
             if (match) {
                 const code = match[0];
                 branchCodeToNameMap.set(code, location.text);
@@ -260,33 +259,53 @@
                     return acc;
                 }, {});
 
-                const wb = XLSX.utils.book_new();
+                // MODIFIED LOGIC: Use JSZip to create a zip file
+                const zip = new JSZip();
                 const sheetHeader = ["Code", "Barcode", "Name", "Quantity"];
                 
-                // ##### MODIFIED CODE BLOCK 2: Use the map to get the full branch name #####
                 for (const branchCode in transfersByBranch) {
                     const itemsForBranch = transfersByBranch[branchCode];
                     const sheetData = itemsForBranch.map(item => [item.code, item.barcode, item.name, item.quantity]);
+                    
+                    const wb = XLSX.utils.book_new(); // Create a new workbook for each branch
                     const ws = XLSX.utils.aoa_to_sheet([sheetHeader, ...sheetData]);
                     ws['!cols'] = [{ wch: 15 }, { wch: 20 }, { wch: 50 }, { wch: 10 }];
+                    XLSX.utils.book_append_sheet(wb, ws, "Transfer Data");
 
-                    // Look up the full name, but fall back to the code if it's not found
                     const fullBranchName = branchCodeToNameMap.get(branchCode) || branchCode;
-                    const sheetName = `To ${fullBranchName}`;
+                    const fileName = `Transfer to ${fullBranchName}.xlsx`;
 
-                    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+                    // Generate Excel file as a binary buffer
+                    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'arraybuffer' });
+                    // Add the Excel file to the zip
+                    zip.file(fileName, excelBuffer);
                 }
 
                 const unmatchedCodes = uniqueCodes.filter(code => !itemDetailsMap.has(code));
                 if (unmatchedCodes.length > 0) {
+                    const wb = XLSX.utils.book_new();
                     const wsUnmatched = XLSX.utils.aoa_to_sheet([["Code", "Reason"], ...unmatchedCodes.map(code => [code, "Code not found in master product list"])]);
                     wsUnmatched['!cols'] = [{ wch: 15 }, { wch: 40 }];
                     XLSX.utils.book_append_sheet(wb, wsUnmatched, "Unmatched Codes");
+                    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'arraybuffer' });
+                    zip.file("Unmatched Codes.xlsx", excelBuffer);
                 }
 
+                // Generate the zip file and trigger download
                 const formattedDate = new Date().toISOString().slice(0, 10);
-                XLSX.writeFile(wb, `Transfers from ${locationFrom} ${formattedDate}.xlsx`);
-                showMessage('Success! Transfer file created with a separate sheet for each destination.', 'success');
+                const zipFileName = `Transfers from ${locationFrom} ${formattedDate}.zip`;
+
+                zip.generateAsync({ type: 'blob' }).then(function(content) {
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(content);
+                    link.download = zipFileName;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(link.href);
+                });
+
+                showMessage('Success! A zip file with all transfer sheets has been downloaded.', 'success');
 
             } catch (error) { 
                 showMessage(`Processing Error: ${error.message}`, 'error'); 
