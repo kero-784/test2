@@ -7,6 +7,7 @@
     --light-gray: #f9fafb;
     --medium-gray: #e5e7eb;
     --text-color: #374151;
+    --border-color: #dee2e6;
 }
 
 body {
@@ -20,7 +21,8 @@ body {
 .card { border: 1px solid var(--medium-gray); border-radius: 0.75rem; box-shadow: 0 1px 3px 0 rgba(0,0,0,0.05); }
 .card-header { background-color: #fff; border-bottom: 1px solid var(--medium-gray); font-weight: 600; }
 
-#sidebar { width: 260px; min-width: 260px; background-color: var(--sidebar-color); transition: all 0.3s; }
+/* --- SIDEBAR --- */
+#sidebar { width: 260px; min-width: 260px; background-color: var(--sidebar-color); }
 #sidebar .sidebar-header { padding: 24px; text-align: center; border-bottom: 1px solid #374151; }
 #sidebar .sidebar-header h3 { font-weight: 700; color: #fff; }
 #sidebar .nav-link { padding: 12px 20px; color: #d1d5db; font-weight: 500; display: flex; align-items: center; border-left: 4px solid transparent; transition: all 0.2s ease-in-out; }
@@ -28,16 +30,17 @@ body {
 #sidebar .nav-link:hover { background: var(--dark-color); color: #fff; }
 #sidebar .nav-link.active { background: var(--dark-color); color: #fff; border-left-color: var(--primary-color); }
 
+/* --- MAIN CONTENT --- */
 #main-content { flex-grow: 1; padding: 32px; }
 .view { display: none; }
 .view.active-view { display: block; }
 h1, h2, h3, h4 { color: var(--dark-color); font-weight: 700; }
 
+/* --- DASHBOARD & MANAGEMENT (existing styles) --- */
 .stat-card .card-body { display: flex; align-items: center; }
 .stat-card .stat-icon { font-size: 2rem; padding: 16px; border-radius: 50%; margin-right: 20px; }
 .stat-card h5 { color: #6b7280; font-size: 0.9rem; text-transform: uppercase; margin-bottom: 5px; font-weight: 500;}
 .stat-card .stat-number { font-size: 2.25rem; font-weight: 700; color: var(--dark-color); }
-
 .list-group-item .form-control { display: none; }
 .list-group-item.editing .form-control { display: inline-block; width: 60%; }
 .list-group-item.editing .item-name,
@@ -45,11 +48,64 @@ h1, h2, h3, h4 { color: var(--dark-color); font-weight: 700; }
 .list-group-item.editing .power-btn { display: none; }
 .list-group-item .save-btn, .list-group-item .cancel-btn { display: none; }
 .list-group-item.editing .save-btn, .list-group-item.editing .cancel-btn { display: inline-block; }
-
-#report-output .card { background-color: #fff; }
 .btn-primary { background-color: var(--primary-color); border-color: var(--primary-color); }
 .btn-primary:hover { background-color: #4338ca; border-color: #4338ca; }
 
+
+/* =========================================================================== */
+/* --- REPORT VIEW REDESIGN --- */
+/* =========================================================================== */
+#report-output {
+    background-color: #fff;
+    padding: 2.5rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--border-color);
+}
+#report-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+#report-header h4 {
+    font-size: 1.875rem;
+    font-weight: 700;
+    margin: 0;
+}
+#report-output h5 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 1.5rem;
+}
+#report-output .table {
+    --bs-table-border-color: var(--border-color);
+    --bs-table-striped-bg: transparent; /* Remove striping */
+}
+#report-output .table th {
+    border-top: none;
+    border-bottom-width: 2px;
+    font-weight: 600;
+    color: #6b7280; /* Muted gray for headers */
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    letter-spacing: 0.05em;
+    padding: 1rem 0.5rem;
+}
+#report-output .table td {
+    vertical-align: middle;
+    border-top-width: 1px;
+    padding: 1rem 0.5rem;
+}
+/* Remove vertical table borders for the minimalist look */
+#report-output .table > :not(caption) > * > * {
+    border-bottom-width: 1px;
+    box-shadow: inset 0 0 0 9999px var(--bs-table-accent-bg);
+}
+
+/* --- EXPORT STYLES (Print & JPG) --- */
 .print-view {
     width: 8.5in;
     padding: 40px !important;
@@ -57,15 +113,15 @@ h1, h2, h3, h4 { color: var(--dark-color); font-weight: 700; }
     box-shadow: none !important;
     border: none !important;
 }
-.print-view .btn {
-    display: none !important;
-}
-.print-view .card-header {
-    background-color: transparent !important;
-    text-align: center;
+.print-view #report-header {
     border-bottom: 2px solid var(--dark-color) !important;
-    margin-bottom: 20px;
+    text-align: center;
+    display: block; /* Center title, hide buttons */
+}
+.print-view #report-buttons {
+    display: none !important;
 }
 .print-view h4 { font-size: 1.5rem; }
 
+/* --- GLOBAL OVERLAY --- */
 #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); display: none; justify-content: center; align-items: center; z-index: 1060; }
