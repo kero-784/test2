@@ -1,18 +1,116 @@
+/* --- FONT & GLOBAL STYLES --- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f8f9fa;
+    overflow-x: hidden;
+}
+
+.app-container {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* --- SIDEBAR --- */
+#sidebar {
+    width: 260px;
+    min-width: 260px;
+    color: #fff;
+    transition: all 0.3s;
+}
+
+#sidebar .sidebar-header {
+    padding: 20px;
+    background: #343a40;
+    text-align: center;
+}
+
+#sidebar .sidebar-header h3 {
+    font-weight: 700;
+}
+
+#sidebar .nav-link {
+    padding: 15px 20px;
+    color: #adb5bd;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    border-left: 3px solid transparent;
+}
+
+#sidebar .nav-link i {
+    font-size: 1.2rem;
+    margin-right: 15px;
+    width: 20px;
+    text-align: center;
+}
+
+#sidebar .nav-link:hover {
+    background: #343a40;
+    color: #fff;
+}
+
+#sidebar .nav-link.active {
+    background: #343a40;
+    color: #fff;
+    border-left-color: #0d6efd;
+}
+
+/* --- MAIN CONTENT --- */
+#main-content {
+    flex-grow: 1;
+    padding: 24px;
     background-color: #f8f9fa;
 }
 
-.card-header {
-    font-size: 1.2rem;
+.view {
+    display: none;
 }
 
-#branch-checkboxes,
-.task-assignments-body {
-    max-height: 150px;
-    overflow-y: auto;
+.view.active-view {
+    display: block;
 }
 
-/* Styles for inline editing in Management tab */
+/* --- DASHBOARD VIEW --- */
+.stat-card {
+    border: none;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.stat-card .card-body {
+    display: flex;
+    align-items: center;
+}
+
+.stat-card .stat-icon {
+    font-size: 2.5rem;
+    padding: 15px;
+    border-radius: 50%;
+    margin-right: 20px;
+}
+
+.stat-card h5 {
+    color: #6c757d;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+}
+
+.stat-card .stat-number {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #212529;
+}
+
+/* --- TASKS VIEW --- */
+.task-card.inactive {
+    opacity: 0.6;
+    border-style: dashed;
+}
+
+/* --- MANAGEMENT VIEW --- */
 .list-group-item .form-control {
     display: none;
 }
@@ -26,13 +124,22 @@ body {
     display: none;
 }
 
-/* Style for disabled/inactive tasks */
-.task-card.inactive {
-    opacity: 0.6;
-    border-style: dashed;
+.list-group-item.editing .edit-btn,
+.list-group-item.editing .power-btn {
+    display: none;
 }
 
-/* Global loading overlay */
+.list-group-item .save-btn,
+.list-group-item .cancel-btn {
+    display: none;
+}
+
+.list-group-item.editing .save-btn,
+.list-group-item.editing .cancel-btn {
+    display: inline-block;
+}
+
+/* --- GLOBAL OVERLAY --- */
 #loading-overlay {
     position: fixed;
     top: 0;
@@ -41,17 +148,7 @@ body {
     height: 100%;
     background-color: rgba(0, 0, 0, 0.5);
     display: none;
-    /* Hidden by default */
     justify-content: center;
     align-items: center;
-    z-index: 1050;
-    /* Higher than navbar */
-}
-
-#report-output h4 {
-    color: #0d6efd;
-    /* Primary blue */
-    border-bottom: 2px solid #dee2e6;
-    padding-bottom: 8px;
-    margin-bottom: 16px;
+    z-index: 1060; /* Higher than modals */
 }
