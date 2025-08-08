@@ -52,7 +52,7 @@
     </style>
 </head>
 <body>
-    <div class="version">v7.4 Styled Exports</div>
+    <div class="version">v7.5 Type Fix</div>
 
     <div id="homePage" class="container page">
         <h1><span id="kero-assistance">Kero Assistance</span></h1>
@@ -213,41 +213,29 @@
             reader.readAsArrayBuffer(file);
         }
 
-        // ##### NEW HELPER FUNCTION TO APPLY STYLES #####
         function applyStylesToWorksheet(ws) {
-            // Define styles
             const border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
             const headerStyle = {
                 font: { bold: true },
-                fill: { fgColor: { rgb: "E9E9E9" } }, // Light grey background
+                fill: { fgColor: { rgb: "E9E9E9" } },
                 border: border,
                 alignment: { horizontal: 'center' }
             };
             const cellStyle = { border: border };
 
-            // Get worksheet range
             const range = XLSX.utils.decode_range(ws['!ref']);
             for (let R = range.s.r; R <= range.e.r; ++R) {
                 for (let C = range.s.c; C <= range.e.c; ++C) {
                     const cell_address = { c: C, r: R };
                     const cell_ref = XLSX.utils.encode_cell(cell_address);
-                    if (!ws[cell_ref]) continue; // Skip empty cells
+                    if (!ws[cell_ref]) continue;
                     
-                    // Apply style based on row
-                    if (R === 0) { // Header row
-                        ws[cell_ref].s = headerStyle;
-                    } else { // Data rows
-                        ws[cell_ref].s = cellStyle;
-                    }
+                    if (R === 0) { ws[cell_ref].s = headerStyle; } 
+                    else { ws[cell_ref].s = cellStyle; }
                 }
             }
 
-            // Set print layout options
-            ws['!pageSetup'] = {
-                orientation: 'landscape',
-                fitToWidth: 1, // Fit to one page wide
-                fitToHeight: 0 // Allow multiple pages long
-            };
+            ws['!pageSetup'] = { orientation: 'landscape', fitToWidth: 1, fitToHeight: 0 };
         }
 
         function clearQuantity() { transferListData = null; document.getElementById('quantityFile').value = ''; showMessage('Transfer file has been cleared.', 'info'); }
@@ -296,15 +284,14 @@
                     const wb = XLSX.utils.book_new();
                     let ws = XLSX.utils.aoa_to_sheet([sheetHeader, ...sheetData]);
                     ws['!cols'] = [{ wch: 15 }, { wch: 20 }, { wch: 50 }, { wch: 10 }];
-
-                    // MODIFIED: Apply styles before adding to workbook
                     applyStylesToWorksheet(ws);
                     
                     XLSX.utils.book_append_sheet(wb, ws, "Transfer Data");
 
                     const fullBranchName = branchCodeToNameMap.get(branchCode) || branchCode;
                     const fileName = `Transfer to ${fullBranchName}.xlsx`;
-                    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'arraybuffer' });
+                    // ##### FIX 1: Changed type from 'arraybuffer' to 'array' #####
+                    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
                     zip.file(fileName, excelBuffer);
                 }
 
@@ -313,9 +300,10 @@
                     const wb = XLSX.utils.book_new();
                     let wsUnmatched = XLSX.utils.aoa_to_sheet([["Code", "Reason"], ...unmatchedCodes.map(code => [code, "Code not found in master product list"])]);
                     wsUnmatched['!cols'] = [{ wch: 15 }, { wch: 40 }];
-                    applyStylesToWorksheet(wsUnmatched); // Also style the unmatched sheet
+                    applyStylesToWorksheet(wsUnmatched);
                     XLSX.utils.book_append_sheet(wb, wsUnmatched, "Unmatched Codes");
-                    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'arraybuffer' });
+                    // ##### FIX 2: Changed type from 'arraybuffer' to 'array' #####
+                    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
                     zip.file("Unmatched Codes.xlsx", excelBuffer);
                 }
                 
@@ -357,7 +345,7 @@
                 const header = ["Barcode", "Validation Status", "Code", "Name", "Supplier"];
                 let ws = XLSX.utils.aoa_to_sheet([header, ...result.results]);
                 ws['!cols'] = [{ wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 50 }, { wch: 30 }];
-                applyStylesToWorksheet(ws); // Apply styles here too
+                applyStylesToWorksheet(ws);
                 XLSX.utils.book_append_sheet(wb, ws, "Validation Results");
                 
                 const formattedDate = new Date().toISOString().slice(0, 10);
