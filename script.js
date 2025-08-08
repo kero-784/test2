@@ -1,6 +1,6 @@
 // =================================================================
 // PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxp5xY8-s9sG-eFNoX29i3LJygLepIaL9OKv7T4QBdYVa8obwi4OutaFIm2Y2vn1iXrRQ/exec";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx_TYtvoXgNsAQ912Cr0l2V_AeSs7HtIFcA-0fIntpSHTZElZVXx7BtUxfQw1MIQ5nRtQ/exec";
 // =================================================================
 
 // --- GLOBAL STATE & ELEMENTS ---
@@ -11,60 +11,38 @@ const editTaskModal = new bootstrap.Modal(document.getElementById('edit-task-mod
 const confirmModal = new bootstrap.Modal(document.getElementById('confirm-modal'));
 let confirmCallback = () => {};
 
-// --- API COMMUNICATION ---
-// This function is now only for POST requests (creating, updating, deleting)
-async function apiCall(action, payload = {}) {
-    LOADER.style.display = 'flex';
-    try {
-        const res = await fetch(SCRIPT_URL, {
-            method: 'POST', mode: 'cors', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action, payload })
-        });
-        const response = await res.json();
-        if (!response.success) throw new Error(response.message || 'Unknown API error.');
-        return response.data;
-    } catch (error) {
-        console.error('API Call Failed:', error);
-        showToast(`Error: ${error.message}`, 'danger');
-        return null;
-    } finally {
-        LOADER.style.display = 'none';
-    }
-}
-
 // ===============================================================================
-// NEW FUNCTION FOR INITIAL DATA LOAD USING JSONP
+// NEW, UNIFIED API FUNCTION USING JSONP FOR ALL REQUESTS
+// This function handles GET and "simulated POST" requests to avoid CORS issues.
 // ===============================================================================
-function initializeApplication() {
+function apiCall(action, payload = {}, callback) {
     LOADER.style.display = 'flex';
     
-    // Create a unique callback function name
     const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
     
-    // Define the callback function on the window object
     window[callbackName] = function(response) {
         if (response.success) {
-            APP_DATA = response.data;
-            renderAllViews();
-            addEventListeners();
-            showView('dashboard');
+            // If a custom callback is provided (like for initialization), use it
+            if (callback) {
+                callback(response.data);
+            }
         } else {
-            showToast(`Initialization Error: ${response.message}`, 'danger');
+            showToast(`Error: ${response.message}`, 'danger');
         }
         
-        // Clean up
+        // Cleanup
         delete window[callbackName];
         document.body.removeChild(script);
         LOADER.style.display = 'none';
     };
 
-    // Create a script tag to make the JSONP request
     const script = document.createElement('script');
-    script.src = `${SCRIPT_URL}?action=getInitialData&callback=${callbackName}`;
+    // Encode the payload and add it to the URL
+    const payloadString = encodeURIComponent(JSON.stringify(payload));
+    script.src = `${SCRIPT_URL}?action=${action}&payload=${payloadString}&callback=${callbackName}`;
     
-    // Add an error handler for network issues
     script.onerror = function() {
-        showToast('Network error: Could not load initial data from the server.', 'danger');
+        showToast('Network error: Could not communicate with the server.', 'danger');
         delete window[callbackName];
         document.body.removeChild(script);
         LOADER.style.display = 'none';
@@ -72,23 +50,26 @@ function initializeApplication() {
     
     document.body.appendChild(script);
 }
-// ===============================================================================
 
 // --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
-    initializeApplication(); // This now uses the new JSONP method
+    // We now use our universal apiCall for initialization
+    apiCall('getInitialData', {}, (data) => {
+        APP_DATA = data;
+        renderAllViews();
+        addEventListeners();
+        showView('dashboard');
+    });
 });
 
 
 // --- ALL OTHER FUNCTIONS BELOW THIS LINE ARE IDENTICAL TO THE PREVIOUS VERSION ---
-// They already use apiCall (POST) which is correct for actions other than the initial load.
+// The only change is that they will now call the new `apiCall` function.
+// The new apiCall automatically handles the success/error and reloading.
+
 function addEventListeners() {
     document.querySelectorAll('#sidebar .nav-link').forEach(link => {
-        link.addEventListener('click', (e) => {
-            e.preventDefault();
-            const viewId = e.currentTarget.dataset.view;
-            showView(viewId);
-        });
+        link.addEventListener('click', (e) => { e.preventDefault(); showView(e.currentTarget.dataset.view); });
     });
     document.getElementById('confirm-modal-button').addEventListener('click', () => {
         if (typeof confirmCallback === 'function') confirmCallback();
@@ -204,7 +185,7 @@ function renderReport(reportData) {
     reportChart = new Chart(document.getElementById('report-chart-canvas').getContext('2d'), { type: 'bar', data: { labels: reportData.chartData.labels, datasets: [{ label: 'Performance', data: reportData.chartData.data, backgroundColor: 'rgba(54, 162, 235, 0.6)' }] }, options: { scales: { y: { beginAtZero: true } } } });
 }
 
-async function handleCreateTask(e) {
+function handleCreateTask(e) {
     e.preventDefault();
     const btn = e.target.querySelector('button[type="submit"]');
     btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Creating...';
@@ -215,36 +196,33 @@ async function handleCreateTask(e) {
         return;
     }
     const taskData = { title: document.getElementById('task-title').value, description: document.getElementById('task-description').value, section: document.getElementById('task-section').value, type: document.getElementById('task-type').value, deadline: document.getElementById('task-deadline').value, branches: selectedBranches };
-    const result = await apiCall('createTask', taskData);
-    if (result) {
-        showToast(result.message, 'success');
+    apiCall('createTask', taskData, (data) => {
+        showToast(data.message, 'success');
         e.target.reset();
         toggleDeadline();
-        initializeApplication();
-    }
+        apiCall('getInitialData', {}, (newData) => { APP_DATA = newData; renderAllViews(); });
+    });
     btn.disabled = false; btn.innerHTML = 'Create Task';
 }
 
-async function handleManageEntity(e, type) {
+function handleManageEntity(e, type) {
     e.preventDefault();
     const input = document.getElementById(`new-${type}-name`);
     const name = input.value.trim();
     if (!name) return;
-    const result = await apiCall('manageEntity', { type, name });
-    if (result) {
-        showToast(result.message, 'success');
+    apiCall('manageEntity', { type, name }, (data) => {
+        showToast(data.message, 'success');
         input.value = '';
-        initializeApplication();
-    }
+        apiCall('getInitialData', {}, (newData) => { APP_DATA = newData; renderAllViews(); });
+    });
 }
 
-async function markComplete(assignmentId) {
-    showConfirmModal('Are you sure you want to mark this task as complete?', async () => {
-        const result = await apiCall('markTaskAsComplete', { assignmentId });
-        if (result) {
-            showToast(result.message, 'success');
-            initializeApplication();
-        }
+function markComplete(assignmentId) {
+    showConfirmModal('Are you sure you want to mark this task as complete?', () => {
+        apiCall('markTaskAsComplete', { assignmentId }, (data) => {
+            showToast(data.message, 'success');
+            apiCall('getInitialData', {}, (newData) => { APP_DATA = newData; renderAllViews(); });
+        });
     });
 }
 
@@ -258,37 +236,34 @@ function openEditTaskModal(taskId) {
     }
 }
 
-async function handleSaveTask() {
+function handleSaveTask() {
     const payload = { taskId: document.getElementById('edit-task-id').value, title: document.getElementById('edit-task-title').value, description: document.getElementById('edit-task-description').value };
-    const result = await apiCall('updateTask', payload);
-    if (result) {
-        showToast(result.message, 'success');
+    apiCall('updateTask', payload, (data) => {
+        showToast(data.message, 'success');
         editTaskModal.hide();
-        initializeApplication();
-    }
-}
-
-async function toggleTaskStatus(taskId, newStatus) {
-    showConfirmModal(`Are you sure you want to ${newStatus === 'Active' ? 'enable' : 'disable'} this task?`, async () => {
-        const result = await apiCall('setTaskStatus', { taskId, status: newStatus });
-        if (result) {
-            showToast(result.message, 'success');
-            initializeApplication();
-        }
+        apiCall('getInitialData', {}, (newData) => { APP_DATA = newData; renderAllViews(); });
     });
 }
 
-async function deleteTask(taskId) {
-    showConfirmModal('Are you sure you want to permanently delete this task? This cannot be undone.', async () => {
-        const result = await apiCall('deleteTask', { taskId });
-        if (result) {
-            showToast(result.message, 'success');
-            initializeApplication();
-        }
+function toggleTaskStatus(taskId, newStatus) {
+    showConfirmModal(`Are you sure you want to ${newStatus === 'Active' ? 'enable' : 'disable'} this task?`, () => {
+        apiCall('setTaskStatus', { taskId, status: newStatus }, (data) => {
+            showToast(data.message, 'success');
+            apiCall('getInitialData', {}, (newData) => { APP_DATA = newData; renderAllViews(); });
+        });
     });
 }
 
-async function generateReport() {
+function deleteTask(taskId) {
+    showConfirmModal('Are you sure you want to permanently delete this task? This cannot be undone.', () => {
+        apiCall('deleteTask', { taskId }, (data) => {
+            showToast(data.message, 'success');
+            apiCall('getInitialData', {}, (newData) => { APP_DATA = newData; renderAllViews(); });
+        });
+    });
+}
+
+function generateReport() {
     const reportType = document.getElementById('report-type').value;
     let payload = { reportType };
     if (reportType === 'task_detail') {
@@ -300,22 +275,24 @@ async function generateReport() {
         payload.assessmentMethod = document.getElementById('report-assessment-method').value;
         if (!payload.startDate || !payload.endDate) { showToast('Please select a date range.', 'danger'); return; }
     }
-    const reportData = await apiCall('getReportsData', payload);
-    renderReport(reportData);
+    apiCall('getReportsData', payload, (data) => {
+        renderReport(data);
+    });
 }
 
-async function exportToExcel(reportData) {
+function exportToExcel(reportData) {
     showToast("Preparing your Excel file. The download will start shortly.", 'success');
-    const result = await apiCall('generateExcelReport', reportData);
-    if (result && result.downloadUrl) {
-        window.open(result.downloadUrl, '_blank');
-    }
+    apiCall('generateExcelReport', reportData, (data) => {
+        if (data && data.downloadUrl) {
+            window.open(data.downloadUrl, '_blank');
+        }
+    });
 }
 
 function exportChartToJpg() {
     if (!reportChart) { showToast("No chart to export.", 'danger'); return; }
     const a = document.createElement('a');
-a.href = reportChart.toBase64Image('image/jpeg', 1);
+    a.href = reportChart.toBase64Image('image/jpeg', 1);
     a.download = 'chart-export.jpg';
     a.click();
 }
@@ -345,32 +322,30 @@ function cancelEditEntity(btn) {
     li.classList.remove('editing');
 }
 
-async function saveEntity(btn, type) {
+function saveEntity(btn, type) {
     const li = btn.closest('.list-group-item');
     const id = li.dataset.id;
     const name = li.querySelector('.item-input').value.trim();
     if (!name) { showToast('Name cannot be empty.', 'danger'); return; }
     const status = li.querySelector('.badge').textContent;
-    const result = await apiCall('manageEntity', { type, id, name, status });
-    if (result) {
-        showToast(result.message, 'success');
+    apiCall('manageEntity', { type, id, name, status }, (data) => {
+        showToast(data.message, 'success');
         li.classList.remove('editing');
-        initializeApplication();
-    }
+        apiCall('getInitialData', {}, (newData) => { APP_DATA = newData; renderAllViews(); });
+    });
 }
 
-async function toggleEntityStatus(btn, type) {
+function toggleEntityStatus(btn, type) {
     const li = btn.closest('.list-group-item');
     const id = li.dataset.id;
     const name = li.querySelector('.item-name').textContent;
     const currentStatus = li.querySelector('.badge').textContent;
     const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
-    showConfirmModal(`Are you sure you want to set "${name}" to ${newStatus}?`, async () => {
-        const result = await apiCall('manageEntity', { type, id, name, status: newStatus });
-        if (result) {
-            showToast(result.message, 'success');
-            initializeApplication();
-        }
+    showConfirmModal(`Are you sure you want to set "${name}" to ${newStatus}?`, () => {
+        apiCall('manageEntity', { type, id, name, status: newStatus }, (data) => {
+            showToast(data.message, 'success');
+            apiCall('getInitialData', {}, (newData) => { APP_DATA = newData; renderAllViews(); });
+        });
     });
 }
 
