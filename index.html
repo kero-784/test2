@@ -1,58 +1,321 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TaskFlow Dashboard</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link rel="stylesheet" href="style.css">
+    <title>Kero Assistance - Home</title>
+    <link rel="icon" type="image/png" href="favicon.ico">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" />
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
+    <!-- STYLES ARE UNCHANGED -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+        :root { --primary-color: #005c97; --secondary-color: #363795; --success-color: #28a745; --error-color: #dc3545; --info-color: #17a2b8; --light-bg: #f8f9fa; --dark-text: #343a40; --light-text: #6c757d; --border-color: #dee2e6; }
+        body { font-family: 'Poppins', sans-serif; background-image: linear-gradient(120deg, #fdfbfb 0%, #ebedee 100%); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; color: var(--dark-text); -webkit-font-smoothing: antialiased; }
+        .container { background-color: #ffffff; border-radius: 20px; box-shadow: 0 15px 40px rgba(0, 0, 0, 0.08); padding: 40px; width: 100%; max-width: 800px; text-align: center; margin-top: 20px; margin-bottom: 20px; position: relative; border: 1px solid var(--border-color); }
+        .page { display: none; }
+        h1 { color: var(--dark-text); margin-bottom: 8px; font-weight: 700; }
+        #kero-assistance { font-size: 2.5em; }
+        .subtitle { font-size: 1.8em; font-weight: 600; color: var(--primary-color); }
+        .container > p { color: var(--light-text); font-size: 1.1em; margin-bottom: 30px; }
+        .section { margin-bottom: 30px; padding: 25px 0; border: none; border-top: 1px solid var(--border-color); background-color: transparent; }
+        .instructions { font-size: 0.9em; color: #0c5460; background-color: #d1ecf1; padding: 15px; border-radius: 8px; border: 1px solid #bee5eb; margin-bottom: 25px; text-align: left; }
+        .instructions strong { color: #004085; }
+        .location-container { display: flex; gap: 20px; justify-content: center; align-items: center; margin-bottom: 15px; }
+        input[type="file"] { display: none; }
+        button { background-color: var(--primary-color); color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: 500; margin: 5px; transition: all 0.25s ease-in-out; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0, 92, 151, 0.2); }
+        button:disabled { background-color: #ced4da; cursor: not-allowed; transform: none; box-shadow: none; }
+        .main-action-button { font-size: 1.1rem; font-weight: 600; padding: 15px 35px; background-color: var(--success-color); }
+        .main-action-button:hover:not(:disabled) { box-shadow: 0 6px 12px rgba(40, 167, 69, 0.25); }
+        .home-button { display: flex; align-items: center; justify-content: center; width: 100%; margin: 15px 0; padding: 20px; font-size: 1.2em; font-weight: 600; background-color: #fff; color: var(--primary-color); border: 2px solid var(--border-color); box-shadow: 0 4px 6px rgba(0,0,0,0.04); }
+        .home-button:hover { border-color: var(--primary-color); background-color: #f8f9fa; color: var(--secondary-color); transform: translateY(-3px); box-shadow: 0 8px 15px rgba(0,0,0,0.08); }
+        .home-nav-button { background-color: var(--light-text); position: absolute; top: 25px; left: 25px; padding: 8px 16px; }
+        .home-nav-button:hover { background-color: var(--dark-text); }
+        .message-display { margin-top: 20px; font-weight: 500; min-height: 1.2em; padding: 12px 18px; border-radius: 8px; text-align: left; border: 1px solid transparent; word-break: break-word; }
+        .message-display:before { font-weight: 700; margin-right: 10px; }
+        .message-display.success { color: #155724; background-color: #d4edda; border-color: #c3e6cb; }
+        .message-display.success:before { content: "✔"; }
+        .message-display.info { color: #0c5460; background-color: #d1ecf1; border-color: #bee5eb; }
+        .message-display.info:before { content: "ℹ"; }
+        .message-display.error { color: #721c24; background-color: #f8d7da; border-color: #f5c6cb; }
+        .message-display.error:before { content: "⚠"; }
+        .select2-container--default .select2-selection--single { border: 1px solid var(--border-color) !important; border-radius: 8px !important; height: 45px !important; padding: 8px 12px !important; }
+        .select2-container--default .select2-selection--single .select2-selection__rendered { color: var(--dark-text) !important; line-height: 28px !important; }
+        .select2-container--default .select2-selection--single .select2-selection__arrow { height: 43px !important; }
+        .select2-dropdown { border: 1px solid var(--border-color) !important; border-radius: 8px !important; box-shadow: 0 8px 16px rgba(0,0,0,0.1); }
+        .version { position: fixed; bottom: 10px; right: 10px; font-size: 0.8em; color: #fff; background-color: rgba(0, 0, 0, 0.4); padding: 4px 8px; border-radius: 12px; }
+    </style>
 </head>
 <body>
+    <div class="version">v 7.1 Matrix</div>
 
-    <div class="app-container">
-        <nav id="sidebar" class="bg-dark">
-            <div class="sidebar-header">
-                <h3><i class="bi bi-kanban-fill me-2"></i><span>TaskFlow</span></h3>
-            </div>
-            <ul class="nav flex-column">
-                <li class="nav-item"><a class="nav-link active" href="#" data-view="dashboard"><i class="bi bi-grid-1x2-fill"></i><span>Dashboard</span></a></li>
-                <li class="nav-item"><a class="nav-link" href="#" data-view="tasks"><i class="bi bi-list-task"></i><span>Tasks</span></a></li>
-                <li class="nav-item"><a class="nav-link" href="#" data-view="management"><i class="bi bi-building-gear"></i><span>Management</span></a></li>
-                <li class="nav-item"><a class="nav-link" href="#" data-view="reports"><i class="bi bi-bar-chart-line-fill"></i><span>Reports</span></a></li>
-            </ul>
-        </nav>
-
-        <div class="main-wrapper">
-             <header id="main-header">
-                <button id="sidebar-toggle" class="btn"><i class="bi bi-list"></i></button>
-                <h1 id="view-title" class="h3 mb-0">Dashboard</h1>
-            </header>
-            <main id="main-content">
-                <div id="dashboard-view" class="view active-view"></div>
-                <div id="tasks-view" class="view"></div>
-                <div id="management-view" class="view"></div>
-                <div id="reports-view" class="view"></div>
-            </main>
+    <div id="homePage" class="container page">
+        <h1><span id="kero-assistance">Kero Assistance</span></h1>
+        <p> Please select a tool.</p>
+        <div class="section">
+            <button id="goToTransferBtn" class="home-button">Stock Transfer</button>
+            <button id="goToValidatorBtn" class="home-button">Barcode Validator & Retriever</button>
         </div>
+        <div class="message-display info">Ready to go!</div>
     </div>
-
-    <div class="toast-container position-fixed bottom-0 end-0 p-3"></div>
-    <div id="loading-overlay"><div class="spinner-border text-light" role="status"></div></div>
     
-    <!-- Modals are now separate from main content -->
-    <div class="modal fade" id="create-task-modal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered modal-lg">
-            <div class="modal-content"><div class="modal-header"><h5 class="modal-title">Create New Task</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><form id="create-task-form"></form></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="button" class="btn btn-primary" id="create-task-btn">Create Task</button></div></div>
+    <div id="stockTransferPage" class="container page">
+        <button class="go-home-btn home-nav-button">Back to Home</button>
+        <h1><span class="subtitle">Stock Transfer Management</span></h1>
+        <div class="section">
+            <div class="instructions"><strong>Instructions:</strong> Upload an Excel file (`.xlsx`). The first sheet must contain a '<strong>code</strong>' column, followed by columns where the header is the destination branch code/ID and the cells contain the quantity to transfer.</div>
+            <div class="location-container">
+                <select id="locationFrom" class="location-select"></select>
+            </div>
+            <input type="file" id="quantityFile" accept=".xlsx">
+            <button id="uploadQuantityButton">Upload Transfer File</button>
+            <button id="clearQuantity">Clear File</button>
         </div>
+        <button id="processTransferButton" class="main-action-button">Process Transfers and Download</button>
+        <div class="message-display"></div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-    <script src="script.js"></script>
+    <div id="barcodeValidatorPage" class="container page">
+        <button class="go-home-btn home-nav-button">Back to Home</button>
+        <h1><span class="subtitle">Item & Barcode Check</span></h1>
+        <div class="section">
+            <div class="instructions"><strong>Instructions:</strong> Upload an Excel file (`.xlsx`). Data **must be on the first sheet** and contain a column with the header: <strong>barcode</strong>.</div>
+            <input type="file" id="barcodeFile" accept=".xlsx">
+            <button id="uploadBarcodeButton">Upload Barcode File</button>
+            <button id="clearBarcodes">Clear Barcodes</button>
+        </div>
+        <button id="validateDownloadButton" class="main-action-button">Validate Barcodes and Download</button>
+        <div class="message-display"></div>
+    </div>
+
+    <script>
+        // ########## IMPORTANT: PASTE YOUR NEW WEB APP URL HERE ##########
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxBUnVmysM6WSP1uW3ittU2eU3HxwGax2QlwhXd3cbt3sIMsDEnTCcDCInCk-nOAB7wmw/exec';
+        
+        const GOOGLE_SHEET_NAME_TO_USE = 'Products';
+
+        let transferListData = null;
+        let barcodeData = null;
+        const locations = [
+            { id: "جاردنز 101", text: "جاردنز 101" }, { id: "تلال السخنة 102", text: "تلال السخنة 102" },
+            { id: "ستيلا 103", text: "ستيلا 103" }, { id: "الدبلو 104", text: "الدبلو 104" },
+            { id: "تلال الساحل 105", text: "تلال الساحل 105" }, { id: "سوان لك 106", text: "سوان لك 106" },
+            { id: "كاسكادا 107", text: "كاسكادا 107" }, { id: "لافيستا باي 108", text: "لافيستا باي 108" },
+            { id: "راس الحكمة 109", text: "راس الحكمة 109" }, { id: "لازوردي 110", text: "لازوردي 110" },
+            { id: "النادي 111", text: "النادي 111" }, { id: "زايد 112", text: "زايد 112" },
+            { id: "القطامية 115", text: "القطامية 115" }, { id: "مخزن بلبيس 201", text: "مخزن بلبيس 201" },
+            { id: "مخزن الساحل 202", text: "مخزن الساحل 202" },{ id: "فوكا باي 117", text: "فوكا باي 117" },
+        ];
+
+        document.addEventListener('DOMContentLoaded', function() {
+            showPage('homePage');
+            const locationOptions = [{ id: '', text: 'Select Source Location' }, ...locations];
+            $('#locationFrom').select2({ data: locationOptions });
+            document.getElementById('goToTransferBtn').addEventListener('click', () => showPage('stockTransferPage'));
+            document.getElementById('goToValidatorBtn').addEventListener('click', () => showPage('barcodeValidatorPage'));
+            document.querySelectorAll('.go-home-btn').forEach(button => button.addEventListener('click', () => showPage('homePage')));
+            document.getElementById('uploadQuantityButton').addEventListener('click', () => document.getElementById('quantityFile').click());
+            document.getElementById('quantityFile').addEventListener('change', handleFileUpload);
+            document.getElementById('clearQuantity').addEventListener('click', clearQuantity);
+            document.getElementById('processTransferButton').addEventListener('click', processTransferData);
+            document.getElementById('uploadBarcodeButton').addEventListener('click', () => document.getElementById('barcodeFile').click());
+            document.getElementById('barcodeFile').addEventListener('change', handleFileUpload);
+            document.getElementById('clearBarcodes').addEventListener('click', clearBarcodes);
+            document.getElementById('validateDownloadButton').addEventListener('click', processAndValidateBarcodes);
+        });
+
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(page => { page.style.display = 'none'; });
+            const newPage = document.getElementById(pageId);
+            if (newPage) {
+                newPage.style.display = 'block';
+                const msgDiv = newPage.querySelector('.message-display');
+                if (msgDiv) { msgDiv.innerText = ''; msgDiv.className = 'message-display'; }
+            }
+        }
+        
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            const isQuantityFile = event.target.id === 'quantityFile';
+            const isBarcodeFile = event.target.id === 'barcodeFile';
+            if (!file) { return; }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    if (!workbook.SheetNames || workbook.SheetNames.length === 0) throw new Error("Excel file contains no sheets.");
+                    
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const rowsAsArray = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null });
+
+                    if (rowsAsArray.length < 2) throw new Error(`The first sheet is empty or contains only a header.`);
+                    const headerRow = rowsAsArray[0].map(h => String(h || '').toLowerCase().trim());
+                    const dataRows = rowsAsArray.slice(1);
+
+                    if (isQuantityFile) {
+                        if (!headerRow || headerRow.length < 2 || headerRow[0] !== 'code') {
+                            throw new Error("Invalid transfer file format. The first column header must be 'code', and there must be at least one branch column.");
+                        }
+                        const branchHeaders = headerRow.slice(1);
+                        const flattenedData = [];
+                        dataRows.forEach((row) => {
+                            const itemCode = row[0];
+                            if (!itemCode || String(itemCode).trim() === '') return; 
+                            branchHeaders.forEach((branch, colIndex) => {
+                                const quantity = row[colIndex + 1];
+                                if (quantity !== null && quantity !== '' && !isNaN(quantity) && Number(quantity) > 0) {
+                                    flattenedData.push({
+                                        code: String(itemCode).trim(),
+                                        branch: String(branch).trim(),
+                                        quantity: Number(quantity)
+                                    });
+                                }
+                            });
+                        });
+                        if (flattenedData.length === 0) throw new Error(`File uploaded, but no valid transfer quantities were found.`);
+                        transferListData = flattenedData;
+                        const uniqueBranches = [...new Set(flattenedData.map(d => d.branch))];
+                        showMessage(`Transfer file with ${flattenedData.length} total items for ${uniqueBranches.length} branches uploaded successfully! Ready to process.`, 'success');
+                    } else if (isBarcodeFile) {
+                        const requiredHeaders = ['barcode'];
+                        const headerMap = {};
+                        headerRow.forEach((h, i) => { headerMap[h] = i; });
+                        const missingHeaders = requiredHeaders.filter(h => headerMap[h] === undefined);
+                        if (missingHeaders.length > 0) throw new Error(`File is missing required column(s): [${missingHeaders.join(', ')}].`);
+
+                        const jsonData = dataRows.map(row => ({ barcode: String(row[headerMap['barcode']] || '').trim() }))
+                            .filter(obj => obj.barcode !== "");
+                        
+                        if (jsonData.length === 0) throw new Error(`File contains no data rows.`);
+                        barcodeData = jsonData;
+                        showMessage(`Barcode file with ${jsonData.length} rows uploaded successfully! Ready to process.`, 'success');
+                    }
+                } catch (error) {
+                    showMessage(`Upload Error: ${error.message}`, 'error');
+                    if (isQuantityFile) { transferListData = null; }
+                    if (isBarcodeFile) { barcodeData = null; }
+                } finally {
+                    event.target.value = '';
+                }
+            };
+            reader.onerror = () => showMessage(`Error reading file.`, 'error');
+            reader.readAsArrayBuffer(file);
+        }
+
+        function clearQuantity() { transferListData = null; document.getElementById('quantityFile').value = ''; showMessage('Transfer file has been cleared.', 'info'); }
+        function clearBarcodes() { barcodeData = null; document.getElementById('barcodeFile').value = ''; showMessage('Barcode file has been cleared.', 'info'); }
+
+        async function processTransferData() {
+            if (SCRIPT_URL.includes('PASTE_YOUR_NEW_DEPLOYED_WEB_APP_URL_HERE')) return showMessage('Configuration Error: The SCRIPT_URL has not been set in the HTML file.', 'error');
+            if (!transferListData) return showMessage('Error: Please upload a Transfer file.', 'error');
+            const locationFrom = document.getElementById('locationFrom').value;
+            if (!locationFrom) return showMessage('Error: Please select the "From" location.', 'error');
+
+            const button = document.getElementById('processTransferButton');
+            button.disabled = true;
+            showMessage(`Processing ${transferListData.length} items... Fetching item details from server. Please wait.`, 'info');
+
+            try {
+                const uniqueCodes = [...new Set(transferListData.map(item => item.code))];
+                const payloadForServer = {
+                    action: 'processTransfer',
+                    sheetName: GOOGLE_SHEET_NAME_TO_USE,
+                    payload: uniqueCodes.map(code => ({ code: code, quantity: 1 }))
+                };
+
+                const response = await fetch(SCRIPT_URL, { method: 'POST', mode: 'cors', body: JSON.stringify(payloadForServer) });
+                if (!response.ok) throw new Error(`Server returned an error: ${response.statusText}`);
+                const result = await response.json();
+                if (result.status === 'error') throw new Error(result.message);
+
+                const itemDetailsMap = new Map();
+                result.results.forEach(itemArray => {
+                    const [code, barcode, name] = itemArray;
+                    itemDetailsMap.set(String(code), { barcode, name });
+                });
+
+                const transfersByBranch = transferListData.reduce((acc, item) => {
+                    const { branch, code, quantity } = item;
+                    if (!acc[branch]) acc[branch] = [];
+                    const details = itemDetailsMap.get(code);
+                    if (details) {
+                        acc[branch].push({ code, quantity, ...details });
+                    }
+                    return acc;
+                }, {});
+
+                const wb = XLSX.utils.book_new();
+                const sheetHeader = ["Code", "Barcode", "Name", "Quantity"];
+                
+                for (const branch in transfersByBranch) {
+                    const itemsForBranch = transfersByBranch[branch];
+                    const sheetData = itemsForBranch.map(item => [item.code, item.barcode, item.name, item.quantity]);
+                    const ws = XLSX.utils.aoa_to_sheet([sheetHeader, ...sheetData]);
+                    ws['!cols'] = [{ wch: 15 }, { wch: 20 }, { wch: 50 }, { wch: 10 }];
+                    XLSX.utils.book_append_sheet(wb, ws, `To ${branch}`);
+                }
+
+                const unmatchedCodes = uniqueCodes.filter(code => !itemDetailsMap.has(code));
+                if (unmatchedCodes.length > 0) {
+                    const wsUnmatched = XLSX.utils.aoa_to_sheet([["Code", "Reason"], ...unmatchedCodes.map(code => [code, "Code not found in master product list"])]);
+                    wsUnmatched['!cols'] = [{ wch: 15 }, { wch: 40 }];
+                    XLSX.utils.book_append_sheet(wb, wsUnmatched, "Unmatched Codes");
+                }
+
+                const formattedDate = new Date().toISOString().slice(0, 10);
+                XLSX.writeFile(wb, `Transfers from ${locationFrom} ${formattedDate}.xlsx`);
+                showMessage('Success! Transfer file created with a separate sheet for each destination.', 'success');
+
+            } catch (error) { 
+                showMessage(`Processing Error: ${error.message}`, 'error'); 
+            } finally { 
+                button.disabled = false; 
+            }
+        }
+        
+        async function processAndValidateBarcodes() {
+            if (SCRIPT_URL.includes('PASTE_YOUR_NEW_DEPLOYED_WEB_APP_URL_HERE')) return showMessage('Configuration Error: The SCRIPT_URL has not been set in the HTML file.', 'error');
+            if (!barcodeData) return showMessage('Error: Please upload a Barcode file.', 'error');
+            const button = document.getElementById('validateDownloadButton');
+            button.disabled = true;
+            showMessage(`Validating ${barcodeData.length} barcodes on server... Please wait.`, 'info');
+            try {
+                const payloadForServer = {
+                    action: 'validateBarcodes',
+                    sheetName: GOOGLE_SHEET_NAME_TO_USE,
+                    payload: barcodeData.map(row => String(row.barcode).trim())
+                };
+                const response = await fetch(SCRIPT_URL, { method: 'POST', mode: 'cors', body: JSON.stringify(payloadForServer) });
+                if (!response.ok) throw new Error(`Server returned an error: ${response.statusText}`);
+                const result = await response.json();
+                if (result.status === 'error') throw new Error(result.message);
+                const wb = XLSX.utils.book_new();
+                const header = ["Barcode", "Validation Status", "Code", "Name", "Supplier"];
+                const ws = XLSX.utils.aoa_to_sheet([header, ...result.results]);
+                ws['!cols'] = [{ wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 50 }, { wch: 30 }];
+                XLSX.utils.book_append_sheet(wb, ws, "Validation Results");
+                const formattedDate = new Date().toISOString().slice(0, 10);
+                XLSX.writeFile(wb, `Barcode_Validation_Results_${formattedDate}.xlsx`);
+                showMessage('Success! Barcodes validated and results downloaded.', 'success');
+            } catch (error) { showMessage(`Processing Error: ${error.message}`, 'error'); } finally { button.disabled = false; }
+        }
+
+        function showMessage(message, type = 'info') {
+            let messageDiv = document.querySelector('.page[style*="block"] .message-display');
+            if (!messageDiv) { messageDiv = document.querySelector('#homePage .message-display'); }
+            if (!messageDiv) return;
+            messageDiv.innerText = message;
+            messageDiv.className = 'message-display';
+            if (type === 'success') { messageDiv.classList.add('success'); }
+            else if (type === 'error') { messageDiv.classList.add('error'); }
+            else if (type === 'info') { messageDiv.classList.add('info'); }
+        }
+    </script>
 </body>
 </html>
