@@ -16,7 +16,7 @@
     <div class="app-container">
         <nav id="sidebar" class="bg-dark">
             <div class="sidebar-header">
-                <h3><i class="bi bi-kanban-fill me-2"></i>TaskFlow</h3>
+                <h3><i class="bi bi-kanban-fill me-2"></i><span>TaskFlow</span></h3>
             </div>
             <ul class="nav flex-column">
                 <li class="nav-item"><a class="nav-link active" href="#" data-view="dashboard"><i class="bi bi-grid-1x2-fill"></i><span>Dashboard</span></a></li>
@@ -26,12 +26,18 @@
             </ul>
         </nav>
 
-        <main id="main-content">
-            <div id="dashboard-view" class="view active-view"></div>
-            <div id="tasks-view" class="view"></div>
-            <div id="management-view" class="view"></div>
-            <div id="reports-view" class="view"></div>
-        </main>
+        <div class="main-wrapper">
+             <header id="main-header">
+                <button id="sidebar-toggle" class="btn"><i class="bi bi-list"></i></button>
+                <h1 id="view-title" class="h3 mb-0">Dashboard</h1>
+            </header>
+            <main id="main-content">
+                <div id="dashboard-view" class="view active-view"></div>
+                <div id="tasks-view" class="view"></div>
+                <div id="management-view" class="view"></div>
+                <div id="reports-view" class="view"></div>
+            </main>
+        </div>
     </div>
 
     <div class="toast-container position-fixed bottom-0 end-0 p-3"></div>
