@@ -1,32 +1,30 @@
 // =================================================================
-// PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
+// PASTE YOUR NEW GOOGLE APPS SCRIPT WEB APP URL HERE
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxIfIhNEDbi-Kf463_To56itJHAe7IB5yGPPi7XVBl_u0JPgaIFsyl03QmLX3RonbI1rg/exec";
 // =================================================================
 
 // --- GLOBAL STATE & ELEMENTS ---
 let APP_DATA = { branches: [], sections: [], tasks: [] };
-let reportChart = null; // To hold the chart instance for destruction
+let reportChart = null;
 const LOADER = document.getElementById('loading-overlay');
 const editTaskModal = new bootstrap.Modal(document.getElementById('edit-task-modal'));
+const confirmModal = new bootstrap.Modal(document.getElementById('confirm-modal'));
+let confirmCallback = () => {};
 
 // --- API COMMUNICATION ---
 async function apiCall(action, payload = {}) {
     LOADER.style.display = 'flex';
     try {
         const res = await fetch(SCRIPT_URL, {
-            method: 'POST',
-            mode: 'cors',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'POST', mode: 'cors', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action, payload })
         });
         const response = await res.json();
-        if (!response.success) {
-            throw new Error(response.message || 'An unknown API error occurred.');
-        }
+        if (!response.success) throw new Error(response.message || 'Unknown API error.');
         return response.data;
     } catch (error) {
         console.error('API Call Failed:', error);
-        alert(`Error: ${error.message}`);
+        showToast(`Error: ${error.message}`, 'danger');
         return null;
     } finally {
         LOADER.style.display = 'none';
@@ -42,90 +40,117 @@ async function initializeApplication() {
     const data = await apiCall('getInitialData');
     if (data) {
         APP_DATA = data;
-        renderAllComponents();
-        addEventListeners(); // Add listeners after components are rendered
+        renderAllViews();
+        addEventListeners();
+        showView('dashboard');
     }
 }
 
 function addEventListeners() {
-    document.getElementById('create-task-form').addEventListener('submit', handleCreateTask);
-    document.getElementById('show-inactive-toggle').addEventListener('change', () => renderTasks());
-    document.getElementById('branch-form').addEventListener('submit', (e) => handleManageEntity(e, 'branch'));
-    document.getElementById('section-form').addEventListener('submit', (e) => handleManageEntity(e, 'section'));
+    document.querySelectorAll('#sidebar .nav-link').forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const viewId = e.currentTarget.dataset.view;
+            showView(viewId);
+        });
+    });
+    document.getElementById('confirm-modal-button').addEventListener('click', () => {
+        if (typeof confirmCallback === 'function') confirmCallback();
+        confirmModal.hide();
+    });
     document.getElementById('save-task-changes').addEventListener('click', handleSaveTask);
 }
 
-// --- RENDER FUNCTIONS ---
-function renderAllComponents() {
-    renderCreateTaskForm();
-    renderTasks();
-    renderManagementLists();
-    renderReportFilters();
+// --- VIEW MANAGEMENT ---
+function showView(viewId) {
+    document.querySelectorAll('.view').forEach(view => view.classList.remove('active-view'));
+    document.getElementById(`${viewId}-view`).classList.add('active-view');
+    document.querySelectorAll('#sidebar .nav-link').forEach(link => {
+        link.classList.toggle('active', link.dataset.view === viewId);
+    });
 }
 
+// --- HIGH-LEVEL RENDERERS ---
+function renderAllViews() {
+    renderDashboardView();
+    renderTasksView();
+    renderManagementView();
+    renderReportsView();
+}
+
+// --- DETAILED VIEW RENDERERS ---
+function renderDashboardView() {
+    const view = document.getElementById('dashboard-view');
+    const allTasks = APP_DATA.tasks;
+    const activeTasks = allTasks.filter(t => t.status === 'Active').length;
+    const allAssignments = allTasks.flatMap(t => t.assignments);
+    const pendingAssignments = allAssignments.filter(a => a.status === 'Pending').length;
+    const branchMap = Object.fromEntries(APP_DATA.branches.map(b => [b.id, b.name]));
+    const taskMap = Object.fromEntries(allTasks.map(t => [t.id, t.title]));
+    const recentCompletions = allAssignments.filter(a => a.status === 'Completed' && a.completionTimestamp !== 'N/A').sort((a, b) => new Date(b.completionTimestamp.split('/').reverse().join('-')) - new Date(a.completionTimestamp.split('/').reverse().join('-'))).slice(0, 5);
+
+    view.innerHTML = `
+        <h1 class="mb-4">Dashboard</h1>
+        <div class="row g-4">
+            <div class="col-md-6 col-xl-3"><div class="card stat-card"><div class="card-body"><div class="stat-icon bg-primary-subtle text-primary"><i class="bi bi-list-task"></i></div><div><h5>Active Tasks</h5><div class="stat-number">${activeTasks}</div></div></div></div></div>
+            <div class="col-md-6 col-xl-3"><div class="card stat-card"><div class="card-body"><div class="stat-icon bg-warning-subtle text-warning"><i class="bi bi-hourglass-split"></i></div><div><h5>Pending Assignments</h5><div class="stat-number">${pendingAssignments}</div></div></div></div></div>
+            <div class="col-md-6 col-xl-3"><div class="card stat-card"><div class="card-body"><div class="stat-icon bg-info-subtle text-info"><i class="bi bi-building"></i></div><div><h5>Active Branches</h5><div class="stat-number">${APP_DATA.branches.filter(b => b.status === 'Active').length}</div></div></div></div></div>
+            <div class="col-md-6 col-xl-3"><div class="card stat-card"><div class="card-body"><div class="stat-icon bg-secondary-subtle text-secondary"><i class="bi bi-diagram-3"></i></div><div><h5>Active Sections</h5><div class="stat-number">${APP_DATA.sections.filter(s => s.status === 'Active').length}</div></div></div></div></div>
+            <div class="col-xl-7"><div class="card h-100"><div class="card-header"><h4><i class="bi bi-clock-history me-2"></i>Recent Activity</h4></div><div class="card-body"><ul class="list-group list-group-flush">${recentCompletions.length > 0 ? recentCompletions.map(a => `<li class="list-group-item">Branch <strong>${branchMap[a.branchId] || 'Unknown'}</strong> completed task "<em>${taskMap[a.taskId] || 'Unknown'}</em>" in ${a.timeTaken}.</li>`).join('') : '<li class="list-group-item">No recent completions.</li>'}</ul></div></div></div>
+            <div class="col-xl-5"><div class="card h-100"><div class="card-header"><h4><i class="bi bi-plus-circle me-2"></i>Create New Task</h4></div><div class="card-body" id="create-task-form-container"></div></div></div>
+        </div>`;
+    renderCreateTaskForm();
+}
+
+function renderTasksView() {
+    const view = document.getElementById('tasks-view');
+    view.innerHTML = `<div class="d-flex justify-content-between align-items-center mb-4"><h1>All Tasks</h1><div class="form-check form-switch fs-5"><input class="form-check-input" type="checkbox" role="switch" id="show-inactive-toggle"><label class="form-check-label" for="show-inactive-toggle">Show Inactive Tasks</label></div></div><div id="task-list-container"></div>`;
+    renderTasks();
+    document.getElementById('show-inactive-toggle').addEventListener('change', renderTasks);
+}
+
+function renderManagementView() {
+    const view = document.getElementById('management-view');
+    view.innerHTML = `<h1 class="mb-4">Branch & Section Management</h1><div class="row"><div class="col-md-6"><div class="card"><div class="card-header"><h4>Manage Branches</h4></div><div class="card-body"><form id="branch-form" class="mb-3"><div class="input-group"><input type="text" id="new-branch-name" class="form-control" placeholder="New Branch Name" required><button class="btn btn-success" type="submit">Add Branch</button></div></form><ul id="branch-list" class="list-group"></ul></div></div></div><div class="col-md-6"><div class="card"><div class="card-header"><h4>Manage Sections</h4></div><div class="card-body"><form id="section-form" class="mb-3"><div class="input-group"><input type="text" id="new-section-name" class="form-control" placeholder="New Section Name" required><button class="btn btn-success" type="submit">Add Section</button></div></form><ul id="section-list" class="list-group"></ul></div></div></div></div>`;
+    renderManagementLists();
+    document.getElementById('branch-form').addEventListener('submit', (e) => handleManageEntity(e, 'branch'));
+    document.getElementById('section-form').addEventListener('submit', (e) => handleManageEntity(e, 'section'));
+}
+
+function renderReportsView() {
+    const view = document.getElementById('reports-view');
+    view.innerHTML = `<h1 class="mb-4">Reports & Analytics</h1><div class="card mt-3"><div class="card-header"><h3>Generate Reports</h3></div><div class="card-body"><div class="row g-3 align-items-end"><div class="col-md-3"><label for="report-type" class="form-label">Report Type</label><select id="report-type" class="form-select"><option value="task_detail">Task Detail Report</option><option value="branch_performance">Branch Performance</option></select></div><div class="col-md-4" id="report-task-selector-container"><label for="report-task-selector" class="form-label">Select Task</label><select id="report-task-selector" class="form-select"></select></div><div class="col-md-4" id="report-branch-options-container" style="display: none;"><div class="row"><div class="col-sm-6"><label for="report-start-date" class="form-label">Start Date</label><input type="date" id="report-start-date" class="form-control"></div><div class="col-sm-6"><label for="report-end-date" class="form-label">End Date</label><input type="date" id="report-end-date" class="form-control"></div></div></div><div class="col-md-3" id="report-assessment-container" style="display: none;"><label for="report-assessment-method" class="form-label">Assessment Method</label><select id="report-assessment-method" class="form-select"><option value="avg_time">Fastest (Average Time)</option><option value="rank_points">Most Consistent (Rank Points)</option></select></div><div class="col-md-2"><button class="btn btn-primary w-100" id="generate-report-btn">Generate</button></div></div></div></div><div id="report-output" class="mt-4"></div>`;
+    renderReportFilters();
+    document.getElementById('report-type').addEventListener('change', toggleReportOptions);
+    document.getElementById('generate-report-btn').addEventListener('click', generateReport);
+}
+
+
+// --- COMPONENT RENDERERS ---
 function renderCreateTaskForm() {
-    const form = document.getElementById('create-task-form');
+    const container = document.getElementById('create-task-form-container');
     const activeSections = APP_DATA.sections.filter(s => s.status === 'Active');
     const activeBranches = APP_DATA.branches.filter(b => b.status === 'Active');
     
-    form.innerHTML = `
-        <div class="mb-3"><label for="task-title" class="form-label">Task Title</label><input type="text" class="form-control" id="task-title" required></div>
-        <div class="mb-3"><label for="task-description" class="form-label">Description</label><textarea class="form-control" id="task-description" rows="3"></textarea></div>
-        <div class="row"><div class="col-md-6 mb-3"><label for="task-section" class="form-label">Assigning Section</label><select class="form-select" id="task-section" required><option value="" disabled selected>Select...</option>${activeSections.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}</select></div><div class="col-md-6 mb-3"><label for="task-type" class="form-label">Task Type</label><select class="form-select" id="task-type"><option value="Normal">Normal</option><option value="Time-Limited">Time-Limited</option></select></div></div>
-        <div class="mb-3" id="deadline-container" style="display: none;"><label for="task-deadline" class="form-label">Deadline</label><input type="date" class="form-control" id="task-deadline"></div>
-        <div class="mb-3"><label class="form-label">Assign to Branches</label><div id="branch-checkboxes" class="border p-2 rounded">${activeBranches.map(b => `<div class="form-check"><input class="form-check-input" type="checkbox" value="${b.id}" id="branch-${b.id}"><label class="form-check-label" for="branch-${b.id}">${b.name}</label></div>`).join('') || '<p class="text-muted">No active branches.</p>'}</div></div>
-        <button type="submit" class="btn btn-success" id="create-task-btn">Create Task</button>
-    `;
+    container.innerHTML = `<form id="create-task-form"><div class="mb-3"><label for="task-title" class="form-label">Task Title</label><input type="text" class="form-control" id="task-title" required></div><div class="mb-3"><label for="task-description" class="form-label">Description</label><textarea class="form-control" id="task-description" rows="2"></textarea></div><div class="row"><div class="col-md-6 mb-3"><label for="task-section" class="form-label">Section</label><select class="form-select" id="task-section" required><option value="" disabled selected>Select...</option>${activeSections.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}</select></div><div class="col-md-6 mb-3"><label for="task-type" class="form-label">Type</label><select class="form-select" id="task-type"><option value="Normal">Normal</option><option value="Time-Limited">Time-Limited</option></select></div></div><div class="mb-3" id="deadline-container" style="display: none;"><label for="task-deadline" class="form-label">Deadline</label><input type="date" class="form-control" id="task-deadline"></div><div class="mb-3"><label class="form-label">Assign to Branches</label><div id="branch-checkboxes" class="border p-2 rounded bg-light" style="max-height: 110px; overflow-y: auto;">${activeBranches.map(b => `<div class="form-check"><input class="form-check-input" type="checkbox" value="${b.id}" id="branch-${b.id}"><label class="form-check-label" for="branch-${b.id}">${b.name}</label></div>`).join('') || '<p class="text-muted small">No active branches found.</p>'}</div></div><button type="submit" class="btn btn-primary w-100" id="create-task-btn">Create Task</button></form>`;
+    document.getElementById('create-task-form').addEventListener('submit', handleCreateTask);
     document.getElementById('task-type').addEventListener('change', toggleDeadline);
 }
 
 function renderTasks() {
-    const taskList = document.getElementById('task-list');
-    taskList.innerHTML = '';
-    document.getElementById('task-loader').style.display = 'none';
-
+    const taskListContainer = document.getElementById('task-list-container');
     const showInactive = document.getElementById('show-inactive-toggle').checked;
     const tasksToDisplay = showInactive ? APP_DATA.tasks : APP_DATA.tasks.filter(t => t.status === 'Active');
     
     if (tasksToDisplay.length === 0) {
-        taskList.innerHTML = '<div class="alert alert-info">No tasks to display.</div>';
+        taskListContainer.innerHTML = '<div class="alert alert-info">No tasks to display.</div>';
         return;
     }
-
     const branchMap = Object.fromEntries(APP_DATA.branches.map(b => [b.id, b.name]));
-
-    tasksToDisplay.forEach(task => {
-        const assignmentsHtml = task.assignments.map(a => `
-            <tr>
-                <td>${branchMap[a.branchId] || a.branchId}</td>
-                <td><span class="badge ${a.status === 'Completed' ? 'bg-success' : 'bg-warning'}">${a.status}</span></td>
-                <td>${a.completionTimestamp}</td>
-                <td>${a.timeTaken}</td>
-                <td>${a.status === 'Pending' ? `<button class="btn btn-sm btn-primary" onclick="markComplete('${a.assignmentId}')">Complete</button>` : ''}</td>
-            </tr>`).join('');
-
-        const card = document.createElement('div');
-        card.className = `card mb-3 task-card ${task.status.toLowerCase()}`;
-        card.innerHTML = `
-            <div class="card-header d-flex justify-content-between">
-                <div><strong>${task.title}</strong> <span class="badge bg-secondary">${task.taskType}</span></div>
-                <div class="dropdown">
-                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown"><i class="bi bi-three-dots-vertical"></i></button>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="#" onclick="openEditTaskModal('${task.id}')"><i class="bi bi-pencil-square"></i> Edit</a></li>
-                        <li><a class="dropdown-item" href="#" onclick="toggleTaskStatus('${task.id}', '${task.status === 'Active' ? 'Inactive' : 'Active'}')"><i class="bi bi-power"></i> ${task.status === 'Active' ? 'Disable' : 'Enable'}</a></li>
-                        <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item text-danger" href="#" onclick="deleteTask('${task.id}')"><i class="bi bi-trash"></i> Delete</a></li>
-                    </ul>
-                </div>
-            </div>
-            <div class="card-body">
-                <p>${task.description || 'No description.'}</p>
-                <table class="table table-sm table-bordered"><thead class="table-light"><tr><th>Branch</th><th>Status</th><th>Completed On</th><th>Time Taken</th><th>Action</th></tr></thead><tbody class="task-assignments-body">${assignmentsHtml}</tbody></table>
-            </div>
-            <div class="card-footer text-muted">Deadline: ${task.deadline}</div>`;
-        taskList.appendChild(card);
-    });
+    taskListContainer.innerHTML = tasksToDisplay.map(task => {
+        const assignmentsHtml = task.assignments.map(a => `<tr><td>${branchMap[a.branchId] || a.branchId}</td><td><span class="badge ${a.status === 'Completed' ? 'bg-success' : 'bg-warning'}">${a.status}</span></td><td>${a.completionTimestamp}</td><td>${a.timeTaken}</td><td>${a.status === 'Pending' ? `<button class="btn btn-sm btn-primary" onclick="markComplete('${a.assignmentId}')">Complete</button>` : ''}</td></tr>`).join('');
+        return `<div class="card mb-3 task-card ${task.status.toLowerCase()}"><div class="card-header d-flex justify-content-between"><div><strong>${task.title}</strong> <span class="badge bg-secondary">${task.taskType}</span></div><div class="dropdown"><button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown"><i class="bi bi-three-dots-vertical"></i></button><ul class="dropdown-menu"><li><a class="dropdown-item" href="#" onclick="openEditTaskModal('${task.id}')"><i class="bi bi-pencil-square"></i> Edit</a></li><li><a class="dropdown-item" href="#" onclick="toggleTaskStatus('${task.id}', '${task.status === 'Active' ? 'Inactive' : 'Active'}')"><i class="bi bi-power"></i> ${task.status === 'Active' ? 'Disable' : 'Enable'}</a></li><li><hr class="dropdown-divider"></li><li><a class="dropdown-item text-danger" href="#" onclick="deleteTask('${task.id}')"><i class="bi bi-trash"></i> Delete</a></li></ul></div></div><div class="card-body"><p>${task.description || 'No description.'}</p><table class="table table-sm table-bordered"><thead class="table-light"><tr><th>Branch</th><th>Status</th><th>Completed On</th><th>Time Taken</th><th>Action</th></tr></thead><tbody class="task-assignments-body">${assignmentsHtml}</tbody></table></div><div class="card-footer text-muted">Deadline: ${task.deadline}</div></div>`;
+    }).join('');
 }
 
 function renderManagementLists() {
@@ -133,52 +158,18 @@ function renderManagementLists() {
     const sectionList = document.getElementById('section-list');
     branchList.innerHTML = '';
     sectionList.innerHTML = '';
-
-    const createListItem = (item, type) => `
-        <li class="list-group-item d-flex justify-content-between align-items-center" data-id="${item.id}">
-            <span class="item-name">${item.name}</span>
-            <input type="text" class="form-control item-input" value="${item.name}" style="display:none;">
-            <div>
-                <span class="badge bg-${item.status === 'Active' ? 'success' : 'secondary'} me-2">${item.status}</span>
-                <button class="btn btn-sm btn-outline-primary save-btn" onclick="saveEntity(this, '${type}')" style="display:none;"><i class="bi bi-check-lg"></i></button>
-                <button class="btn btn-sm btn-outline-secondary cancel-btn" onclick="cancelEditEntity(this)" style="display:none;"><i class="bi bi-x-lg"></i></button>
-                <button class="btn btn-sm btn-outline-primary edit-btn" onclick="toggleEditEntity(this)"><i class="bi bi-pencil"></i></button>
-                <button class="btn btn-sm btn-outline-secondary power-btn" onclick="toggleEntityStatus(this, '${type}')"><i class="bi bi-power"></i></button>
-            </div>
-        </li>`;
-    
+    const createListItem = (item, type) => `<li class="list-group-item d-flex justify-content-between align-items-center" data-id="${item.id}"><span class="item-name">${item.name}</span><input type="text" class="form-control item-input" value="${item.name}" style="display:none;"><div><span class="badge bg-${item.status === 'Active' ? 'success' : 'secondary'} me-2">${item.status}</span><button class="btn btn-sm btn-outline-primary save-btn" onclick="saveEntity(this, '${type}')" style="display:none;"><i class="bi bi-check-lg"></i></button><button class="btn btn-sm btn-outline-secondary cancel-btn" onclick="cancelEditEntity(this)" style="display:none;"><i class="bi bi-x-lg"></i></button><button class="btn btn-sm btn-outline-primary edit-btn" onclick="toggleEditEntity(this)"><i class="bi bi-pencil"></i></button><button class="btn btn-sm btn-outline-secondary power-btn" onclick="toggleEntityStatus(this, '${type}')"><i class="bi bi-power"></i></button></div></li>`;
     APP_DATA.branches.forEach(item => branchList.innerHTML += createListItem(item, 'branch'));
     APP_DATA.sections.forEach(item => sectionList.innerHTML += createListItem(item, 'section'));
 }
 
 function renderReportFilters() {
-    const reportPane = document.getElementById('reports-pane');
-    reportPane.innerHTML = `
-        <div class="card mt-3">
-            <div class="card-header"><h3>Generate Reports</h3></div>
-            <div class="card-body">
-                <div class="row g-3 align-items-end">
-                    <div class="col-md-3"><label for="report-type" class="form-label">Report Type</label><select id="report-type" class="form-select"><option value="task_detail">Task Detail Report</option><option value="branch_performance">Branch Performance</option></select></div>
-                    <div class="col-md-4" id="report-task-selector-container"><label for="report-task-selector" class="form-label">Select Task</label><select id="report-task-selector" class="form-select"></select></div>
-                    <div class="col-md-4" id="report-branch-options-container" style="display: none;"><div class="row"><div class="col-sm-6"><label for="report-start-date" class="form-label">Start Date</label><input type="date" id="report-start-date" class="form-control"></div><div class="col-sm-6"><label for="report-end-date" class="form-label">End Date</label><input type="date" id="report-end-date" class="form-control"></div></div></div>
-                    <div class="col-md-3" id="report-assessment-container" style="display: none;"><label for="report-assessment-method" class="form-label">Assessment Method</label><select id="report-assessment-method" class="form-select"><option value="avg_time">Fastest (Average Time)</option><option value="rank_points">Most Consistent (Rank Points)</option></select></div>
-                    <div class="col-md-2"><button class="btn btn-primary w-100" id="generate-report-btn">Generate</button></div>
-                </div>
-            </div>
-        </div>
-        <div id="report-output" class="mt-4"></div>`;
-    
-    document.getElementById('report-type').addEventListener('change', toggleReportOptions);
-    document.getElementById('generate-report-btn').addEventListener('click', generateReport);
-    
     const taskSelector = document.getElementById('report-task-selector');
     taskSelector.innerHTML = '<option value="" disabled selected>Select a task...</option>';
     APP_DATA.tasks.forEach(t => taskSelector.innerHTML += `<option value="${t.id}">${t.title}</option>`);
-
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('report-end-date').value = today;
-    const lastMonth = new Date();
-    lastMonth.setMonth(lastMonth.getMonth() - 1);
+    const lastMonth = new Date(); lastMonth.setMonth(lastMonth.getMonth() - 1);
     document.getElementById('report-start-date').value = lastMonth.toISOString().split('T')[0];
 }
 
@@ -188,77 +179,31 @@ function renderReport(reportData) {
         outputDiv.innerHTML = '<div class="alert alert-warning">No data found for the selected criteria.</div>';
         return;
     }
-
     const headers = Object.keys(reportData.table[0]).filter(h => h !== 'Time Taken (s)');
-    const tableHtml = `
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h4>${reportData.title}</h4>
-                <div>
-                    <button class="btn btn-success me-2" onclick='exportToExcel(${JSON.stringify(reportData)})'><i class="bi bi-file-earmark-excel"></i> Export Excel</button>
-                    <button class="btn btn-info" onclick="exportChartToJpg()"><i class="bi bi-file-earmark-image"></i> Export Chart</button>
-                </div>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-7">
-                        <h5>Data Table</h5>
-                        <div class="table-responsive">
-                            <table class="table table-striped table-bordered">
-                                <thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>
-                                <tbody>${reportData.table.map(row => `<tr>${headers.map(h => `<td>${row[h]}</td>`).join('')}</tr>`).join('')}</tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <div class="col-md-5">
-                        <h5>Chart</h5>
-                        <canvas id="report-chart-canvas"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>`;
+    const tableHtml = `<div class="card"><div class="card-header d-flex justify-content-between align-items-center"><h4>${reportData.title}</h4><div><button class="btn btn-success me-2" onclick='exportToExcel(${JSON.stringify(reportData)})'><i class="bi bi-file-earmark-excel"></i> Export Excel</button><button class="btn btn-info" onclick="exportChartToJpg()"><i class="bi bi-file-earmark-image"></i> Export Chart</button></div></div><div class="card-body"><div class="row"><div class="col-md-7"><h5>Data Table</h5><div class="table-responsive"><table class="table table-striped table-bordered"><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${reportData.table.map(row => `<tr>${headers.map(h => `<td>${row[h]}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div><div class="col-md-5"><h5>Chart</h5><canvas id="report-chart-canvas"></canvas></div></div></div></div>`;
     outputDiv.innerHTML = tableHtml;
-
     if (reportChart) reportChart.destroy();
-    reportChart = new Chart(document.getElementById('report-chart-canvas').getContext('2d'), {
-        type: 'bar',
-        data: {
-            labels: reportData.chartData.labels,
-            datasets: [{ label: 'Performance', data: reportData.chartData.data, backgroundColor: 'rgba(54, 162, 235, 0.6)' }]
-        },
-        options: { scales: { y: { beginAtZero: true } } }
-    });
+    reportChart = new Chart(document.getElementById('report-chart-canvas').getContext('2d'), { type: 'bar', data: { labels: reportData.chartData.labels, datasets: [{ label: 'Performance', data: reportData.chartData.data, backgroundColor: 'rgba(54, 162, 235, 0.6)' }] }, options: { scales: { y: { beginAtZero: true } } } });
 }
 
 // --- ACTION HANDLERS ---
 async function handleCreateTask(e) {
     e.preventDefault();
-    const btn = document.getElementById('create-task-btn');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Creating...';
-
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Creating...';
     const selectedBranches = Array.from(document.querySelectorAll('#branch-checkboxes input:checked')).map(cb => cb.value);
     if (selectedBranches.length === 0) {
-        alert('Please assign the task to at least one branch.');
+        showToast('Please assign the task to at least one branch.', 'danger');
         btn.disabled = false; btn.innerHTML = 'Create Task';
         return;
     }
-
-    const taskData = {
-        title: document.getElementById('task-title').value,
-        description: document.getElementById('task-description').value,
-        section: document.getElementById('task-section').value,
-        type: document.getElementById('task-type').value,
-        deadline: document.getElementById('task-deadline').value,
-        branches: selectedBranches
-    };
-
+    const taskData = { title: document.getElementById('task-title').value, description: document.getElementById('task-description').value, section: document.getElementById('task-section').value, type: document.getElementById('task-type').value, deadline: document.getElementById('task-deadline').value, branches: selectedBranches };
     const result = await apiCall('createTask', taskData);
     if (result) {
-        alert(result.message);
-        document.getElementById('create-task-form').reset();
+        showToast(result.message, 'success');
+        e.target.reset();
         toggleDeadline();
-        initializeApplication(); // Refresh all data
+        initializeApplication();
     }
     btn.disabled = false; btn.innerHTML = 'Create Task';
 }
@@ -270,19 +215,20 @@ async function handleManageEntity(e, type) {
     if (!name) return;
     const result = await apiCall('manageEntity', { type, name });
     if (result) {
-        alert(result.message);
+        showToast(result.message, 'success');
         input.value = '';
         initializeApplication();
     }
 }
 
 async function markComplete(assignmentId) {
-    if (!confirm('Are you sure you want to mark this task as complete?')) return;
-    const result = await apiCall('markTaskAsComplete', { assignmentId });
-    if (result) {
-        alert(result.message);
-        initializeApplication();
-    }
+    showConfirmModal('Are you sure you want to mark this task as complete?', async () => {
+        const result = await apiCall('markTaskAsComplete', { assignmentId });
+        if (result) {
+            showToast(result.message, 'success');
+            initializeApplication();
+        }
+    });
 }
 
 function openEditTaskModal(taskId) {
@@ -296,68 +242,63 @@ function openEditTaskModal(taskId) {
 }
 
 async function handleSaveTask() {
-    const payload = {
-        taskId: document.getElementById('edit-task-id').value,
-        title: document.getElementById('edit-task-title').value,
-        description: document.getElementById('edit-task-description').value
-    };
+    const payload = { taskId: document.getElementById('edit-task-id').value, title: document.getElementById('edit-task-title').value, description: document.getElementById('edit-task-description').value };
     const result = await apiCall('updateTask', payload);
     if (result) {
-        alert(result.message);
+        showToast(result.message, 'success');
         editTaskModal.hide();
         initializeApplication();
     }
 }
 
 async function toggleTaskStatus(taskId, newStatus) {
-    if (!confirm(`Are you sure you want to ${newStatus === 'Active' ? 'enable' : 'disable'} this task?`)) return;
-    const result = await apiCall('setTaskStatus', { taskId, status: newStatus });
-    if (result) {
-        alert(result.message);
-        initializeApplication();
-    }
+    showConfirmModal(`Are you sure you want to ${newStatus === 'Active' ? 'enable' : 'disable'} this task?`, async () => {
+        const result = await apiCall('setTaskStatus', { taskId, status: newStatus });
+        if (result) {
+            showToast(result.message, 'success');
+            initializeApplication();
+        }
+    });
 }
 
 async function deleteTask(taskId) {
-    if (!confirm('Are you sure you want to permanently delete this task? This action cannot be undone.')) return;
-    const result = await apiCall('deleteTask', { taskId });
-    if (result) {
-        alert(result.message);
-        initializeApplication();
-    }
+    showConfirmModal('Are you sure you want to permanently delete this task? This cannot be undone.', async () => {
+        const result = await apiCall('deleteTask', { taskId });
+        if (result) {
+            showToast(result.message, 'success');
+            initializeApplication();
+        }
+    });
 }
 
 async function generateReport() {
     const reportType = document.getElementById('report-type').value;
     let payload = { reportType };
-    
     if (reportType === 'task_detail') {
         payload.taskId = document.getElementById('report-task-selector').value;
-        if (!payload.taskId) { alert('Please select a task.'); return; }
+        if (!payload.taskId) { showToast('Please select a task.', 'danger'); return; }
     } else {
         payload.startDate = document.getElementById('report-start-date').value;
         payload.endDate = document.getElementById('report-end-date').value;
         payload.assessmentMethod = document.getElementById('report-assessment-method').value;
-        if (!payload.startDate || !payload.endDate) { alert('Please select a date range.'); return; }
+        if (!payload.startDate || !payload.endDate) { showToast('Please select a date range.', 'danger'); return; }
     }
-    
     const reportData = await apiCall('getReportsData', payload);
     renderReport(reportData);
 }
 
 async function exportToExcel(reportData) {
-    alert("Preparing your Excel file. This may take a moment. The download will start automatically.");
+    showToast("Preparing your Excel file. The download will start shortly.", 'success');
     const result = await apiCall('generateExcelReport', reportData);
-    if(result && result.downloadUrl) {
-        // This opens the URL in a new tab, which browsers might block. A better UX is to redirect.
-        window.location.href = result.downloadUrl;
+    if (result && result.downloadUrl) {
+        window.open(result.downloadUrl, '_blank');
     }
 }
 
 function exportChartToJpg() {
-    if(!reportChart) { alert("No chart to export."); return; }
+    if (!reportChart) { showToast("No chart to export.", 'danger'); return; }
     const a = document.createElement('a');
-    a.href = reportChart.toBase64Image('image/jpeg', 1); // Get chart as JPG
+    a.href = reportChart.toBase64Image('image/jpeg', 1);
     a.download = 'chart-export.jpg';
     a.click();
 }
@@ -377,28 +318,26 @@ function toggleReportOptions() {
     document.getElementById('report-assessment-container').style.display = reportType === 'branch_performance' ? 'block' : 'none';
 }
 
-// Management List Edit/Save/Cancel
 function toggleEditEntity(btn) {
     const li = btn.closest('.list-group-item');
     li.classList.add('editing');
+    li.querySelector('.item-input').focus();
 }
 
 function cancelEditEntity(btn) {
     const li = btn.closest('.list-group-item');
     li.classList.remove('editing');
-    // Reset input value to original name if needed, but not strictly necessary for cancel
 }
 
 async function saveEntity(btn, type) {
     const li = btn.closest('.list-group-item');
     const id = li.dataset.id;
     const name = li.querySelector('.item-input').value.trim();
-    if (!name) { alert('Name cannot be empty.'); return; }
+    if (!name) { showToast('Name cannot be empty.', 'danger'); return; }
     const status = li.querySelector('.badge').textContent;
-
     const result = await apiCall('manageEntity', { type, id, name, status });
     if (result) {
-        alert(result.message);
+        showToast(result.message, 'success');
         li.classList.remove('editing');
         initializeApplication();
     }
@@ -410,12 +349,29 @@ async function toggleEntityStatus(btn, type) {
     const name = li.querySelector('.item-name').textContent;
     const currentStatus = li.querySelector('.badge').textContent;
     const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
+    showConfirmModal(`Are you sure you want to set "${name}" to ${newStatus}?`, async () => {
+        const result = await apiCall('manageEntity', { type, id, name, status: newStatus });
+        if (result) {
+            showToast(result.message, 'success');
+            initializeApplication();
+        }
+    });
+}
 
-    if (!confirm(`Are you sure you want to set "${name}" to ${newStatus}?`)) return;
+function showToast(message, type = 'success') {
+    const toastContainer = document.querySelector('.toast-container');
+    const toastId = 'toast-' + Date.now();
+    const bgClass = type === 'danger' ? 'bg-danger' : 'bg-success';
+    const toastHtml = `<div id="${toastId}" class="toast align-items-center text-white ${bgClass} border-0" role="alert" aria-live="assertive" aria-atomic="true"><div class="d-flex"><div class="toast-body">${message}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div></div>`;
+    toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+    const toastElement = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastElement, { delay: 5000 });
+    toast.show();
+    toastElement.addEventListener('hidden.bs.toast', () => toastElement.remove());
+}
 
-    const result = await apiCall('manageEntity', { type, id, name, status: newStatus });
-    if (result) {
-        alert(result.message);
-        initializeApplication();
-    }
+function showConfirmModal(bodyText, onConfirm) {
+    document.getElementById('confirm-modal-body').textContent = bodyText;
+    confirmCallback = onConfirm;
+    confirmModal.show();
 }
