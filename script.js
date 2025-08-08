@@ -1,6 +1,6 @@
 // =================================================================
 // PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx_TYtvoXgNsAQ912Cr0l2V_AeSs7HtIFcA-0fIntpSHTZElZVXx7BtUxfQw1MIQ5nRtQ/exec";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyI7GTzgdTes6FqeToxd8DFPHiozWvkHPhZirClt72zFe6F925TBhqgBN9p8GT8adZYXQ/exec";
 // =================================================================
 
 // --- GLOBAL STATE & ELEMENTS ---
@@ -11,49 +11,34 @@ const editTaskModal = new bootstrap.Modal(document.getElementById('edit-task-mod
 const confirmModal = new bootstrap.Modal(document.getElementById('confirm-modal'));
 let confirmCallback = () => {};
 
-// ===============================================================================
-// NEW, UNIFIED API FUNCTION USING JSONP FOR ALL REQUESTS
-// This function handles GET and "simulated POST" requests to avoid CORS issues.
-// ===============================================================================
+// --- UNIFIED API FUNCTION ---
 function apiCall(action, payload = {}, callback) {
     LOADER.style.display = 'flex';
-    
     const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
-    
     window[callbackName] = function(response) {
         if (response.success) {
-            // If a custom callback is provided (like for initialization), use it
-            if (callback) {
-                callback(response.data);
-            }
+            if (callback) { callback(response.data); }
         } else {
             showToast(`Error: ${response.message}`, 'danger');
         }
-        
-        // Cleanup
         delete window[callbackName];
         document.body.removeChild(script);
         LOADER.style.display = 'none';
     };
-
     const script = document.createElement('script');
-    // Encode the payload and add it to the URL
     const payloadString = encodeURIComponent(JSON.stringify(payload));
     script.src = `${SCRIPT_URL}?action=${action}&payload=${payloadString}&callback=${callbackName}`;
-    
     script.onerror = function() {
         showToast('Network error: Could not communicate with the server.', 'danger');
         delete window[callbackName];
         document.body.removeChild(script);
         LOADER.style.display = 'none';
     };
-    
     document.body.appendChild(script);
 }
 
 // --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
-    // We now use our universal apiCall for initialization
     apiCall('getInitialData', {}, (data) => {
         APP_DATA = data;
         renderAllViews();
@@ -62,11 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-
-// --- ALL OTHER FUNCTIONS BELOW THIS LINE ARE IDENTICAL TO THE PREVIOUS VERSION ---
-// The only change is that they will now call the new `apiCall` function.
-// The new apiCall automatically handles the success/error and reloading.
-
+// --- EVENT LISTENERS ---
 function addEventListeners() {
     document.querySelectorAll('#sidebar .nav-link').forEach(link => {
         link.addEventListener('click', (e) => { e.preventDefault(); showView(e.currentTarget.dataset.view); });
@@ -78,6 +59,7 @@ function addEventListeners() {
     document.getElementById('save-task-changes').addEventListener('click', handleSaveTask);
 }
 
+// --- VIEW MANAGEMENT ---
 function showView(viewId) {
     document.querySelectorAll('.view').forEach(view => view.classList.remove('active-view'));
     document.getElementById(`${viewId}-view`).classList.add('active-view');
@@ -93,6 +75,7 @@ function renderAllViews() {
     renderReportsView();
 }
 
+// --- VIEW RENDERERS ---
 function renderDashboardView() {
     const view = document.getElementById('dashboard-view');
     const allTasks = APP_DATA.tasks;
@@ -101,7 +84,7 @@ function renderDashboardView() {
     const pendingAssignments = allAssignments.filter(a => a.status === 'Pending').length;
     const branchMap = Object.fromEntries(APP_DATA.branches.map(b => [b.id, b.name]));
     const taskMap = Object.fromEntries(allTasks.map(t => [t.id, t.title]));
-    const recentCompletions = allAssignments.filter(a => a.status === 'Completed' && a.completionTimestamp !== 'N/A').sort((a, b) => new Date(b.completionTimestamp.split('/').reverse().join('-')) - new Date(a.completionTimestamp.split('/').reverse().join('-'))).slice(0, 5);
+    const recentCompletions = allAssignments.filter(a => a.status === 'Completed' && a.completionTimestamp !== 'N/A').sort((a, b) => new Date(b.completionTimestamp.split(' ')[0].split('/').reverse().join('-')) - new Date(a.completionTimestamp.split(' ')[0].split('/').reverse().join('-'))).slice(0, 5);
     view.innerHTML = `<h1 class="mb-4">Dashboard</h1><div class="row g-4"><div class="col-md-6 col-xl-3"><div class="card stat-card"><div class="card-body"><div class="stat-icon bg-primary-subtle text-primary"><i class="bi bi-list-task"></i></div><div><h5>Active Tasks</h5><div class="stat-number">${activeTasks}</div></div></div></div></div><div class="col-md-6 col-xl-3"><div class="card stat-card"><div class="card-body"><div class="stat-icon bg-warning-subtle text-warning"><i class="bi bi-hourglass-split"></i></div><div><h5>Pending Assignments</h5><div class="stat-number">${pendingAssignments}</div></div></div></div></div><div class="col-md-6 col-xl-3"><div class="card stat-card"><div class="card-body"><div class="stat-icon bg-info-subtle text-info"><i class="bi bi-building"></i></div><div><h5>Active Branches</h5><div class="stat-number">${APP_DATA.branches.filter(b => b.status === 'Active').length}</div></div></div></div></div><div class="col-md-6 col-xl-3"><div class="card stat-card"><div class="card-body"><div class="stat-icon bg-secondary-subtle text-secondary"><i class="bi bi-diagram-3"></i></div><div><h5>Active Sections</h5><div class="stat-number">${APP_DATA.sections.filter(s => s.status === 'Active').length}</div></div></div></div></div><div class="col-xl-7"><div class="card h-100"><div class="card-header"><h4><i class="bi bi-clock-history me-2"></i>Recent Activity</h4></div><div class="card-body"><ul class="list-group list-group-flush">${recentCompletions.length > 0 ? recentCompletions.map(a => `<li class="list-group-item">Branch <strong>${branchMap[a.branchId] || 'Unknown'}</strong> completed task "<em>${taskMap[a.taskId] || 'Unknown'}</em>" in ${a.timeTaken}.</li>`).join('') : '<li class="list-group-item">No recent completions.</li>'}</ul></div></div></div><div class="col-xl-5"><div class="card h-100"><div class="card-header"><h4><i class="bi bi-plus-circle me-2"></i>Create New Task</h4></div><div class="card-body" id="create-task-form-container"></div></div></div></div>`;
     renderCreateTaskForm();
 }
@@ -133,7 +116,19 @@ function renderCreateTaskForm() {
     const container = document.getElementById('create-task-form-container');
     const activeSections = APP_DATA.sections.filter(s => s.status === 'Active');
     const activeBranches = APP_DATA.branches.filter(b => b.status === 'Active');
-    container.innerHTML = `<form id="create-task-form"><div class="mb-3"><label for="task-title" class="form-label">Task Title</label><input type="text" class="form-control" id="task-title" required></div><div class="mb-3"><label for="task-description" class="form-label">Description</label><textarea class="form-control" id="task-description" rows="2"></textarea></div><div class="row"><div class="col-md-6 mb-3"><label for="task-section" class="form-label">Section</label><select class="form-select" id="task-section" required><option value="" disabled selected>Select...</option>${activeSections.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}</select></div><div class="col-md-6 mb-3"><label for="task-type" class="form-label">Type</label><select class="form-select" id="task-type"><option value="Normal">Normal</option><option value="Time-Limited">Time-Limited</option></select></div></div><div class="mb-3" id="deadline-container" style="display: none;"><label for="task-deadline" class="form-label">Deadline</label><input type="date" class="form-control" id="task-deadline"></div><div class="mb-3"><label class="form-label">Assign to Branches</label><div id="branch-checkboxes" class="border p-2 rounded bg-light" style="max-height: 110px; overflow-y: auto;">${activeBranches.map(b => `<div class="form-check"><input class="form-check-input" type="checkbox" value="${b.id}" id="branch-${b.id}"><label class="form-check-label" for="branch-${b.id}">${b.name}</label></div>`).join('') || '<p class="text-muted small">No active branches found.</p>'}</div></div><button type="submit" class="btn btn-primary w-100" id="create-task-btn">Create Task</button></form>`;
+    container.innerHTML = `<form id="create-task-form">
+        <div class="mb-3"><label for="task-title" class="form-label">Task Title</label><input type="text" class="form-control" id="task-title" required></div>
+        <div class="mb-3"><label for="task-description" class="form-label">Description</label><textarea class="form-control" id="task-description" rows="2"></textarea></div>
+        <div class="row"><div class="col-md-6 mb-3"><label for="task-section" class="form-label">Section</label><select class="form-select" id="task-section" required><option value="" disabled selected>Select...</option>${activeSections.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}</select></div><div class="col-md-6 mb-3"><label for="task-type" class="form-label">Type</label><select class="form-select" id="task-type"><option value="Normal">Normal</option><option value="Time-Limited">Time-Limited</option></select></div></div>
+        <div class="mb-3" id="deadline-container" style="display: none;"><label for="task-deadline" class="form-label">Deadline</label>
+        <!-- =========================================================================== -->
+        <!-- CRITICAL FIX: Changed input type to datetime-local -->
+        <!-- =========================================================================== -->
+        <input type="datetime-local" class="form-control" id="task-deadline">
+        </div>
+        <div class="mb-3"><label class="form-label">Assign to Branches</label><div id="branch-checkboxes" class="border p-2 rounded bg-light" style="max-height: 110px; overflow-y: auto;">${activeBranches.map(b => `<div class="form-check"><input class="form-check-input" type="checkbox" value="${b.id}" id="branch-${b.id}"><label class="form-check-label" for="branch-${b.id}">${b.name}</label></div>`).join('') || '<p class="text-muted small">No active branches found.</p>'}</div></div>
+        <button type="submit" class="btn btn-primary w-100" id="create-task-btn">Create Task</button>
+    </form>`;
     document.getElementById('create-task-form').addEventListener('submit', handleCreateTask);
     document.getElementById('task-type').addEventListener('change', toggleDeadline);
 }
@@ -143,8 +138,7 @@ function renderTasks() {
     const showInactive = document.getElementById('show-inactive-toggle').checked;
     const tasksToDisplay = showInactive ? APP_DATA.tasks : APP_DATA.tasks.filter(t => t.status === 'Active');
     if (tasksToDisplay.length === 0) {
-        taskListContainer.innerHTML = '<div class="alert alert-info">No tasks to display.</div>';
-        return;
+        taskListContainer.innerHTML = '<div class="alert alert-info">No tasks to display.</div>'; return;
     }
     const branchMap = Object.fromEntries(APP_DATA.branches.map(b => [b.id, b.name]));
     taskListContainer.innerHTML = tasksToDisplay.map(task => {
@@ -175,8 +169,7 @@ function renderReportFilters() {
 function renderReport(reportData) {
     const outputDiv = document.getElementById('report-output');
     if (!reportData || !reportData.table || reportData.table.length === 0) {
-        outputDiv.innerHTML = '<div class="alert alert-warning">No data found for the selected criteria.</div>';
-        return;
+        outputDiv.innerHTML = '<div class="alert alert-warning">No data found for the selected criteria.</div>'; return;
     }
     const headers = Object.keys(reportData.table[0]).filter(h => h !== 'Time Taken (s)');
     const tableHtml = `<div class="card"><div class="card-header d-flex justify-content-between align-items-center"><h4>${reportData.title}</h4><div><button class="btn btn-success me-2" onclick='exportToExcel(${JSON.stringify(reportData)})'><i class="bi bi-file-earmark-excel"></i> Export Excel</button><button class="btn btn-info" onclick="exportChartToJpg()"><i class="bi bi-file-earmark-image"></i> Export Chart</button></div></div><div class="card-body"><div class="row"><div class="col-md-7"><h5>Data Table</h5><div class="table-responsive"><table class="table table-striped table-bordered"><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${reportData.table.map(row => `<tr>${headers.map(h => `<td>${row[h]}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div><div class="col-md-5"><h5>Chart</h5><canvas id="report-chart-canvas"></canvas></div></div></div></div>`;
@@ -192,8 +185,7 @@ function handleCreateTask(e) {
     const selectedBranches = Array.from(document.querySelectorAll('#branch-checkboxes input:checked')).map(cb => cb.value);
     if (selectedBranches.length === 0) {
         showToast('Please assign the task to at least one branch.', 'danger');
-        btn.disabled = false; btn.innerHTML = 'Create Task';
-        return;
+        btn.disabled = false; btn.innerHTML = 'Create Task'; return;
     }
     const taskData = { title: document.getElementById('task-title').value, description: document.getElementById('task-description').value, section: document.getElementById('task-section').value, type: document.getElementById('task-type').value, deadline: document.getElementById('task-deadline').value, branches: selectedBranches };
     apiCall('createTask', taskData, (data) => {
@@ -275,17 +267,13 @@ function generateReport() {
         payload.assessmentMethod = document.getElementById('report-assessment-method').value;
         if (!payload.startDate || !payload.endDate) { showToast('Please select a date range.', 'danger'); return; }
     }
-    apiCall('getReportsData', payload, (data) => {
-        renderReport(data);
-    });
+    apiCall('getReportsData', payload, (data) => { renderReport(data); });
 }
 
 function exportToExcel(reportData) {
     showToast("Preparing your Excel file. The download will start shortly.", 'success');
     apiCall('generateExcelReport', reportData, (data) => {
-        if (data && data.downloadUrl) {
-            window.open(data.downloadUrl, '_blank');
-        }
+        if (data && data.downloadUrl) { window.open(data.downloadUrl, '_blank'); }
     });
 }
 
