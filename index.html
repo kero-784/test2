@@ -51,7 +51,7 @@
     </style>
 </head>
 <body>
-    <div class="version">v 7.1 Matrix</div>
+    <div class="version">v 7.2 Named Sheets</div>
 
     <div id="homePage" class="container page">
         <h1><span id="kero-assistance">Kero Assistance</span></h1>
@@ -110,6 +110,16 @@
             { id: "القطامية 115", text: "القطامية 115" }, { id: "مخزن بلبيس 201", text: "مخزن بلبيس 201" },
             { id: "مخزن الساحل 202", text: "مخزن الساحل 202" },{ id: "فوكا باي 117", text: "فوكا باي 117" },
         ];
+
+        // ##### NEW CODE BLOCK 1: Create a lookup map for branch names #####
+        const branchCodeToNameMap = new Map();
+        locations.forEach(location => {
+            const match = location.id.match(/\d+$/); // Extracts numbers from the end of the string
+            if (match) {
+                const code = match[0];
+                branchCodeToNameMap.set(code, location.text);
+            }
+        });
 
         document.addEventListener('DOMContentLoaded', function() {
             showPage('homePage');
@@ -253,12 +263,18 @@
                 const wb = XLSX.utils.book_new();
                 const sheetHeader = ["Code", "Barcode", "Name", "Quantity"];
                 
-                for (const branch in transfersByBranch) {
-                    const itemsForBranch = transfersByBranch[branch];
+                // ##### MODIFIED CODE BLOCK 2: Use the map to get the full branch name #####
+                for (const branchCode in transfersByBranch) {
+                    const itemsForBranch = transfersByBranch[branchCode];
                     const sheetData = itemsForBranch.map(item => [item.code, item.barcode, item.name, item.quantity]);
                     const ws = XLSX.utils.aoa_to_sheet([sheetHeader, ...sheetData]);
                     ws['!cols'] = [{ wch: 15 }, { wch: 20 }, { wch: 50 }, { wch: 10 }];
-                    XLSX.utils.book_append_sheet(wb, ws, `To ${branch}`);
+
+                    // Look up the full name, but fall back to the code if it's not found
+                    const fullBranchName = branchCodeToNameMap.get(branchCode) || branchCode;
+                    const sheetName = `To ${fullBranchName}`;
+
+                    XLSX.utils.book_append_sheet(wb, ws, sheetName);
                 }
 
                 const unmatchedCodes = uniqueCodes.filter(code => !itemDetailsMap.has(code));
