@@ -1,6 +1,6 @@
 // =================================================================
 // PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbywA734AvQeZqojoRjYVOcu9Zqv4Bx2QHay8qwFEomrP-qLJvNXtZt5pkFPx_qRsI8/exec";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxp5xY8-s9sG-eFNoX29i3LJygLepIaL9OKv7T4QBdYVa8obwi4OutaFIm2Y2vn1iXrRQ/exec";
 // =================================================================
 
 // --- GLOBAL STATE & ELEMENTS ---
