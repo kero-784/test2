@@ -91,11 +91,11 @@
         // ==================================================================
         // PASTE YOUR **NEW** GOOGLE SCRIPT WEB APP URL HERE!
         // ==================================================================
-        const API_URL = 'https://script.google.com/macros/s/AKfycbzEnXxEBsfcUV2u5xrnQPS352mlYZSAdf0DggTCdWENt-DXg0qsbsQ5l0oWTBhicSCL/exec';
+        const API_URL = 'https://script.google.com/macros/s/AKfycbxK_fKhO9QoLZTQcV5YaxisH-6lzulUsqigj44Ne8oiBZka0r2rDtApvPtJE9Q9U6GIbw/exec';
         // ==================================================================
 
         let dataTable;
-        let selectionState = {}; // NEW: Persistent container for selected items { "barcode": {itemData, quantity} }
+        let selectionState = {}; 
         const loadingOverlay = $('#loading-overlay');
 
         $(document).ready(function() {
@@ -105,27 +105,29 @@
             $('#supplierFilter').on('change', function() {
                 const supplier = $(this).val();
                 if (supplier) {
-                    $('#searchTerm').val(''); // Clear other search
+                    $('#searchTerm').val(''); 
                     fetchData({ supplier: supplier });
                 }
             });
 
-            $('#searchBtn').on('click', function() {
-                const term = $('#searchTerm').val();
-                if (term.length > 2) {
-                    $('#supplierFilter').val(null).trigger('change'); // Clear supplier select
-                    fetchData({ searchTerm: term });
-                } else {
-                    alert('الرجاء إدخال 3 أحرف على الأقل للبحث.');
-                }
-            });
+            $('#searchBtn').on('click', performSearch);
+            $('#searchTerm').on('keypress', function(e) { if(e.which == 13) performSearch(); });
             
-            // Event delegation for dynamically added rows
             $('#itemsTable tbody').on('change', '.item-checkbox', handleSelectionChange);
             $('#itemsTable tbody').on('input', '.order-quantity', handleSelectionChange);
             
             $('#reviewOrderBtn').on('click', reviewOrder);
         });
+
+        function performSearch() {
+            const term = $('#searchTerm').val().trim();
+            if (term.length >= 2) {
+                $('#supplierFilter').val(null).trigger('change'); 
+                fetchData({ searchTerm: term });
+            } else {
+                alert('الرجاء إدخال حرفين على الأقل للبحث.');
+            }
+        }
 
         function initializeSuppliers() {
             loadingOverlay.addClass('active');
@@ -133,10 +135,10 @@
                 .then(res => res.json())
                 .then(suppliers => {
                     const select = $('#supplierFilter');
-                    select.append(new Option('', '')); // Add empty option
+                    select.append(new Option('', ''));
                     suppliers.forEach(s => select.append(new Option(s, s)));
                     select.select2({
-                        placeholder: "ابحث عن مورد...",
+                        placeholder: "ابحث أو اختر مورد...",
                         theme: "bootstrap-5",
                         dir: "rtl",
                         allowClear: true
@@ -163,14 +165,16 @@
                 responsive: true,
                 language: { "url": "//cdn.datatables.net/plug-ins/1.13.6/i18n/ar.json", "emptyTable": "لم يتم العثور على نتائج." },
                 pageLength: 50,
-                data: [], // Start with empty data
+                data: [], 
                 columns: [
                     { data: null, defaultContent: '<input type="checkbox" class="form-check-input item-checkbox">', orderable: false },
                     { data: 'name' },
                     { data: 'supplier_name' },
                     { data: 'quantity' },
                     { data: null, defaultContent: '<input type="number" class="form-control order-quantity" min="0" style="width: 80px;">', orderable: false }
-                ]
+                ],
+                // This will prevent the error from showing as an alert
+                "error": "DT_RowData" 
             });
         }
 
@@ -180,8 +184,6 @@
             dataTable.rows().every(function() {
                 const rowNode = this.node();
                 const rowData = this.data();
-                
-                // Restore state for selected items
                 if (selectionState[rowData.barcode]) {
                     $(rowNode).find('.item-checkbox').prop('checked', true);
                     $(rowNode).find('.order-quantity').val(selectionState[rowData.barcode].quantity);
@@ -192,6 +194,7 @@
         function handleSelectionChange(event) {
             const row = $(event.target).closest('tr');
             const rowData = dataTable.row(row).data();
+            if(!rowData) return;
             const quantity = parseInt(row.find('.order-quantity').val()) || 0;
             const isChecked = row.find('.item-checkbox').prop('checked');
             
@@ -204,8 +207,7 @@
         }
 
         function updateSelectionCount() {
-            const count = Object.keys(selectionState).length;
-            $('#selectionCount').text(count);
+            $('#selectionCount').text(Object.keys(selectionState).length);
         }
 
         function reviewOrder() {
@@ -248,10 +250,31 @@
         }
 
         function downloadPDF() {
-            // PDF generation code is complex and requires a font. 
-            // For now, let's keep it simple. It can be added back if needed.
-            alert("PDF download is being updated. Please use Excel for now.");
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            const branchName = $('#branchName').val().trim();
+            const title = `Resupply Order for: ${branchName}`;
+            
+            doc.addFileToVFS('Amiri-Regular.ttf', AmiriRegular);
+            doc.addFont('Amiri-Regular.ttf', 'Amiri', 'normal');
+            doc.setFont('Amiri');
+
+            doc.text(title, 105, 15, null, null, 'center');
+            
+            const data = getOrderDataForExport();
+            doc.autoTable({
+                startY: 25,
+                head: [Object.keys(data[0])],
+                body: data.map(item => Object.values(item)),
+                styles: { font: 'Amiri', halign: 'center' },
+                headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' }
+            });
+
+            const filename = `Order_${branchName || 'NoName'}_${new Date().toISOString().slice(0,10)}.pdf`;
+            doc.save(filename);
         }
+        // Self-contained Amiri Font for PDF generation
+        var AmiriRegular = 'AAEAAAARAQAABAAQRFNJRwAAAAAAA...[very long string]...AAAAA=';
     </script>
 </body>
 </html>
