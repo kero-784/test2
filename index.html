@@ -82,8 +82,7 @@
         // PASTE YOUR **NEW** GOOGLE SCRIPT WEB APP URL HERE!
         // THIS IS THE MOST IMPORTANT STEP.
         // ==================================================================
-        const API_URL = 'Google Apps Script
-ReferenceError: Content is not defined (line 55, file "resupply")';
+        const API_URL = 'https://script.google.com/macros/s/AKfycbyA-r-hvSXUBEONDTsnq8YgLqjgvpOXkkwC82P3bTOSAvEExtLOvj61JGYSaY3fP4l_Sg/exec';
         // ==================================================================
 
         let allItems = [];
@@ -91,7 +90,7 @@ ReferenceError: Content is not defined (line 55, file "resupply")';
         let orderContainer = [];
 
         $(document).ready(function() {
-            if (API_URL === 'https://script.google.com/macros/s/AKfycbyA-r-hvSXUBEONDTsnq8YgLqjgvpOXkkwC82P3bTOSAvEExtLOvj61JGYSaY3fP4l_Sg/exec') {
+            if (API_URL === 'PASTE_YOUR_NEW_WEB_APP_URL_HERE') {
                 $('#loading-overlay').html(`<div class="alert alert-danger p-4"><strong>خطأ في الإعداد:</strong><br>الرجاء فتح ملف index.html وتعيين متغير API_URL.</div>`);
                 return;
             }
