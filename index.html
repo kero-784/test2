@@ -60,7 +60,7 @@
     </style>
 </head>
 <body>
-    <div class="version">v12.0 Unique Branch IDs</div>
+    <div class="version">v14.0 Final Fix</div>
 
     <div id="homePage" class="container page">
         <h1><span id="kero-assistance">Kero Assistance</span></h1>
@@ -117,9 +117,9 @@
             <div class="instructions">
                 <strong>Instructions:</strong>
                 <ol>
-                    <li>Generate the transfer file using the "Stock Transfer" tool and send it to the branch manager.</li>
-                    <li>The manager adds a new column named '<strong>Transferred Quantity</strong>' to the file and fills in the actual quantities sent.</li>
-                    <li>Upload that single, updated Excel file below to generate the reconciliation report.</li>
+                    <li>Generate the transfer file and send it to the branch manager.</li>
+                    <li>The manager **must add a new column named 'Transferred Quantity'** to the file and fill in the quantities.</li>
+                    <li>Upload that single, updated Excel file below to generate the report.</li>
                 </ol>
             </div>
             <div class="file-upload-area">
@@ -127,6 +127,7 @@
                 <p id="reconciliationFileName">No file selected.</p>
                 <input type="file" id="reconciliationFile" accept=".xlsx">
                 <button id="uploadReconciliationButton">Select Reconciliation File</button>
+                <button id="clearReconciliation">Clear File</button>
             </div>
         </div>
         <button id="processConfirmationButton" class="main-action-button">Generate Reconciliation Report</button>
@@ -177,125 +178,168 @@
             document.getElementById('uploadReconciliationButton').addEventListener('click', () => document.getElementById('reconciliationFile').click());
             document.getElementById('reconciliationFile').addEventListener('change', handleFileUpload);
             document.getElementById('processConfirmationButton').addEventListener('click', processConfirmation);
+            document.getElementById('clearReconciliation').addEventListener('click', clearReconciliation);
         });
         
-        // ##### MODIFIED FUNCTION - GENERATES A UNIQUE ID FOR EACH BRANCH #####
-        async function processTransferData() {
-            if (SCRIPT_URL.includes('PASTE_YOUR_NEW_DEPLOYED_WEB_APP_URL_HERE')) return showMessage('Configuration Error: The SCRIPT_URL has not been set in the HTML file.', 'error');
-            if (!transferListData) return showMessage('Error: Please upload a Transfer file.', 'error');
-            const locationFrom = document.getElementById('locationFrom').value;
-            if (!locationFrom) return showMessage('Error: Please select the "From" location.', 'error');
+        function clearQuantity() { transferListData = null; document.getElementById('quantityFile').value = ''; showMessage('Transfer file has been cleared.', 'info'); }
+        function clearBarcodes() { barcodeData = null; document.getElementById('barcodeFile').value = ''; showMessage('Barcode file has been cleared.', 'info'); }
+        function clearReconciliation() { reconciliationData = null; document.getElementById('reconciliationFile').value = ''; document.getElementById('reconciliationFileName').textContent = 'No file selected.'; showMessage('Reconciliation file has been cleared.', 'info'); }
 
-            const isSeparated = document.getElementById('outputFormatToggle').checked;
-            const button = document.getElementById('processTransferButton');
-            button.disabled = true;
-            showMessage(`Processing ${transferListData.length} items... Fetching details.`, 'info');
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            const targetId = event.target.id;
+            const fileTypeConfig = {
+                'quantityFile': { type: 'transferList', requiredHeaders: ['code'], dataVar: 'transferListData', clearFunc: clearQuantity },
+                'barcodeFile': { type: 'barcode', requiredHeaders: ['barcode'], dataVar: 'barcodeData', clearFunc: clearBarcodes },
+                'reconciliationFile': { type: 'reconciliation', requiredHeaders: ['code', 'quantity', 'transferred quantity'], dataVar: 'reconciliationData', clearFunc: clearReconciliation }
+            };
+            const config = fileTypeConfig[targetId];
 
-            try {
-                const uniqueCodes = [...new Set(transferListData.map(item => item.code))];
-                const payloadForServer = { action: 'processTransfer', sheetName: GOOGLE_SHEET_NAME_TO_USE, payload: uniqueCodes.map(code => ({ code: code })) };
-
-                const response = await fetch(SCRIPT_URL, { method: 'POST', mode: 'cors', body: JSON.stringify(payloadForServer) });
-                if (!response.ok) throw new Error(`Server returned an error: ${response.statusText}`);
-                const result = await response.json();
-                if (result.status === 'error') throw new Error(result.message);
-
-                const itemDetailsMap = new Map();
-                result.results.forEach(itemArray => {
-                    const [code, barcode, name] = itemArray;
-                    itemDetailsMap.set(String(code), { barcode, name });
-                });
-
-                const transfersByBranch = transferListData.reduce((acc, item) => {
-                    const { branch, code, quantity } = item;
-                    if (!acc[branch]) acc[branch] = [];
-                    const details = itemDetailsMap.get(code);
-                    if (details) acc[branch].push({ code, quantity, ...details });
-                    return acc;
-                }, {});
-                
-                const unmatchedCodes = uniqueCodes.filter(code => !itemDetailsMap.has(code));
-                const formattedDate = new Date().toISOString().slice(0, 10);
-
-                if (isSeparated) {
-                    const zip = new JSZip();
-                    const sheetHeader = ["Transfer Order ID", "Code", "Barcode", "Name", "Quantity"];
-                    
-                    for (const branchCode in transfersByBranch) {
-                        // 1. Generate a UNIQUE 4-digit serial number FOR EACH BRANCH
-                        const branchSerialNumber = Math.floor(1000 + Math.random() * 9000);
-                        
-                        const itemsForBranch = transfersByBranch[branchCode];
-                        const sheetData = itemsForBranch.map(item => [branchSerialNumber, item.code, item.barcode, item.name, item.quantity]);
-                        
-                        const wb = XLSX.utils.book_new();
-                        let ws = XLSX.utils.aoa_to_sheet([sheetHeader, ...sheetData]);
-                        ws['!cols'] = [{ wch: 18 }, { wch: 15 }, { wch: 20 }, { wch: 50 }, { wch: 10 }];
-                        applyStylesToWorksheet(ws);
-                        XLSX.utils.book_append_sheet(wb, ws, "Transfer Data");
-
-                        const fullBranchName = branchCodeToNameMap.get(branchCode) || branchCode;
-                        const fileName = `Transfer to ${fullBranchName} #${branchSerialNumber}.xlsx`;
-                        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-                        zip.file(fileName, excelBuffer);
-                    }
-
-                    if (unmatchedCodes.length > 0) { /* ... unchanged ... */ }
-                    
-                    // 2. Filename for ZIP is now more generic
-                    const zipFileName = `Transfers from ${locationFrom} ${formattedDate}.zip`;
-                    zip.generateAsync({ type: 'blob' }).then(function(content) {
-                        const link = document.createElement('a');
-                        link.href = URL.createObjectURL(content);
-                        link.download = zipFileName;
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                    });
-                    showMessage(`Success! A zip file with all unique transfer orders has been downloaded.`, 'success');
-
-                } else { // Consolidated File
-                    const wb = XLSX.utils.book_new();
-                    const sheetHeader = ["Transfer Order ID", "Code", "Barcode", "Name", "Quantity"];
-                    
-                    for (const branchCode in transfersByBranch) {
-                        // 1. Generate a UNIQUE 4-digit serial number FOR EACH BRANCH (sheet)
-                        const branchSerialNumber = Math.floor(1000 + Math.random() * 9000);
-                        
-                        const itemsForBranch = transfersByBranch[branchCode];
-                        const sheetData = itemsForBranch.map(item => [branchSerialNumber, item.code, item.barcode, item.name, item.quantity]);
-                        
-                        let ws = XLSX.utils.aoa_to_sheet([sheetHeader, ...sheetData]);
-                        ws['!cols'] = [{ wch: 18 }, { wch: 15 }, { wch: 20 }, { wch: 50 }, { wch: 10 }];
-                        applyStylesToWorksheet(ws);
-
-                        const fullBranchName = branchCodeToNameMap.get(branchCode) || branchCode;
-                        const sheetName = `To ${fullBranchName}`;
-                        XLSX.utils.book_append_sheet(wb, ws, sheetName);
-                    }
-
-                    if (unmatchedCodes.length > 0) { /* ... unchanged ... */ }
-                    
-                    // 2. Filename for consolidated file is now more generic
-                    const fileName = `Transfers from ${locationFrom} ${formattedDate}.xlsx`;
-                    XLSX.writeFile(wb, fileName);
-                    showMessage(`Success! Consolidated file with unique transfer IDs per branch has been downloaded.`, 'success');
-                }
-
-            } catch (error) { 
-                showMessage(`Processing Error: ${error.message}`, 'error'); 
-            } finally { 
-                button.disabled = false; 
+            if (!file || !config) return;
+            
+            config.clearFunc();
+            const fileNameDisplayElement = document.getElementById(`${targetId.replace('File', '')}FileName`);
+            if (fileNameDisplayElement) {
+                fileNameDisplayElement.textContent = `Validating ${file.name}...`;
             }
+            showMessage(`Reading and validating file...`, 'info');
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    if (!workbook.SheetNames || workbook.SheetNames.length === 0) throw new Error("File is invalid. The Excel workbook contains no sheets.");
+                    
+                    let parsedData;
+
+                    if (config.type === 'reconciliation') {
+                        let allSheetsData = [];
+                        workbook.SheetNames.forEach(sheetName => {
+                            if (sheetName.toLowerCase().includes("unmatched")) return;
+                            const worksheet = workbook.Sheets[sheetName];
+                            const rows = XLSX.utils.sheet_to_json(worksheet, { defval: null });
+                            allSheetsData.push(...rows.map(row => ({ ...row, branch: sheetName })));
+                        });
+                        
+                        if (allSheetsData.length === 0) throw new Error("File is invalid. No data rows were found in any of the sheets.");
+                        
+                        const headers = Object.keys(allSheetsData[0]).map(h => String(h || '').toLowerCase().trim());
+                        
+                        const missingHeaders = config.requiredHeaders.filter(h => !headers.includes(h));
+                        if (missingHeaders.length > 0) {
+                            throw new Error(`Upload Failed: The file is missing the required column(s): [${missingHeaders.join(', ')}]. Please ensure the manager added the 'Transferred Quantity' column.`);
+                        }
+                        parsedData = allSheetsData.map(row => { const newRow = {}; for (const key in row) { newRow[key.toLowerCase().trim()] = row[key]; } return newRow; });
+                    } else {
+                        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                        const rowsAsArray = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null });
+                        if (rowsAsArray.length < 2) throw new Error(`The first sheet is empty or contains only a header.`);
+                        const headerRow = rowsAsArray[0].map(h => String(h || '').toLowerCase().trim());
+                        const dataRows = rowsAsArray.slice(1);
+                        if (config.type === 'transferList') {
+                            if (!headerRow || headerRow.length < 2 || headerRow[0] !== 'code') throw new Error("Invalid transfer file format. First column must be 'code'.");
+                            const flattenedData = [];
+                            dataRows.forEach((row) => { const itemCode = row[0]; if (!itemCode || String(itemCode).trim() === '') return; headerRow.slice(1).forEach((branch, colIndex) => { const quantity = row[colIndex + 1]; if (quantity !== null && quantity !== '' && !isNaN(quantity) && Number(quantity) > 0) { flattenedData.push({ code: String(itemCode).trim(), branch: String(branch).trim(), quantity: Number(quantity) }); } }); });
+                            if (flattenedData.length === 0) throw new Error(`File uploaded, but no valid transfer quantities were found.`);
+                            parsedData = flattenedData;
+                        } else if (config.type === 'barcode') {
+                            const headerMap = {}; headerRow.forEach((h, i) => { headerMap[h] = i; });
+                            const missingHeaders = config.requiredHeaders.filter(h => headerMap[h] === undefined);
+                            if (missingHeaders.length > 0) throw new Error(`File is missing required column(s): [${missingHeaders.join(', ')}].`);
+                            const jsonData = dataRows.map(row => ({ barcode: String(row[headerMap['barcode']] || '').trim() })).filter(obj => obj.barcode !== "");
+                            if (jsonData.length === 0) throw new Error(`File contains no data rows.`);
+                            parsedData = jsonData;
+                        }
+                    }
+                    
+                    window[config.dataVar] = parsedData;
+                    if (fileNameDisplayElement) { fileNameDisplayElement.textContent = file.name; }
+                    showMessage(`${file.name} uploaded and validated successfully. Ready to generate report.`, 'success');
+
+                } catch (error) {
+                    showMessage(error.message, 'error');
+                    config.clearFunc();
+                } finally {
+                    event.target.value = '';
+                }
+            };
+            reader.onerror = () => {
+                showMessage(`Fatal Error: Could not read the file.`, 'error');
+                config.clearFunc();
+            };
+            reader.readAsArrayBuffer(file);
         }
         
-        // --- All other functions are unchanged, robust, and minified for space ---
-        function handleFileUpload(event){const file=event.target.files[0];const targetId=event.target.id;const fileTypeConfig={'quantityFile':{type:'transferList',requiredHeaders:['code'],dataVar:'transferListData'},'barcodeFile':{type:'barcode',requiredHeaders:['barcode'],dataVar:'barcodeData'},'reconciliationFile':{type:'reconciliation',requiredHeaders:['code','quantity','transferred quantity'],dataVar:'reconciliationData'}};const config=fileTypeConfig[targetId];if(!file||!config)return;window[config.dataVar]=null;const fileNameDisplayId=`${targetId.replace('File','')}FileName`;if(document.getElementById(fileNameDisplayId)){document.getElementById(fileNameDisplayId).textContent=file.name;}const reader=new FileReader();reader.onload=function(e){try{const data=new Uint8Array(e.target.result);const workbook=XLSX.read(data,{type:'array'});if(!workbook.SheetNames||workbook.SheetNames.length===0)throw new Error("Excel file contains no sheets.");if(config.type==='reconciliation'){let allSheetsData=[];workbook.SheetNames.forEach(sheetName=>{if(sheetName.toLowerCase().includes("unmatched"))return;const worksheet=workbook.Sheets[sheetName];const rows=XLSX.utils.sheet_to_json(worksheet,{defval:null});const rowsWithBranch=rows.map(row=>({...row,branch:sheetName}));allSheetsData.push(...rowsWithBranch);});if(allSheetsData.length===0)throw new Error("No valid data rows found in the file.");const firstRow=allSheetsData[0];const headers=Object.keys(firstRow).map(h=>String(h||'').toLowerCase().trim());const missingHeaders=config.requiredHeaders.filter(h=>!headers.includes(h));if(missingHeaders.length>0){throw new Error(`File is invalid. It's missing the required column(s): [${missingHeaders.join(', ')}]. Please check the file and try again.`);}const parsedData=allSheetsData.map(row=>{const newRow={};for(const key in row){newRow[key.toLowerCase().trim()]=row[key];}return newRow;});window[config.dataVar]=parsedData;showMessage(`${file.name} uploaded successfully. Ready to generate report.`,'success');}else{const worksheet=workbook.Sheets[workbook.SheetNames[0]];const rowsAsArray=XLSX.utils.sheet_to_json(worksheet,{header:1,defval:null});if(rowsAsArray.length<2)throw new Error(`The first sheet is empty or contains only a header.`);const headerRow=rowsAsArray[0].map(h=>String(h||'').toLowerCase().trim());const dataRows=rowsAsArray.slice(1);if(config.type==='transferList'){if(!headerRow||headerRow.length<2||headerRow[0]!=='code')throw new Error("Invalid transfer file format. First column must be 'code'.");const branchHeaders=headerRow.slice(1);const flattenedData=[];dataRows.forEach((row)=>{const itemCode=row[0];if(!itemCode||String(itemCode).trim()==='')return;branchHeaders.forEach((branch,colIndex)=>{const quantity=row[colIndex+1];if(quantity!==null&&quantity!==''&&!isNaN(quantity)&&Number(quantity)>0){flattenedData.push({code:String(itemCode).trim(),branch:String(branch).trim(),quantity:Number(quantity)})}})});if(flattenedData.length===0)throw new Error(`File uploaded, but no valid transfer quantities were found.`);transferListData=flattenedData;showMessage(`Transfer file with ${flattenedData.length} total items uploaded successfully!`,'success')}else if(config.type==='barcode'){const headerMap={};headerRow.forEach((h,i)=>{headerMap[h]=i});const missingHeaders=config.requiredHeaders.filter(h=>headerMap[h]===undefined);if(missingHeaders.length>0)throw new Error(`File is missing required column(s): [${missingHeaders.join(', ')}].`);const jsonData=dataRows.map(row=>({barcode:String(row[headerMap['barcode']]||'').trim()})).filter(obj=>obj.barcode!=="");if(jsonData.length===0)throw new Error(`File contains no data rows.`);barcodeData=jsonData;showMessage(`Barcode file with ${jsonData.length} rows uploaded successfully!`,'success')}}}catch(error){showMessage(`Upload Error: ${error.message}`,'error');window[config.dataVar]=null;}finally{event.target.value=''}};reader.onerror=()=>showMessage(`Error reading file.`,'error');reader.readAsArrayBuffer(file)}
-        function processConfirmation(){if(!reconciliationData)return showMessage('Error: Please upload the completed reconciliation file.','error');const button=document.getElementById('processConfirmationButton');button.disabled=true;showMessage('Processing... Analyzing file and generating report.','info');try{const reconciliationResults=reconciliationData.map(item=>{const requestedQty=Number(item['quantity'])||0;const transferredQty=Number(item['transferred quantity'])||0;const discrepancy=requestedQty-transferredQty;let status='';if(discrepancy===0)status='Fully Transferred';else if(transferredQty===0)status='Not Transferred';else if(discrepancy>0)status='Partially Transferred';else status='Over Transferred';return{'Branch':item['branch'],'Code':item['code'],'Barcode':item['barcode'],'Name':item['name'],'Requested Qty':requestedQty,'Transferred Qty':transferredQty,'Discrepancy':discrepancy,'Status':status,};});const wb=XLSX.utils.book_new();const branchAnalysis={};reconciliationResults.forEach(item=>{const branchName=item.Branch;if(!branchName)return;if(!branchAnalysis[branchName]){branchAnalysis[branchName]={requested:0,transferred:0};}branchAnalysis[branchName].requested+=item['Requested Qty'];branchAnalysis[branchName].transferred+=item['Transferred Qty'];});const analysisSheetData=Object.keys(branchAnalysis).map(branchName=>{const data=branchAnalysis[branchName];const rate=data.requested>0?(data.transferred/data.requested):0;return{'Branch':branchName,'Total Qty Requested':data.requested,'Total Qty Transferred':data.transferred,'Fulfillment Rate':rate,};});let wsAnalysis=XLSX.utils.json_to_sheet(analysisSheetData);wsAnalysis['!cols']=[{wch:30},{wch:20},{wch:22},{wch:18}];const range=XLSX.utils.decode_range(wsAnalysis['!ref']);for(let R=range.s.r+1;R<=range.e.r;++R){const cell_ref=XLSX.utils.encode_cell({c:3,r:R});if(wsAnalysis[cell_ref]){wsAnalysis[cell_ref].z='0.00%';}}applyStylesToWorksheet(wsAnalysis);XLSX.utils.book_append_sheet(wb,wsAnalysis,"Branch Fulfillment Analysis");const discrepancyResults=reconciliationResults.filter(item=>item.Status!=='Fully Transferred');if(discrepancyResults.length>0){let wsDiscrepancy=XLSX.utils.json_to_sheet(discrepancyResults,{header:['Branch','Code','Barcode','Name','Requested Qty','Transferred Qty','Discrepancy','Status']});wsDiscrepancy['!cols']=[{wch:30},{wch:15},{wch:20},{wch:50},{wch:15},{wch:15},{wch:15},{wch:20}];applyStylesToWorksheet(wsDiscrepancy);XLSX.utils.book_append_sheet(wb,wsDiscrepancy,"Discrepancy Report");}let wsFull=XLSX.utils.json_to_sheet(reconciliationResults,{header:['Branch','Code','Barcode','Name','Requested Qty','Transferred Qty','Discrepancy','Status']});wsFull['!cols']=[{wch:30},{wch:15},{wch:20},{wch:50},{wch:15},{wch:15},{wch:15},{wch:20}];applyStylesToWorksheet(wsFull);XLSX.utils.book_append_sheet(wb,wsFull,"Full Reconciliation Report");const formattedDate=new Date().toISOString().slice(0,10);XLSX.writeFile(wb,`Transfer_Reconciliation_Report_${formattedDate}.xlsx`);showMessage('Success! Report with branch analysis and discrepancy details has been downloaded.','success');}catch(error){showMessage(`Processing Error: ${error.message}`,'error')}finally{button.disabled=false}}
+        function processConfirmation() {
+            if (!reconciliationData) {
+                showMessage('Error: Please upload a valid and completed reconciliation file first.', 'error');
+                return;
+            }
+            const button = document.getElementById('processConfirmationButton');
+            button.disabled = true;
+            showMessage('Processing... Analyzing file and generating report.', 'info');
+            try {
+                const reconciliationResults = reconciliationData.map(item => {
+                    const requestedQty = Number(item['quantity']) || 0;
+                    const transferredQty = Number(item['transferred quantity']) || 0;
+                    const discrepancy = requestedQty - transferredQty;
+                    let status = '';
+                    if (discrepancy === 0) status = 'Fully Transferred';
+                    else if (transferredQty === 0) status = 'Not Transferred';
+                    else if (discrepancy > 0) status = 'Partially Transferred';
+                    else status = 'Over Transferred';
+                    return { 'Branch': item['branch'], 'Code': item['code'], 'Barcode': item['barcode'], 'Name': item['name'], 'Requested Qty': requestedQty, 'Transferred Qty': transferredQty, 'Discrepancy': discrepancy, 'Status': status, };
+                });
+                const wb = XLSX.utils.book_new();
+                const branchAnalysis = {};
+                reconciliationResults.forEach(item => {
+                    const branchName = item.Branch;
+                    if (!branchName) return;
+                    if (!branchAnalysis[branchName]) {
+                        branchAnalysis[branchName] = { requested: 0, transferred: 0 };
+                    }
+                    branchAnalysis[branchName].requested += item['Requested Qty'];
+                    branchAnalysis[branchName].transferred += item['Transferred Qty'];
+                });
+                const analysisSheetData = Object.keys(branchAnalysis).map(branchName => {
+                    const data = branchAnalysis[branchName];
+                    const rate = data.requested > 0 ? (data.transferred / data.requested) : 0;
+                    return { 'Branch': branchName, 'Total Qty Requested': data.requested, 'Total Qty Transferred': data.transferred, 'Fulfillment Rate': rate, };
+                });
+                let wsAnalysis = XLSX.utils.json_to_sheet(analysisSheetData);
+                wsAnalysis['!cols'] = [{ wch: 30 }, { wch: 20 }, { wch: 22 }, { wch: 18 }];
+                const range = XLSX.utils.decode_range(wsAnalysis['!ref']);
+                for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+                    const cell_ref = XLSX.utils.encode_cell({ c: 3, r: R });
+                    if (wsAnalysis[cell_ref]) { wsAnalysis[cell_ref].z = '0.00%'; }
+                }
+                applyStylesToWorksheet(wsAnalysis);
+                XLSX.utils.book_append_sheet(wb, wsAnalysis, "Branch Fulfillment Analysis");
+                const discrepancyResults = reconciliationResults.filter(item => item.Status !== 'Fully Transferred');
+                if (discrepancyResults.length > 0) {
+                    let wsDiscrepancy = XLSX.utils.json_to_sheet(discrepancyResults, { header: ['Branch', 'Code', 'Barcode', 'Name', 'Requested Qty', 'Transferred Qty', 'Discrepancy', 'Status'] });
+                    wsDiscrepancy['!cols'] = [{ wch: 30 }, { wch: 15 }, { wch: 20 }, { wch: 50 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 20 }];
+                    applyStylesToWorksheet(wsDiscrepancy);
+                    XLSX.utils.book_append_sheet(wb, wsDiscrepancy, "Discrepancy Report");
+                }
+                let wsFull = XLSX.utils.json_to_sheet(reconciliationResults, { header: ['Branch', 'Code', 'Barcode', 'Name', 'Requested Qty', 'Transferred Qty', 'Discrepancy', 'Status'] });
+                wsFull['!cols'] = [{ wch: 30 }, { wch: 15 }, { wch: 20 }, { wch: 50 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 20 }];
+                applyStylesToWorksheet(wsFull);
+                XLSX.utils.book_append_sheet(wb, wsFull, "Full Reconciliation Report");
+                const formattedDate = new Date().toISOString().slice(0, 10);
+                XLSX.writeFile(wb, `Transfer_Reconciliation_Report_${formattedDate}.xlsx`);
+                showMessage('Success! Report with branch analysis and discrepancy details has been downloaded.', 'success');
+            } catch (error) {
+                showMessage(`Processing Error: ${error.message}`, 'error');
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        async function processTransferData(){if(SCRIPT_URL.includes('PASTE_YOUR_NEW_DEPLOYED_WEB_APP_URL_HERE'))return showMessage('Configuration Error: The SCRIPT_URL has not been set in the HTML file.','error');if(!transferListData)return showMessage('Error: Please upload a Transfer file.','error');const locationFrom=document.getElementById('locationFrom').value;if(!locationFrom)return showMessage('Error: Please select the "From" location.','error');const isSeparated=document.getElementById('outputFormatToggle').checked;const button=document.getElementById('processTransferButton');button.disabled=true;showMessage(`Processing ${transferListData.length} items... Fetching details.`,'info');try{const uniqueCodes=[...new Set(transferListData.map(item=>item.code))];const payloadForServer={action:'processTransfer',sheetName:GOOGLE_SHEET_NAME_TO_USE,payload:uniqueCodes.map(code=>({code:code}))};const response=await fetch(SCRIPT_URL,{method:'POST',mode:'cors',body:JSON.stringify(payloadForServer)});if(!response.ok)throw new Error(`Server returned an error: ${response.statusText}`);const result=await response.json();if(result.status==='error')throw new Error(result.message);const itemDetailsMap=new Map();result.results.forEach(itemArray=>{const[code,barcode,name]=itemArray;itemDetailsMap.set(String(code),{barcode,name})});const transfersByBranch=transferListData.reduce((acc,item)=>{const{branch,code,quantity}=item;if(!acc[branch])acc[branch]=[];const details=itemDetailsMap.get(code);if(details)acc[branch].push({code,quantity,...details});return acc},{});const unmatchedCodes=uniqueCodes.filter(code=>!itemDetailsMap.has(code));const formattedDate=new Date().toISOString().slice(0,10);if(isSeparated){const zip=new JSZip();const sheetHeader=["Transfer Order ID","Code","Barcode","Name","Quantity"];for(const branchCode in transfersByBranch){const branchSerialNumber=Math.floor(1000+Math.random()*9000);const itemsForBranch=transfersByBranch[branchCode];const sheetData=itemsForBranch.map(item=>[branchSerialNumber,item.code,item.barcode,item.name,item.quantity]);const wb=XLSX.utils.book_new();let ws=XLSX.utils.aoa_to_sheet([sheetHeader,...sheetData]);ws['!cols']=[{wch:18},{wch:15},{wch:20},{wch:50},{wch:10}];applyStylesToWorksheet(ws);XLSX.utils.book_append_sheet(wb,ws,"Transfer Data");const fullBranchName=branchCodeToNameMap.get(branchCode)||branchCode;const fileName=`Transfer to ${fullBranchName} #${branchSerialNumber}.xlsx`;const excelBuffer=XLSX.write(wb,{bookType:'xlsx',type:'array'});zip.file(fileName,excelBuffer)}if(unmatchedCodes.length>0){const wb=XLSX.utils.book_new();let wsUnmatched=XLSX.utils.aoa_to_sheet([["Code","Reason"],...unmatchedCodes.map(code=>[code,"Code not found"])]);wsUnmatched['!cols']=[{wch:15},{wch:40}];applyStylesToWorksheet(wsUnmatched);XLSX.utils.book_append_sheet(wb,wsUnmatched,"Unmatched Codes");const excelBuffer=XLSX.write(wb,{bookType:'xlsx',type:'array'});zip.file("Unmatched Codes.xlsx",excelBuffer)}const zipFileName=`Transfers from ${locationFrom} ${formattedDate}.zip`;zip.generateAsync({type:'blob'}).then(function(content){const link=document.createElement('a');link.href=URL.createObjectURL(content);link.download=zipFileName;document.body.appendChild(link);link.click();document.body.removeChild(link)});showMessage(`Success! A zip file with all unique transfer orders has been downloaded.`,'success')}else{const wb=XLSX.utils.book_new();const sheetHeader=["Transfer Order ID","Code","Barcode","Name","Quantity"];for(const branchCode in transfersByBranch){const branchSerialNumber=Math.floor(1000+Math.random()*9000);const itemsForBranch=transfersByBranch[branchCode];const sheetData=itemsForBranch.map(item=>[branchSerialNumber,item.code,item.barcode,item.name,item.quantity]);let ws=XLSX.utils.aoa_to_sheet([sheetHeader,...sheetData]);ws['!cols']=[{wch:18},{wch:15},{wch:20},{wch:50},{wch:10}];applyStylesToWorksheet(ws);const fullBranchName=branchCodeToNameMap.get(branchCode)||branchCode;const sheetName=`To ${fullBranchName}`;XLSX.utils.book_append_sheet(wb,ws,sheetName)}if(unmatchedCodes.length>0){const wb=XLSX.utils.book_new();let wsUnmatched=XLSX.utils.aoa_to_sheet([["Code","Reason"],...unmatchedCodes.map(code=>[code,"Code not found"])]);wsUnmatched['!cols']=[{wch:15},{wch:40}];applyStylesToWorksheet(wsUnmatched);XLSX.utils.book_append_sheet(wb,wsUnmatched,"Unmatched Codes")}const fileName=`Transfers from ${locationFrom} ${formattedDate}.xlsx`;XLSX.writeFile(wb,fileName);showMessage(`Success! Consolidated file with unique transfer IDs per branch has been downloaded.`,'success')}}catch(error){showMessage(`Processing Error: ${error.message}`,'error')}finally{button.disabled=false}}
         function showPage(pageId){document.querySelectorAll('.page').forEach(p=>{p.style.display='none'});const n=document.getElementById(pageId);if(n){n.style.display='block';const m=n.querySelector('.message-display');if(m){m.innerText='';m.className='message-display'}}}
         function applyStylesToWorksheet(ws){const border={top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}};const headerStyle={font:{bold:true},fill:{fgColor:{rgb:"E9E9E9"}},border:border,alignment:{horizontal:'center'}};const cellStyle={border:border};const range=XLSX.utils.decode_range(ws['!ref']);for(let R=range.s.r;R<=range.e.r;++R){for(let C=range.s.c;C<=range.e.c;++C){const cell_address={c:C,r:R};const cell_ref=XLSX.utils.encode_cell(cell_address);if(!ws[cell_ref])continue;if(R===0){ws[cell_ref].s=headerStyle}else{ws[cell_ref].s=cellStyle}}}ws['!pageSetup']={orientation:'landscape',fitToWidth:1,fitToHeight:0}}
-        function clearQuantity(){transferListData=null;document.getElementById('quantityFile').value='';showMessage('Transfer file has been cleared.','info')}
-        function clearBarcodes(){barcodeData=null;document.getElementById('barcodeFile').value='';showMessage('Barcode file has been cleared.','info')}
         async function processAndValidateBarcodes(){if(SCRIPT_URL.includes('PASTE_YOUR_NEW_DEPLOYED_WEB_APP_URL_HERE'))return showMessage('Configuration Error: The SCRIPT_URL has not been set in the HTML file.','error');if(!barcodeData)return showMessage('Error: Please upload a Barcode file.','error');const button=document.getElementById('validateDownloadButton');button.disabled=true;showMessage(`Validating ${barcodeData.length} barcodes on server... Please wait.`,'info');try{const payloadForServer={action:'validateBarcodes',sheetName:GOOGLE_SHEET_NAME_TO_USE,payload:barcodeData.map(row=>String(row.barcode).trim())};const response=await fetch(SCRIPT_URL,{method:'POST',mode:'cors',body:JSON.stringify(payloadForServer)});if(!response.ok)throw new Error(`Server returned an error: ${response.statusText}`);const result=await response.json();if(result.status==='error')throw new Error(result.message);const wb=XLSX.utils.book_new();const header=["Barcode","Validation Status","Code","Name","Supplier"];let ws=XLSX.utils.aoa_to_sheet([header,...result.results]);ws['!cols']=[{wch:20},{wch:20},{wch:15},{wch:50},{wch:30}];applyStylesToWorksheet(ws);XLSX.utils.book_append_sheet(wb,ws,"Validation Results");const formattedDate=new Date().toISOString().slice(0,10);XLSX.writeFile(wb,`Barcode_Validation_Results_${formattedDate}.xlsx`);showMessage('Success! Barcodes validated and results downloaded.','success')}catch(error){showMessage(`Processing Error: ${error.message}`,'error')}finally{button.disabled=false}}
         function showMessage(message,type='info'){let messageDiv=document.querySelector('.page[style*="block"] .message-display');if(!messageDiv){messageDiv=document.querySelector('#homePage .message-display')}if(!messageDiv)return;messageDiv.innerText=message;messageDiv.className='message-display';if(type==='success'){messageDiv.classList.add('success')}else if(type==='error'){messageDiv.classList.add('error')}else if(type==='info'){messageDiv.classList.add('info')}}
     </script>
