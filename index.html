@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مساعد كيرو - الرئيسية</title>
+    <title>KERO ASSISTANCE  - الرئيسية</title>
     <link rel="icon" type="image/png" href="favicon.ico">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -63,19 +63,19 @@
     <div class="version">v15.0 واجهة عربية</div>
 
     <div id="homePage" class="container page">
-        <h1><span id="kero-assistance">مساعد كيرو</span></h1>
+        <h1><span id="kero-assistance">KERO ASSISTANCE</span></h1>
         <p>يرجى اختيار الأداة المطلوبة.</p>
         <div class="section">
-            <button id="goToTransferBtn" class="home-button">أوامر تحويل المخزون</button>
-            <button id="goToValidatorBtn" class="home-button">التحقق من الباركود</button>
-            <button id="goToConfirmBtn" class="home-button">تأكيد ومطابقة التحويلات</button>
+            <button id="goToTransferBtn" class="home-button">امر تحويل داخلي</button>
+            <button id="goToValidatorBtn" class="home-button">مراجعة قائمة اصناف مورد </button>
+            <button id="goToConfirmBtn" class="home-button"> مراجعة التحويلات  </button>
         </div>
         <div class="message-display info">جاهز للبدء!</div>
     </div>
     
     <div id="stockTransferPage" class="container page">
         <button class="go-home-btn home-nav-button">العودة للرئيسية</button>
-        <h1><span class="subtitle">إدارة تحويلات المخزون</span></h1>
+        <h1><span class="subtitle">امر تحويل داخلي</span></h1>
         <div class="section">
             <div class="instructions"><strong>تعليمات:</strong> قم برفع ملف إكسل (`.xlsx`). يجب أن تحتوي الورقة الأولى على عمود بعنوان "<strong>code</strong>"، تليه أعمدة يكون عنوان كل منها هو كود الفرع المستلم، وتحتوي الخلايا على الكمية المطلوب تحويلها.</div>
             <div class="location-container">
@@ -90,26 +90,26 @@
             <label class="switch"><input type="checkbox" id="outputFormatToggle"><span class="slider"></span></label>
             <span>ملفات منفصلة (ZIP)</span>
         </div>
-        <button id="processTransferButton" class="main-action-button">معالجة وتنزيل التحويلات</button>
+        <button id="processTransferButton" class="main-action-button">انشاء امر التحويل للفروع </button>
         <div class="message-display"></div>
     </div>
 
     <div id="barcodeValidatorPage" class="container page">
         <button class="go-home-btn home-nav-button">العودة للرئيسية</button>
-        <h1><span class="subtitle">التحقق من الأصناف والباركود</span></h1>
+        <h1><span class="subtitle">مراجعة قائمة اصناف مورد</span></h1>
         <div class="section">
             <div class="instructions"><strong>تعليمات:</strong> قم برفع ملف إكسل (`.xlsx`). يجب أن تكون البيانات في **الورقة الأولى** وتحتوي على عمود بعنوان: <strong>barcode</strong>.</div>
             <input type="file" id="barcodeFile" accept=".xlsx">
             <button id="uploadBarcodeButton">رفع ملف الباركود</button>
             <button id="clearBarcodes">مسح الملف</button>
         </div>
-        <button id="validateDownloadButton" class="main-action-button">تحقق من الباركود وقم بتنزيل النتائج</button>
+        <button id="validateDownloadButton" class="main-action-button">مراجعة القائمة</button>
         <div class="message-display"></div>
     </div>
 
     <div id="transferConfirmationPage" class="container page">
         <button class="go-home-btn home-nav-button">العودة للرئيسية</button>
-        <h1><span class="subtitle">تأكيد ومطابقة التحويلات</span></h1>
+        <h1><span class="subtitle">مراجعة التحويلات</span></h1>
         <div class="section">
             <div class="instructions">
                 <strong>تعليمات:</strong>
@@ -187,22 +187,22 @@
             clearReconciliation();
             const fileNameDisplayElement = document.getElementById('reconciliationFileName');
             fileNameDisplayElement.textContent = `جاري التحقق من ${file.name}...`;
-            showMessage(`جاري قراءة الملف والتحقق منه...`, 'info');
+            showMessage(`جاري التحميل...`, 'info');
 
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
-                    if (!workbook.SheetNames || workbook.SheetNames.length === 0) throw new Error("ملف غير صالح. لا يحتوي على أي أوراق عمل.");
+                    if (!workbook.SheetNames || workbook.SheetNames.length === 0) throw new Error("ملف غير صالح");
                     
                     let allSheetsData = [];
                     workbook.SheetNames.forEach(sheetName => { if (sheetName.toLowerCase().includes("unmatched")) return; const worksheet = workbook.Sheets[sheetName]; const rows = XLSX.utils.sheet_to_json(worksheet, { defval: null }); allSheetsData.push(...rows.map(row => ({ ...row, branch: sheetName }))); });
-                    if (allSheetsData.length === 0) throw new Error("ملف غير صالح. لم يتم العثور على بيانات في أي ورقة عمل.");
+                    if (allSheetsData.length === 0) throw new Error("ملف غير صالح");
                     
                     const headers = Object.keys(allSheetsData[0]).map(h => String(h || '').toLowerCase().trim());
                     const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
-                    if (missingHeaders.length > 0) { throw new Error(`فشل الرفع: الملف يفتقد للأعمدة المطلوبة: [${missingHeaders.join(', ')}]. يرجى التأكد من إضافة عمود 'Transferred Quantity'.`); }
+                    if (missingHeaders.length > 0) { throw new Error(` فشل التحميل [${missingHeaders.join(', ')}]. يرجى التأكد من إضافة عمود 'Transferred Quantity'.`); }
 
                     const parsedData = allSheetsData.map(row => { const newRow = {}; for (const key in row) { newRow[key.toLowerCase().trim()] = row[key]; } return newRow; });
                     reconciliationData = parsedData;
@@ -211,7 +211,7 @@
 
                 } catch (error) { showMessage(error.message, 'error'); clearReconciliation(); } finally { event.target.value = ''; }
             };
-            reader.onerror = () => { showMessage(`خطأ فادح: تعذرت قراءة الملف.`, 'error'); clearReconciliation(); };
+            reader.onerror = () => { showMessage(`خطأ : تعذرت قراءة الملف.`, 'error'); clearReconciliation(); };
             reader.readAsArrayBuffer(file);
         }
 
