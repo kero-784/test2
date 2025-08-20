@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مساعد كيرو - الرئيسية</title>
+    <title>KERO ASSISTANCE - الرئيسية</title>
     <link rel="icon" type="image/png" href="favicon.ico">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -63,19 +63,19 @@
     <div class="version">v15.0 واجهة عربية</div>
 
     <div id="homePage" class="container page">
-        <h1><span id="kero-assistance">مساعد كيرو</span></h1>
+        <h1><span id="kero-assistance">KERO ASSISTANCE</span></h1>
         <p>يرجى اختيار الأداة المطلوبة.</p>
         <div class="section">
-            <button id="goToTransferBtn" class="home-button">أوامر تحويل المخزون</button>
-            <button id="goToValidatorBtn" class="home-button">التحقق من الباركود</button>
-            <button id="goToConfirmBtn" class="home-button">تأكيد ومطابقة التحويلات</button>
+            <button id="goToTransferBtn" class="home-button">امر تحويل داخلي</button>
+            <button id="goToValidatorBtn" class="home-button">مراجعة قائمة اصناف مورد</button>
+            <button id="goToConfirmBtn" class="home-button">مراجعة التحويلات</button>
         </div>
         <div class="message-display info">جاهز للبدء!</div>
     </div>
     
     <div id="stockTransferPage" class="container page">
         <button class="go-home-btn home-nav-button">العودة للرئيسية</button>
-        <h1><span class="subtitle">إدارة تحويلات المخزون</span></h1>
+        <h1><span class="subtitle">امر تحويل داخلي</span></h1>
         <div class="section">
             <div class="instructions"><strong>تعليمات:</strong> قم برفع ملف إكسل (`.xlsx`). يجب أن تحتوي الورقة الأولى على عمود بعنوان "<strong>code</strong>"، تليه أعمدة يكون عنوان كل منها هو كود الفرع المستلم، وتحتوي الخلايا على الكمية المطلوب تحويلها.</div>
             <div class="location-container">
@@ -90,7 +90,7 @@
             <label class="switch"><input type="checkbox" id="outputFormatToggle"><span class="slider"></span></label>
             <span>ملفات منفصلة (ZIP)</span>
         </div>
-        <button id="processTransferButton" class="main-action-button">معالجة وتنزيل التحويلات</button>
+        <button id="processTransferButton" class="main-action-button">انشاء امر التحويل</button>
         <div class="message-display"></div>
     </div>
 
@@ -103,24 +103,22 @@
             <button id="uploadBarcodeButton">رفع ملف الباركود</button>
             <button id="clearBarcodes">مسح الملف</button>
         </div>
-        <button id="validateDownloadButton" class="main-action-button">تحقق من الباركود وقم بتنزيل النتائج</button>
+        <button id="validateDownloadButton" class="main-action-button">مراجعة القائمة وتحميل التقرير</button>
         <div class="message-display"></div>
     </div>
 
     <div id="transferConfirmationPage" class="container page">
         <button class="go-home-btn home-nav-button">العودة للرئيسية</button>
-        <h1><span class="subtitle">تأكيد ومطابقة التحويلات</span></h1>
+        <h1><span class="subtitle">مراجعة التحويلات</span></h1>
         <div class="section">
             <div class="instructions">
                 <strong>تعليمات:</strong>
-                <ol>
-                    <li>قم بإنشاء ملف التحويل وأرسله إلى مدير الفرع.</li>
-                    <li>يجب على المدير إضافة عمود جديد باسم "<strong>Transferred Quantity</strong>" في الملف وتعبئة الكميات الفعلية التي تم إرسالها.</li>
-                    <li>ارفع هذا الملف المحدث أدناه لإنشاء تقرير المطابقة.</li>
+                <ol>   
+                    <li>يجب إضافة عمود جديد باسم "<strong>Transferred Quantity</strong>" في الملف وتعبئة الكميات الفعلية التي تم إرسالها.</li>
                 </ol>
             </div>
             <div class="file-upload-area">
-                <strong>رفع ملف التحويل المكتمل</strong>
+                <strong>رفع ملف التحويل</strong>
                 <p id="reconciliationFileName">لم يتم اختيار ملف.</p>
                 <input type="file" id="reconciliationFile" accept=".xlsx">
                 <button id="uploadReconciliationButton">اختر ملف المطابقة</button>
@@ -194,11 +192,11 @@
                 try {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
-                    if (!workbook.SheetNames || workbook.SheetNames.length === 0) throw new Error("ملف غير صالح. لا يحتوي على أي أوراق عمل.");
+                    if (!workbook.SheetNames || workbook.SheetNames.length === 0) throw new Error("ملف غير صالح");
                     
                     let allSheetsData = [];
                     workbook.SheetNames.forEach(sheetName => { if (sheetName.toLowerCase().includes("unmatched")) return; const worksheet = workbook.Sheets[sheetName]; const rows = XLSX.utils.sheet_to_json(worksheet, { defval: null }); allSheetsData.push(...rows.map(row => ({ ...row, branch: sheetName }))); });
-                    if (allSheetsData.length === 0) throw new Error("ملف غير صالح. لم يتم العثور على بيانات في أي ورقة عمل.");
+                    if (allSheetsData.length === 0) throw new Error("ملف غير صالح");
                     
                     const headers = Object.keys(allSheetsData[0]).map(h => String(h || '').toLowerCase().trim());
                     const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
@@ -211,7 +209,7 @@
 
                 } catch (error) { showMessage(error.message, 'error'); clearReconciliation(); } finally { event.target.value = ''; }
             };
-            reader.onerror = () => { showMessage(`خطأ فادح: تعذرت قراءة الملف.`, 'error'); clearReconciliation(); };
+            reader.onerror = () => { showMessage(`خطأ : تعذرت قراءة الملف.`, 'error'); clearReconciliation(); };
             reader.readAsArrayBuffer(file);
         }
 
@@ -262,7 +260,7 @@
                 const wb = XLSX.utils.book_new();
                 const branchAnalysis = {};
                 reconciliationResults.forEach(item => { const branchName = item['الفرع']; if (!branchName) return; if (!branchAnalysis[branchName]) { branchAnalysis[branchName] = { requested: 0, transferred: 0 }; } branchAnalysis[branchName].requested += item['الكمية المطلوبة']; branchAnalysis[branchName].transferred += item['الكمية المحولة']; });
-                const analysisSheetData = Object.keys(branchAnalysis).map(branchName => { const data = branchAnalysis[branchName]; const rate = data.requested > 0 ? (data.transferred / data.requested) : 0; return { 'الفرع': branchName, 'إجمالي الكمية المطلوبة': data.requested, 'إجمالي الكمية المحولة': data.transferred, 'نسبة الإنجاز': rate, }; });
+                const analysisSheetData = Object.keys(branchAnalysis).map(branchName => { const data = branchAnalysis[branchName]; const rate = data.requested > 0 ? (data.transferred / data.requested) : 0; return { 'الفرع': branchName, 'إجمالي الكمية المطلوبة': data.requested, 'إجمالي الكمية المحولة': data.transferred, 'نسبة التنفيذ': rate, }; });
                 let wsAnalysis = XLSX.utils.json_to_sheet(analysisSheetData); wsAnalysis['!cols'] = [{ wch: 30 }, { wch: 20 }, { wch: 22 }, { wch: 18 }];
                 const range = XLSX.utils.decode_range(wsAnalysis['!ref']); for (let R = range.s.r + 1; R <= range.e.r; ++R) { const cell_ref = XLSX.utils.encode_cell({ c: 3, r: R }); if (wsAnalysis[cell_ref]) { wsAnalysis[cell_ref].z = '0.00%'; } }
                 applyStylesToWorksheet(wsAnalysis); XLSX.utils.book_append_sheet(wb, wsAnalysis, "تحليل إنجاز الفروع");
