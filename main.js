@@ -1,4 +1,4 @@
---- START OF FILE main.js ---
+
 const RESUPPLY_API_URL = 'https://script.google.com/macros/s/AKfycbzKBLjK5CP6Zz71xCKW0v2woZYbR0nJiBkySckqR94IDmjou7mqiG1jJxetskQTOwvL7Q/exec';
 
 let currentBranch = null; 
@@ -357,4 +357,3 @@ function showToast(message) {
     toast.show();
     toastEl.on('hidden.bs.toast', function () { $(this).remove(); });
 }
---- END OF FILE main.js ---
