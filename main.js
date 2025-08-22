@@ -1,5 +1,5 @@
 --- START OF FILE main.js ---
-const RESUPPLY_API_URL = 'https://script.google.com/macros/s/AKfycbwJVIpjmhq8PrAOd7-XFckAFe8It5iYNxSSZxZbhxRCQpaiVSm0AHqWyKjWRoqc65CPuw/exec';
+const RESUPPLY_API_URL = 'https://script.google.com/macros/s/AKfycbzKBLjK5CP6Zz71xCKW0v2woZYbR0nJiBkySckqR94IDmjou7mqiG1jJxetskQTOwvL7Q/exec';
 
 let currentBranch = null; 
 let allBranches = [];
