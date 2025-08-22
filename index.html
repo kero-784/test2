@@ -1,412 +1,199 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Barcode Scanner</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        
-        body {
-            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
-            color: #fff;
-            min-height: 100vh;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        
-        .container {
-            width: 100%;
-            max-width: 600px;
-            text-align: center;
-        }
-        
-        h1 {
-            margin: 20px 0;
-            font-size: 2.5rem;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-        }
-        
-        .scanner-container {
-            position: relative;
-            width: 100%;
-            margin: 20px 0;
-            border-radius: 15px;
-            overflow: hidden;
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
-        }
-        
-        #video {
-            width: 100%;
-            background-color: #000;
-            display: block;
-        }
-        
-        #scanning-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: transparent;
-            border: 2px solid #fff;
-            border-radius: 15px;
-            pointer-events: none;
-        }
-        
-        .scan-line {
-            position: absolute;
-            width: 100%;
-            height: 4px;
-            background: linear-gradient(to right, #ff416c, #ff4b2b);
-            top: 30%;
-            animation: scan 2s infinite linear;
-            border-radius: 4px;
-        }
-        
-        @keyframes scan {
-            0% { top: 30%; }
-            50% { top: 70%; }
-            100% { top: 30%; }
-        }
-        
-        .controls {
-            margin: 20px 0;
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 15px;
-        }
-        
-        button {
-            padding: 12px 25px;
-            border: none;
-            border-radius: 50px;
-            background: rgba(255, 255, 255, 0.2);
-            backdrop-filter: blur(10px);
-            color: white;
-            font-size: 1rem;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-        }
-        
-        button:hover {
-            background: rgba(255, 255, 255, 0.3);
-            transform: translateY(-2px);
-        }
-        
-        button:active {
-            transform: translateY(0);
-        }
-        
-        #startButton {
-            background: linear-gradient(to right, #00b09b, #96c93d);
-        }
-        
-        #stopButton {
-            background: linear-gradient(to right, #ff416c, #ff4b2b);
-        }
-        
-        .results {
-            width: 100%;
-            margin-top: 20px;
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border-radius: 15px;
-            padding: 20px;
-            text-align: left;
-        }
-        
-        .results h2 {
-            margin-bottom: 15px;
-            border-bottom: 2px solid rgba(255, 255, 255, 0.3);
-            padding-bottom: 10px;
-        }
-        
-        #barcodeResults {
-            min-height: 100px;
-        }
-        
-        .barcode-item {
-            background: rgba(255, 255, 255, 0.15);
-            margin: 10px 0;
-            padding: 15px;
-            border-radius: 10px;
-            word-break: break-all;
-        }
-        
-        .status {
-            margin-top: 15px;
-            font-style: italic;
-            color: rgba(255, 255, 255, 0.8);
-        }
-        
-        .instructions {
-            margin: 20px 0;
-            background: rgba(0, 0, 0, 0.2);
-            padding: 15px;
-            border-radius: 10px;
-            text-align: left;
-        }
-        
-        .instructions h3 {
-            margin-bottom: 10px;
-        }
-        
-        .instructions ol {
-            padding-left: 20px;
-        }
-        
-        .instructions li {
-            margin-bottom: 8px;
-        }
-        
-        @media (max-width: 600px) {
-            h1 {
-                font-size: 2rem;
-            }
-            
-            button {
-                padding: 10px 20px;
-                font-size: 0.9rem;
-            }
-        }
-    </style>
+    <title>طلب نواقص الفرع</title>
+    <link rel="icon" type="image/png" href="../favicon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.rtl.min.css" />
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <h1>Barcode Scanner</h1>
-        
-        <div class="scanner-container">
-            <video id="video" playsinline autoplay></video>
-            <div id="scanning-overlay">
-                <div class="scan-line"></div>
+    <script>
+        let currentUserData = null;
+        (function() {
+            const userString = sessionStorage.getItem('keroUser');
+            if (!userString) { window.location.href = '../login/'; return; }
+            try {
+                currentUserData = JSON.parse(userString);
+                const permissions = currentUserData.permissions || [];
+                if (!permissions.includes('admin') && !permissions.includes('resupply_app')) {
+                    alert("وصول مرفوض."); window.location.href = '../index.html'; return;
+                }
+                document.addEventListener('DOMContentLoaded', () => { document.body.style.visibility = 'visible'; });
+            } catch (e) {
+                sessionStorage.removeItem('keroUser');
+                window.location.href = '../login/';
+            }
+        })();
+    </script>
+    <div id="loading-overlay">
+        <div class="spinner-border text-primary" role="status" style="width: 3.5rem; height: 3.5rem;"></div>
+        <p class="mt-3 fs-5">...جاري التحميل</p>
+    </div>
+    <div id="app-view" class="view active">
+        <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="#"><i class="fas fa-boxes-packing me-2"></i>طلب نواقص الفرع</a>
+                <div class="d-flex align-items-center">
+                    <a href="../index.html" class="btn btn-outline-secondary btn-sm ms-3"><i class="fas fa-arrow-left"></i> الرئيسية</a>
+                    <span class="navbar-text ms-3 text-white-50">المستخدم: <strong class="text-white" id="loggedInUser"></strong> | الفرع: <strong class="text-white" id="currentBranchName">...</strong></span>
+                    <button id="logoutBtn" class="btn btn-outline-light btn-sm">خروج</button>
+                </div>
             </div>
-        </div>
-        
-        <div class="controls">
-            <button id="startButton">Start Scanning</button>
-            <button id="stopButton">Stop Scanning</button>
-            <button id="switchButton">Switch Camera</button>
-        </div>
-        
-        <div class="instructions">
-            <h3>How to use:</h3>
-            <ol>
-                <li>Click "Start Scanning" to enable your camera</li>
-                <li>Point your camera at a product barcode</li>
-                <li>Hold steady until the barcode is detected</li>
-                <li>Scan results will appear below</li>
-            </ol>
-        </div>
-        
-        <div class="results">
-            <h2>Scan Results</h2>
-            <div id="barcodeResults">
-                <p class="status">No barcodes scanned yet. Results will appear here.</p>
+        </nav>
+        <div class="container my-4">
+            <div id="branch-selector-view" class="row justify-content-center">
+                <div class="col-md-8 col-lg-6">
+                    <div class="card p-4"><div class="card-body text-center"><i class="fas fa-store fa-3x text-primary mb-3"></i><h4 class="card-title">اختر الفرع</h4><p class="text-muted">يجب اختيار فرع لعرض الارصدة.</p><select class="form-select form-select-lg" id="branchSelect"></select></div></div>
+                </div>
+            </div>
+            <div id="main-content" class="d-none">
+                <ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
+                    <li class="nav-item" role="presentation"><button class="nav-link active" id="pills-resupply-tab" data-bs-toggle="pill" data-bs-target="#pills-resupply">إنشاء طلب</button></li>
+                    <li class="nav-item" role="presentation"><button class="nav-link" id="pills-update-tab" data-bs-toggle="pill" data-bs-target="#pills-update">تحديث الارصدة</button></li>
+                    <li class="nav-item" role="presentation"><button class="nav-link" id="pills-extract-tab" data-bs-toggle="pill" data-bs-target="#pills-extract">استخراج رصيد مورد</button></li>
+                </ul>
+                <div class="tab-content" id="pills-tabContent">
+                    <div class="tab-pane fade show active" id="pills-resupply" role="tabpanel">
+                       <div class="row g-4">
+                           <div class="col-lg-8">
+                                <div id="search-container" class="card mb-4">
+                                    <div class="card-body p-4">
+                                        <h5 class="card-title mb-3"> البحث عن الأصناف</h5>
+                                        <div class="row g-2 align-items-end">
+                                            <div class="col-sm-5">
+                                                <label for="supplierFilter" class="form-label">بحث حسب المورد</label>
+                                                <select id="supplierFilter" class="form-select"></select>
+                                            </div>
+                                            <div class="col-sm-5">
+                                                <label for="searchTerm" class="form-label">بحث بالاسم او الكود او الباركود</label>
+                                                <div class="input-group">
+                                                    <input type="search" class="form-control" id="searchTerm" placeholder="...">
+                                                    <button class="btn btn-outline-secondary" type="button" id="scanBarcodeBtn" title="مسح باركود بالكاميرا"><i class="fas fa-camera"></i></button>
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-2 d-grid">
+                                                <button id="searchBtn" class="btn btn-primary w-100">بحث</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card">
+                                    <div class="card-body p-4"><div class="table-responsive table-responsive-scrollable"><table id="itemsTable" class="table table-hover" style="width:100%"><thead><tr><th>الاسم</th><th>المورد</th><th>الكمية الحالية</th><th>الكمية المطلوبة</th></tr></thead><tbody></tbody></table></div></div>
+                                    <div class="card-footer text-start bg-light p-3"><button id="addItemsBtn" class="btn btn-success"><i class="fas fa-cart-plus me-2"></i>حفظ الاصناف المختارة</button></div>
+                                </div>
+                           </div>
+                           <div class="col-lg-4">
+                               <div id="order-summary-card" class="card">
+                                   <div class="card-body p-4"><h5 class="card-title mb-3"> مراجعة الطلب</h5><div id="order-summary-content"><p class="placeholder-text text-center">الأصناف المختارة</p></div><div class="d-grid mt-3"><button id="exportBtn" class="btn btn-success btn-lg" disabled>استخراج الطلب (<span id="selectionCount">0</span>)</button></div></div>
+                               </div>
+                           </div>
+                       </div>
+                    </div>
+                    <div class="tab-pane fade" id="pills-update" role="tabpanel">
+                        <div class="row justify-content-center"><div class="col-md-8 col-lg-6"><div class="card"><div class="card-body p-4"><h4 class="card-title">تحديث الارصدة </h4><p class="card-subtitle mb-3 text-muted">ارفع ملف Excel. سيتم استبدال الارصدة الحالية</p><div id="update-error" class="alert alert-danger d-none"></div><div id="update-success" class="alert alert-success d-none"></div><div class="mb-3"><label for="stockFile" class="form-label">ملف ارصدة الفروع</label><input class="form-control" type="file" id="stockFile" accept=".xlsx, .xls"></div><button id="updateStockBtn" class="btn btn-danger w-100"><i class="fas fa-sync-alt me-2"></i>تحديث الارصدة</button></div></div></div></div>
+                    </div>
+                    <div class="tab-pane fade" id="pills-extract" role="tabpanel">
+                        <div class="row justify-content-center">
+                            <div class="col-md-10 col-lg-8">
+                                <div class="card">
+                                    <div class="card-body p-4">
+                                        <h4 class="card-title">تقرير رصيد الموردين</h4>
+                                        <p class="card-subtitle mb-3 text-muted">اختر الفروع والموردين لاستخراج تقرير مفصل بأرصدتهم الحالية.</p>
+                                        
+                                        <div class="mb-3">
+                                            <label class="form-label fw-bold">الفروع</label>
+                                            <button id="openBranchModalBtn" class="btn btn-outline-primary w-100 text-start">
+                                                <i class="fas fa-store me-2"></i>
+                                                <span>اختر الفروع</span> (<span id="branchSelectionCount">0</span>)
+                                            </button>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label class="form-label fw-bold">الموردين</label>
+                                            <button id="openSupplierModalBtn" class="btn btn-outline-primary w-100 text-start">
+                                                <i class="fas fa-truck-field me-2"></i>
+                                                <span>اختر الموردين</span> (<span id="supplierSelectionCount">0</span>)
+                                            </button>
+                                        </div>
+
+                                        <div class="border rounded p-3 mb-4">
+                                            <label class="form-label fw-bold">بحث متقدم (اختياري)</label>
+                                            <p class="small text-muted mb-2">تصفية الأصناف حسب إجمالي الرصيد في الفروع المختارة.</p>
+                                            <div class="row g-2 align-items-center">
+                                                <div class="col-sm-5">
+                                                    <select class="form-select" id="stockOperator">
+                                                        <option value="all">عرض كل الأرصدة</option>
+                                                        <option value="<">الرصيد أصغر من</option>
+                                                        <option value=">">الرصيد أكبر من</option>
+                                                        <option value="=">الرصيد يساوي</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-sm-7">
+                                                    <input type="number" class="form-control" id="stockValue" placeholder="ادخل قيمة..." disabled>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="d-grid gap-2 d-sm-flex justify-content-sm-end">
+                                            <button id="extractStockExcelBtn" class="btn btn-success"><i class="fas fa-file-excel me-2"></i>استخراج Excel</button>
+                                            <button id="extractStockPdfBtn" class="btn btn-danger"><i class="fas fa-file-pdf me-2"></i>معاينة و طباعة PDF</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <script>
-        // DOM elements
-        const video = document.getElementById('video');
-        const startButton = document.getElementById('startButton');
-        const stopButton = document.getElementById('stopButton');
-        const switchButton = document.getElementById('switchButton');
-        const barcodeResults = document.getElementById('barcodeResults');
-        
-        // State variables
-        let stream = null;
-        let scanning = false;
-        let facingMode = 'environment'; // Start with back camera
-        let detectionInterval = null;
-        
-        // Check if barcode detection is supported
-        const isBarcodeDetectionSupported = () => {
-            return 'BarcodeDetector' in window;
-        };
-        
-        // Initialize barcode detector
-        const initializeBarcodeDetector = async () => {
-            if (!isBarcodeDetectionSupported()) {
-                showError('Barcode Detection API is not supported in your browser. Try using Chrome on Android.');
-                return null;
-            }
-            
-            // Check for supported formats
-            const supportedFormats = await BarcodeDetector.getSupportedFormats();
-            if (supportedFormats.length === 0) {
-                showError('Your device does not support any barcode formats.');
-                return null;
-            }
-            
-            return new BarcodeDetector({ formats: supportedFormats });
-        };
-        
-        let barcodeDetector = null;
-        
-        // Start the camera
-        const startCamera = async () => {
-            try {
-                stopCamera();
-                
-                const constraints = {
-                    video: {
-                        facingMode: facingMode,
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
-                    }
-                };
-                
-                stream = await navigator.mediaDevices.getUserMedia(constraints);
-                video.srcObject = stream;
-                
-                // Initialize barcode detector if not already done
-                if (!barcodeDetector) {
-                    barcodeDetector = await initializeBarcodeDetector();
-                    if (!barcodeDetector) return;
-                }
-                
-                // Enable buttons
-                startButton.disabled = true;
-                stopButton.disabled = false;
-                switchButton.disabled = false;
-                
-                // Start scanning for barcodes
-                scanning = true;
-                detectBarcodes();
-                
-            } catch (error) {
-                console.error('Error starting camera:', error);
-                showError(`Camera error: ${error.message}`);
-            }
-        };
-        
-        // Stop the camera
-        const stopCamera = () => {
-            scanning = false;
-            
-            if (detectionInterval) {
-                clearInterval(detectionInterval);
-                detectionInterval = null;
-            }
-            
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                stream = null;
-                video.srcObject = null;
-            }
-            
-            // Reset buttons
-            startButton.disabled = false;
-            stopButton.disabled = true;
-            switchButton.disabled = true;
-        };
-        
-        // Switch between front and back cameras
-        const switchCamera = () => {
-            facingMode = facingMode === 'environment' ? 'user' : 'environment';
-            if (scanning) {
-                startCamera();
-            }
-        };
-        
-        // Detect barcodes in the video stream
-        const detectBarcodes = async () => {
-            if (!barcodeDetector || !scanning) return;
-            
-            detectionInterval = setInterval(async () => {
-                try {
-                    const barcodes = await barcodeDetector.detect(video);
-                    
-                    if (barcodes.length > 0) {
-                        displayBarcodes(barcodes);
-                    }
-                } catch (error) {
-                    console.error('Barcode detection error:', error);
-                }
-            }, 500); // Check for barcodes every 500ms
-        };
-        
-        // Display detected barcodes
-        const displayBarcodes = (barcodes) => {
-            // Remove the "no barcodes" message if it exists
-            const statusElement = barcodeResults.querySelector('.status');
-            if (statusElement) {
-                statusElement.remove();
-            }
-            
-            // Add new barcode results
-            barcodes.forEach(barcode => {
-                // Check if this barcode has already been detected
-                const existingResult = document.getElementById(`barcode-${barcode.rawValue}`);
-                if (existingResult) {
-                    existingResult.querySelector('.count').textContent = 
-                        parseInt(existingResult.querySelector('.count').textContent) + 1;
-                    return;
-                }
-                
-                const barcodeElement = document.createElement('div');
-                barcodeElement.classList.add('barcode-item');
-                barcodeElement.id = `barcode-${barcode.rawValue}`;
-                
-                barcodeElement.innerHTML = `
-                    <strong>Format:</strong> ${barcode.format}<br>
-                    <strong>Value:</strong> ${barcode.rawValue}<br>
-                    <strong>Detected:</strong> <span class="count">1</span> time(s)
-                `;
-                
-                barcodeResults.prepend(barcodeElement);
-            });
-        };
-        
-        // Show error message
-        const showError = (message) => {
-            // Remove the "no barcodes" message if it exists
-            const statusElement = barcodeResults.querySelector('.status');
-            if (statusElement) {
-                statusElement.remove();
-            }
-            
-            const errorElement = document.createElement('div');
-            errorElement.classList.add('barcode-item');
-            errorElement.style.background = 'rgba(255, 50, 50, 0.2)';
-            errorElement.innerHTML = `<strong>Error:</strong> ${message}`;
-            
-            barcodeResults.prepend(errorElement);
-        };
-        
-        // Event listeners
-        startButton.addEventListener('click', startCamera);
-        stopButton.addEventListener('click', stopCamera);
-        switchButton.addEventListener('click', switchCamera);
-        
-        // Initial setup
-        window.addEventListener('load', () => {
-            // Check if the API is supported
-            if (!isBarcodeDetectionSupported()) {
-                showError('Barcode Detection API is not supported in your browser. Try using Chrome on Android.');
-                startButton.disabled = true;
-            } else {
-                stopButton.disabled = true;
-                switchButton.disabled = true;
-                
-                // Initialize the barcode detector
-                initializeBarcodeDetector().then(detector => {
-                    barcodeDetector = detector;
-                });
-            }
-        });
-    </script>
+    <!-- Modals -->
+    <div class="modal fade" id="branch-selection-modal" tabindex="-1">...</div>
+    <div class="modal fade" id="supplier-selection-modal" tabindex="-1">...</div>
+    <div class="modal fade" id="pdf-preview-modal" tabindex="-1">...</div>
+
+    <!-- Barcode Scanner Modal -->
+    <div class="modal fade" id="barcode-scanner-modal" tabindex="-1" aria-labelledby="scannerModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="scannerModalLabel">مسح باركود</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div class="scanner-container">
+                        <video id="video-scanner" playsinline autoplay></video>
+                        <div class="scanner-overlay">
+                            <div class="scan-line"></div>
+                        </div>
+                    </div>
+                    <div id="scanner-error" class="alert alert-danger m-3 d-none"></div>
+                </div>
+                <div class="modal-footer justify-content-center">
+                    <button type="button" class="btn btn-secondary" id="scannerSwitchBtn"><i class="fas fa-sync-alt me-2"></i>تبديل الكاميرا</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="../assets/js/session.js"></script>
+    <script src="main.js"></script>
 </body>
 </html>
