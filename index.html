@@ -1,283 +1,122 @@
+--- START OF FILE index.html ---
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KERO ASSISTANCE - الرئيسية</title>
-    <link rel="icon" type="image/png" href="favicon.ico">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" />
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap');
-        :root { --primary-color: #005c97; --secondary-color: #363795; --success-color: #28a745; --error-color: #dc3545; --info-color: #17a2b8; --light-bg: #f8f9fa; --dark-text: #343a40; --light-text: #6c757d; --border-color: #dee2e6; }
-        body { font-family: 'Cairo', sans-serif; background-image: linear-gradient(120deg, #fdfbfb 0%, #ebedee 100%); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; color: var(--dark-text); -webkit-font-smoothing: antialiased; }
-        .container { background-color: #ffffff; border-radius: 20px; box-shadow: 0 15px 40px rgba(0, 0, 0, 0.08); padding: 40px; width: 100%; max-width: 800px; text-align: center; margin-top: 20px; margin-bottom: 20px; position: relative; border: 1px solid var(--border-color); }
-        .page { display: none; }
-        h1 { color: var(--dark-text); margin-bottom: 8px; font-weight: 700; }
-        #kero-assistance { font-size: 2.5em; }
-        .subtitle { font-size: 1.8em; font-weight: 600; color: var(--primary-color); }
-        .container > p { color: var(--light-text); font-size: 1.1em; margin-bottom: 30px; }
-        .section { margin-bottom: 30px; padding: 25px 0; border: none; border-top: 1px solid var(--border-color); background-color: transparent; }
-        .instructions { font-size: 0.9em; color: #0c5460; background-color: #d1ecf1; padding: 15px; border-radius: 8px; border: 1px solid #bee5eb; margin-bottom: 25px; text-align: right; }
-        .instructions strong { color: #004085; }
-        .location-container { display: flex; gap: 20px; justify-content: center; align-items: center; margin-bottom: 15px; }
-        .file-upload-area { border: 2px dashed var(--border-color); padding: 20px; border-radius: 10px; margin-bottom: 20px; background-color: var(--light-bg); }
-        .file-upload-area strong { color: var(--primary-color); }
-        input[type="file"] { display: none; }
-        button { background-color: var(--primary-color); color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: 500; margin: 5px; transition: all 0.25s ease-in-out; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0, 92, 151, 0.2); }
-        button:disabled { background-color: #ced4da; cursor: not-allowed; transform: none; box-shadow: none; }
-        .main-action-button { font-size: 1.1rem; font-weight: 600; padding: 15px 35px; background-color: var(--success-color); }
-        .main-action-button:hover:not(:disabled) { box-shadow: 0 6px 12px rgba(40, 167, 69, 0.25); }
-        .home-button { display: flex; align-items: center; justify-content: center; width: 100%; margin: 15px 0; padding: 20px; font-size: 1.2em; font-weight: 600; background-color: #fff; color: var(--primary-color); border: 2px solid var(--border-color); box-shadow: 0 4px 6px rgba(0,0,0,0.04); }
-        .home-button:hover { border-color: var(--primary-color); background-color: #f8f9fa; color: var(--secondary-color); transform: translateY(-3px); box-shadow: 0 8px 15px rgba(0,0,0,0.08); }
-        .home-nav-button { background-color: var(--light-text); position: absolute; top: 25px; right: 25px; left: auto; padding: 8px 16px; }
-        .home-nav-button:hover { background-color: var(--dark-text); }
-        .message-display { margin-top: 20px; font-weight: 500; min-height: 1.2em; padding: 12px 18px; border-radius: 8px; text-align: right; border: 1px solid transparent; word-break: break-word; }
-        .message-display:before { font-weight: 700; margin-left: 10px; margin-right: 0; }
-        .message-display.success { color: #155724; background-color: #d4edda; border-color: #c3e6cb; }
-        .message-display.success:before { content: "✔"; }
-        .message-display.info { color: #0c5460; background-color: #d1ecf1; border-color: #bee5eb; }
-        .message-display.info:before { content: "ℹ"; }
-        .message-display.error { color: #721c24; background-color: #f8d7da; border-color: #f5c6cb; }
-        .message-display.error:before { content: "⚠"; }
-        .select2-container--default .select2-selection--single { border: 1px solid var(--border-color) !important; border-radius: 8px !important; height: 45px !important; padding: 8px 12px !important; }
-        .select2-container--default .select2-selection--single .select2-selection__rendered { color: var(--dark-text) !important; line-height: 28px !important; }
-        .select2-container--default .select2-selection--single .select2-selection__arrow { height: 43px !important; }
-        .select2-dropdown { border: 1px solid var(--border-color) !important; border-radius: 8px !important; box-shadow: 0 8px 16px rgba(0,0,0,0.1); }
-        .version { position: fixed; bottom: 10px; left: 10px; right: auto; font-size: 0.8em; color: #fff; background-color: rgba(0, 0, 0, 0.4); padding: 4px 8px; border-radius: 12px; }
-        .output-toggle-container { display: flex; justify-content: center; align-items: center; gap: 15px; margin-bottom: 20px; color: var(--dark-text); font-weight: 500;}
-        .switch { position: relative; display: inline-block; width: 60px; height: 34px; }
-        .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }
-        .slider:before { position: absolute; content: ""; height: 26px; width: 26px; right: 4px; left: auto; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
-        input:checked + .slider { background-color: var(--primary-color); }
-        input:checked + .slider:before { transform: translateX(-26px); }
-    </style>
+    <title>طلب نواقص الفرع</title>
+    <link rel="icon" type="image/png" href="../favicon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.rtl.min.css" />
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="version">v15.0 واجهة عربية</div>
-
-    <div id="homePage" class="container page">
-        <h1><span id="kero-assistance">KERO ASSISTANCE</span></h1>
-        <p>يرجى اختيار الأداة المطلوبة.</p>
-        <div class="section">
-            <button id="goToTransferBtn" class="home-button">امر تحويل داخلي</button>
-            <button id="goToValidatorBtn" class="home-button">مراجعة قائمة اصناف مورد</button>
-            <button id="goToConfirmBtn" class="home-button">مراجعة التحويلات</button>
-        </div>
-        <div class="message-display info">جاهز للبدء!</div>
-    </div>
-    
-    <div id="stockTransferPage" class="container page">
-        <button class="go-home-btn home-nav-button">العودة للرئيسية</button>
-        <h1><span class="subtitle">امر تحويل داخلي</span></h1>
-        <div class="section">
-            <div class="instructions"><strong>تعليمات:</strong> قم برفع ملف إكسل (`.xlsx`). يجب أن تحتوي الورقة الأولى على عمود بعنوان "<strong>code</strong>"، تليه أعمدة يكون عنوان كل منها هو كود الفرع المستلم، وتحتوي الخلايا على الكمية المطلوب تحويلها.</div>
-            <div class="location-container">
-                <select id="locationFrom" class="location-select"></select>
-            </div>
-            <input type="file" id="quantityFile" accept=".xlsx">
-            <button id="uploadQuantityButton">رفع ملف التحويل</button>
-            <button id="clearQuantity">مسح الملف</button>
-        </div>
-        <div class="output-toggle-container">
-            <span>ملف موحد</span>
-            <label class="switch"><input type="checkbox" id="outputFormatToggle"><span class="slider"></span></label>
-            <span>ملفات منفصلة (ZIP)</span>
-        </div>
-        <button id="processTransferButton" class="main-action-button">انشاء امر التحويل</button>
-        <div class="message-display"></div>
-    </div>
-
-    <div id="barcodeValidatorPage" class="container page">
-        <button class="go-home-btn home-nav-button">العودة للرئيسية</button>
-        <h1><span class="subtitle">التحقق من الأصناف والباركود</span></h1>
-        <div class="section">
-            <div class="instructions"><strong>تعليمات:</strong> قم برفع ملف إكسل (`.xlsx`). يجب أن تكون البيانات في **الورقة الأولى** وتحتوي على عمود بعنوان: <strong>barcode</strong>.</div>
-            <input type="file" id="barcodeFile" accept=".xlsx">
-            <button id="uploadBarcodeButton">رفع ملف الباركود</button>
-            <button id="clearBarcodes">مسح الملف</button>
-        </div>
-        <button id="validateDownloadButton" class="main-action-button">مراجعة القائمة وتحميل التقرير</button>
-        <div class="message-display"></div>
-    </div>
-
-    <div id="transferConfirmationPage" class="container page">
-        <button class="go-home-btn home-nav-button">العودة للرئيسية</button>
-        <h1><span class="subtitle">مراجعة التحويلات</span></h1>
-        <div class="section">
-            <div class="instructions">
-                <strong>تعليمات:</strong>
-                <ol>   
-                    <li>يجب إضافة عمود جديد باسم "<strong>Transferred Quantity</strong>" في الملف وتعبئة الكميات الفعلية التي تم إرسالها.</li>
-                </ol>
-            </div>
-            <div class="file-upload-area">
-                <strong>رفع ملف التحويل</strong>
-                <p id="reconciliationFileName">لم يتم اختيار ملف.</p>
-                <input type="file" id="reconciliationFile" accept=".xlsx">
-                <button id="uploadReconciliationButton">اختر ملف المطابقة</button>
-                <button id="clearReconciliation">مسح الملف</button>
-            </div>
-        </div>
-        <button id="processConfirmationButton" class="main-action-button">إنشاء تقرير المطابقة</button>
-        <div class="message-display"></div>
-    </div>
-
     <script>
-        // Core logic remains in English for maintainability
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxBUnVmysM6WSP1uW3ittU2eU3HxwGax2QlwhXd3cbt3sIMsDEnTCcDCInCk-nOAB7wmw/exec';
-        const GOOGLE_SHEET_NAME_TO_USE = 'Products';
-
-        let transferListData = null;
-        let barcodeData = null;
-        let reconciliationData = null;
-
-        const locations = [
-            { id: "جاردنز 101", text: "جاردنز 101" }, { id: "تلال السخنة 102", text: "تلال السخنة 102" },
-            { id: "ستيلا 103", text: "ستيلا 103" }, { id: "الدبلو 104", text: "الدبلو 104" },
-            { id: "تلال الساحل 105", text: "تلال الساحل 105" }, { id: "سوان لك 106", text: "سوان لك 106" },
-            { id: "كاسكادا 107", text: "كاسكادا 107" }, { id: "لافيستا باي 108", text: "لافيستا باي 108" },
-            { id: "راس الحكمة 109", text: "راس الحكمة 109" }, { id: "لازوردي 110", text: "لازوردي 110" },
-            { id: "النادي 111", text: "النادي 111" }, { id: "زايد 112", text: "زايد 112" },
-            { id: "القطامية 115", text: "القطامية 115" }, { id: "مخزن بلبيس 201", text: "مخزن بلبيس 201" },
-            { id: "مخزن الساحل 202", text: "مخزن الساحل 202" },{ id: "فوكا باي 117", text: "فوكا باي 117" },
-        ];
-
-        const branchCodeToNameMap = new Map();
-        locations.forEach(location => { const match = location.id.match(/\d+$/); if (match) { branchCodeToNameMap.set(match[0], location.text); } });
-
-        document.addEventListener('DOMContentLoaded', function() {
-            showPage('homePage');
-            $('#locationFrom').select2({ data: [{ id: '', text: 'اختر الفرع المصدر' }, ...locations], dir: "rtl" });
-
-            document.getElementById('goToTransferBtn').addEventListener('click', () => showPage('stockTransferPage'));
-            document.getElementById('goToValidatorBtn').addEventListener('click', () => showPage('barcodeValidatorPage'));
-            document.querySelectorAll('.go-home-btn').forEach(button => button.addEventListener('click', () => showPage('homePage')));
-            document.getElementById('uploadQuantityButton').addEventListener('click', () => document.getElementById('quantityFile').click());
-            document.getElementById('quantityFile').addEventListener('change', handleFileUpload);
-            document.getElementById('clearQuantity').addEventListener('click', clearQuantity);
-            document.getElementById('processTransferButton').addEventListener('click', processTransferData);
-            document.getElementById('uploadBarcodeButton').addEventListener('click', () => document.getElementById('barcodeFile').click());
-            document.getElementById('barcodeFile').addEventListener('change', handleFileUpload);
-            document.getElementById('clearBarcodes').addEventListener('click', clearBarcodes);
-            document.getElementById('validateDownloadButton').addEventListener('click', processAndValidateBarcodes);
-            document.getElementById('goToConfirmBtn').addEventListener('click', () => showPage('transferConfirmationPage'));
-            document.getElementById('uploadReconciliationButton').addEventListener('click', () => document.getElementById('reconciliationFile').click());
-            document.getElementById('reconciliationFile').addEventListener('change', handleReconciliationUpload);
-            document.getElementById('processConfirmationButton').addEventListener('click', processConfirmation);
-            document.getElementById('clearReconciliation').addEventListener('click', clearReconciliation);
-        });
-        
-        function clearQuantity() { transferListData = null; document.getElementById('quantityFile').value = ''; showMessage('تم مسح ملف التحويل.', 'info'); }
-        function clearBarcodes() { barcodeData = null; document.getElementById('barcodeFile').value = ''; showMessage('تم مسح ملف الباركود.', 'info'); }
-        function clearReconciliation() { reconciliationData = null; document.getElementById('reconciliationFile').value = ''; document.getElementById('reconciliationFileName').textContent = 'لم يتم اختيار ملف.'; showMessage('تم مسح ملف المطابقة.', 'info'); }
-
-        function handleReconciliationUpload(event) {
-            const file = event.target.files[0];
-            const requiredHeaders = ['code', 'quantity', 'transferred quantity'];
-            if (!file) return;
-            clearReconciliation();
-            const fileNameDisplayElement = document.getElementById('reconciliationFileName');
-            fileNameDisplayElement.textContent = `جاري التحقق من ${file.name}...`;
-            showMessage(`جاري قراءة الملف والتحقق منه...`, 'info');
-
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, { type: 'array' });
-                    if (!workbook.SheetNames || workbook.SheetNames.length === 0) throw new Error("ملف غير صالح");
-                    
-                    let allSheetsData = [];
-                    workbook.SheetNames.forEach(sheetName => { if (sheetName.toLowerCase().includes("unmatched")) return; const worksheet = workbook.Sheets[sheetName]; const rows = XLSX.utils.sheet_to_json(worksheet, { defval: null }); allSheetsData.push(...rows.map(row => ({ ...row, branch: sheetName }))); });
-                    if (allSheetsData.length === 0) throw new Error("ملف غير صالح");
-                    
-                    const headers = Object.keys(allSheetsData[0]).map(h => String(h || '').toLowerCase().trim());
-                    const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
-                    if (missingHeaders.length > 0) { throw new Error(`فشل الرفع: الملف يفتقد للأعمدة المطلوبة: [${missingHeaders.join(', ')}]. يرجى التأكد من إضافة عمود 'Transferred Quantity'.`); }
-
-                    const parsedData = allSheetsData.map(row => { const newRow = {}; for (const key in row) { newRow[key.toLowerCase().trim()] = row[key]; } return newRow; });
-                    reconciliationData = parsedData;
-                    fileNameDisplayElement.textContent = file.name;
-                    showMessage(`تم رفع الملف "${file.name}" والتحقق منه بنجاح. جاهز لإنشاء التقرير.`, 'success');
-
-                } catch (error) { showMessage(error.message, 'error'); clearReconciliation(); } finally { event.target.value = ''; }
-            };
-            reader.onerror = () => { showMessage(`خطأ : تعذرت قراءة الملف.`, 'error'); clearReconciliation(); };
-            reader.readAsArrayBuffer(file);
-        }
-
-        function handleFileUpload(event) {
-            const file = event.target.files[0];
-            const targetId = event.target.id;
-            const fileTypeConfig = { 'quantityFile': { type: 'transferList', clearFunc: clearQuantity }, 'barcodeFile': { type: 'barcode', clearFunc: clearBarcodes } };
-            const config = fileTypeConfig[targetId];
-            if (!file || !config) return;
-            config.clearFunc();
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, { type: 'array' });
-                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                    const rowsAsArray = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null });
-                    if (rowsAsArray.length < 2) throw new Error(`الورقة الأولى فارغة أو تحتوي على عناوين فقط.`);
-                    const headerRow = rowsAsArray[0].map(h => String(h || '').toLowerCase().trim());
-                    const dataRows = rowsAsArray.slice(1);
-                    if (config.type === 'transferList') {
-                        if (!headerRow || headerRow.length < 2 || headerRow[0] !== 'code') throw new Error("تنسيق ملف التحويل غير صالح. يجب أن يكون العمود الأول 'code'.");
-                        const flattenedData = [];
-                        dataRows.forEach((row) => { const itemCode = row[0]; if (!itemCode || String(itemCode).trim() === '') return; headerRow.slice(1).forEach((branch, colIndex) => { const quantity = row[colIndex + 1]; if (quantity !== null && quantity !== '' && !isNaN(quantity) && Number(quantity) > 0) { flattenedData.push({ code: String(itemCode).trim(), branch: String(branch).trim(), quantity: Number(quantity) }); } }); });
-                        if (flattenedData.length === 0) throw new Error(`تم رفع الملف، ولكن لم يتم العثور على كميات تحويل صالحة.`);
-                        transferListData = flattenedData;
-                        showMessage(`تم رفع ملف التحويل بنجاح ويحتوي على ${transferListData.length} عملية تحويل.`, 'success');
-                    } else if (config.type === 'barcode') {
-                        const headerMap = {}; headerRow.forEach((h, i) => { headerMap[h] = i; });
-                        if (headerMap['barcode'] === undefined) throw new Error(`الملف يفتقد للعمود المطلوب: 'barcode'.`);
-                        const jsonData = dataRows.map(row => ({ barcode: String(row[headerMap['barcode']] || '').trim() })).filter(obj => obj.barcode !== "");
-                        if (jsonData.length === 0) throw new Error(`الملف لا يحتوي على بيانات.`);
-                        barcodeData = jsonData;
-                        showMessage(`تم رفع ملف الباركود بنجاح ويحتوي على ${barcodeData.length} صف.`, 'success');
-                    }
-                } catch (error) { showMessage(error.message, 'error'); config.clearFunc(); } finally { event.target.value = ''; }
-            };
-            reader.onerror = () => { showMessage(`خطأ في قراءة الملف.`, 'error'); config.clearFunc(); };
-            reader.readAsArrayBuffer(file);
-        }
-        
-        function processConfirmation() {
-            if (!reconciliationData) { showMessage('خطأ: يرجى رفع ملف المطابقة المكتمل والصالح أولاً.', 'error'); return; }
-            const button = document.getElementById('processConfirmationButton'); button.disabled = true;
-            showMessage('جاري المعالجة... يتم تحليل الملف وإنشاء التقرير.', 'info');
+        let currentUserData = null;
+        (function() {
+            const userString = sessionStorage.getItem('keroUser');
+            if (!userString) { window.location.href = '../login/'; return; }
             try {
-                const reconciliationResults = reconciliationData.map(item => { const requestedQty = Number(item['quantity']) || 0; const transferredQty = Number(item['transferred quantity']) || 0; const discrepancy = requestedQty - transferredQty; let status = ''; if (discrepancy === 0) status = 'تم التحويل بالكامل'; else if (transferredQty === 0) status = 'لم يتم التحويل'; else if (discrepancy > 0) status = 'تم التحويل جزئياً'; else status = 'تم التحويل بكمية زائدة'; return { 'الفرع': item['branch'], 'كود الصنف': item['code'], 'الباركود': item['barcode'], 'اسم الصنف': item['name'], 'الكمية المطلوبة': requestedQty, 'الكمية المحولة': transferredQty, 'الفرق': discrepancy, 'الحالة': status, }; });
-                const wb = XLSX.utils.book_new();
-                const branchAnalysis = {};
-                reconciliationResults.forEach(item => { const branchName = item['الفرع']; if (!branchName) return; if (!branchAnalysis[branchName]) { branchAnalysis[branchName] = { requested: 0, transferred: 0 }; } branchAnalysis[branchName].requested += item['الكمية المطلوبة']; branchAnalysis[branchName].transferred += item['الكمية المحولة']; });
-                const analysisSheetData = Object.keys(branchAnalysis).map(branchName => { const data = branchAnalysis[branchName]; const rate = data.requested > 0 ? (data.transferred / data.requested) : 0; return { 'الفرع': branchName, 'إجمالي الكمية المطلوبة': data.requested, 'إجمالي الكمية المحولة': data.transferred, 'نسبة التنفيذ': rate, }; });
-                let wsAnalysis = XLSX.utils.json_to_sheet(analysisSheetData); wsAnalysis['!cols'] = [{ wch: 30 }, { wch: 20 }, { wch: 22 }, { wch: 18 }];
-                const range = XLSX.utils.decode_range(wsAnalysis['!ref']); for (let R = range.s.r + 1; R <= range.e.r; ++R) { const cell_ref = XLSX.utils.encode_cell({ c: 3, r: R }); if (wsAnalysis[cell_ref]) { wsAnalysis[cell_ref].z = '0.00%'; } }
-                applyStylesToWorksheet(wsAnalysis); XLSX.utils.book_append_sheet(wb, wsAnalysis, "تحليل إنجاز الفروع");
-                const discrepancyResults = reconciliationResults.filter(item => item['الحالة'] !== 'تم التحويل بالكامل');
-                if (discrepancyResults.length > 0) { let wsDiscrepancy = XLSX.utils.json_to_sheet(discrepancyResults, { header: ['الفرع', 'كود الصنف', 'الباركود', 'اسم الصنف', 'الكمية المطلوبة', 'الكمية المحولة', 'الفرق', 'الحالة'] }); wsDiscrepancy['!cols'] = [{ wch: 30 }, { wch: 15 }, { wch: 20 }, { wch: 50 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 20 }]; applyStylesToWorksheet(wsDiscrepancy); XLSX.utils.book_append_sheet(wb, wsDiscrepancy, "تقرير الفروقات"); }
-                let wsFull = XLSX.utils.json_to_sheet(reconciliationResults, { header: ['الفرع', 'كود الصنف', 'الباركود', 'اسم الصنف', 'الكمية المطلوبة', 'الكمية المحولة', 'الفرق', 'الحالة'] }); wsFull['!cols'] = [{ wch: 30 }, { wch: 15 }, { wch: 20 }, { wch: 50 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 20 }]; applyStylesToWorksheet(wsFull); XLSX.utils.book_append_sheet(wb, wsFull, "التقرير الكامل للمطابقة");
-                const formattedDate = new Date().toISOString().slice(0, 10);
-                XLSX.writeFile(wb, `تقرير_مطابقة_التحويلات_${formattedDate}.xlsx`);
-                showMessage('نجاح! تم تنزيل التقرير.', 'success');
-            } catch (error) { showMessage(`خطأ في المعالجة: ${error.message}`, 'error'); } finally { button.disabled = false; }
-        }
-
-        async function processTransferData(){if(SCRIPT_URL.includes('PASTE_YOUR_NEW_DEPLOYED_WEB_APP_URL_HERE'))return showMessage('خطأ في الإعداد: لم يتم تعيين رابط التطبيق.','error');if(!transferListData)return showMessage('خطأ: يرجى رفع ملف التحويل أولاً.','error');const locationFrom=document.getElementById('locationFrom').value;if(!locationFrom)return showMessage('خطأ: يرجى اختيار الفرع المصدر.','error');const isSeparated=document.getElementById('outputFormatToggle').checked;const button=document.getElementById('processTransferButton');button.disabled=true;showMessage(`جاري معالجة ${transferListData.length} عملية تحويل...`,'info');try{const uniqueCodes=[...new Set(transferListData.map(item=>item.code))];const payloadForServer={action:'processTransfer',sheetName:GOOGLE_SHEET_NAME_TO_USE,payload:uniqueCodes.map(code=>({code:code}))};const response=await fetch(SCRIPT_URL,{method:'POST',mode:'cors',body:JSON.stringify(payloadForServer)});if(!response.ok)throw new Error(`خطأ من الخادم: ${response.statusText}`);const result=await response.json();if(result.status==='error')throw new Error(result.message);const itemDetailsMap=new Map();result.results.forEach(itemArray=>{const[code,barcode,name]=itemArray;itemDetailsMap.set(String(code),{barcode,name})});const transfersByBranch=transferListData.reduce((acc,item)=>{const{branch,code,quantity}=item;if(!acc[branch])acc[branch]=[];const details=itemDetailsMap.get(code);if(details)acc[branch].push({code,quantity,...details});return acc},{});const unmatchedCodes=uniqueCodes.filter(code=>!itemDetailsMap.has(code));const formattedDate=new Date().toISOString().slice(0,10);if(isSeparated){const zip=new JSZip();const sheetHeader=["رقم أمر التحويل","كود الصنف","الباركود","اسم الصنف","الكمية"];for(const branchCode in transfersByBranch){const branchSerialNumber=Math.floor(1000+Math.random()*9000);const itemsForBranch=transfersByBranch[branchCode];const sheetData=itemsForBranch.map(item=>[branchSerialNumber,item.code,item.barcode,item.name,item.quantity]);const wb=XLSX.utils.book_new();let ws=XLSX.utils.aoa_to_sheet([sheetHeader,...sheetData]);ws['!cols']=[{wch:18},{wch:15},{wch:20},{wch:50},{wch:10}];applyStylesToWorksheet(ws);XLSX.utils.book_append_sheet(wb,ws,"بيانات التحويل");const fullBranchName=branchCodeToNameMap.get(branchCode)||branchCode;const fileName=`تحويل إلى ${fullBranchName} #${branchSerialNumber}.xlsx`;const excelBuffer=XLSX.write(wb,{bookType:'xlsx',type:'array'});zip.file(fileName,excelBuffer)}if(unmatchedCodes.length>0){/*...*/};const zipFileName=`تحويلات من ${locationFrom} ${formattedDate}.zip`;zip.generateAsync({type:'blob'}).then(function(content){const link=document.createElement('a');link.href=URL.createObjectURL(content);link.download=zipFileName;document.body.appendChild(link);link.click();document.body.removeChild(link)});showMessage(`نجاح! تم تنزيل ملف ZIP يحتوي على جميع أوامر التحويل.`,'success')}else{const wb=XLSX.utils.book_new();const sheetHeader=["رقم أمر التحويل","كود الصنف","الباركود","اسم الصنف","الكمية"];for(const branchCode in transfersByBranch){const branchSerialNumber=Math.floor(1000+Math.random()*9000);const itemsForBranch=transfersByBranch[branchCode];const sheetData=itemsForBranch.map(item=>[branchSerialNumber,item.code,item.barcode,item.name,item.quantity]);let ws=XLSX.utils.aoa_to_sheet([sheetHeader,...sheetData]);ws['!cols']=[{wch:18},{wch:15},{wch:20},{wch:50},{wch:10}];applyStylesToWorksheet(ws);const fullBranchName=branchCodeToNameMap.get(branchCode)||branchCode;const sheetName=`إلى ${fullBranchName}`;XLSX.utils.book_append_sheet(wb,ws,sheetName)}if(unmatchedCodes.length>0){/*...*/};const fileName=`تحويلات من ${locationFrom} ${formattedDate}.xlsx`;XLSX.writeFile(wb,fileName);showMessage(`نجاح! تم تنزيل الملف الموحد بنجاح.`,'success')}}catch(error){showMessage(`خطأ في المعالجة: ${error.message}`,'error')}finally{button.disabled=false}}
-        function showPage(pageId){document.querySelectorAll('.page').forEach(p=>{p.style.display='none'});const n=document.getElementById(pageId);if(n){n.style.display='block';const m=n.querySelector('.message-display');if(m){m.innerText='';m.className='message-display'}}}
-        function applyStylesToWorksheet(ws){const border={top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}};const headerStyle={font:{bold:true},fill:{fgColor:{rgb:"E9E9E9"}},border:border,alignment:{horizontal:'center'}};const cellStyle={border:border};const range=XLSX.utils.decode_range(ws['!ref']);for(let R=range.s.r;R<=range.e.r;++R){for(let C=range.s.c;C<=range.e.c;++C){const cell_address={c:C,r:R};const cell_ref=XLSX.utils.encode_cell(cell_address);if(!ws[cell_ref])continue;if(R===0){ws[cell_ref].s=headerStyle}else{ws[cell_ref].s=cellStyle}}}ws['!pageSetup']={orientation:'landscape',fitToWidth:1,fitToHeight:0}}
-        async function processAndValidateBarcodes(){if(SCRIPT_URL.includes('PASTE_YOUR_NEW_DEPLOYED_WEB_APP_URL_HERE'))return showMessage('خطأ في الإعداد.','error');if(!barcodeData)return showMessage('خطأ: يرجى رفع ملف الباركود.','error');const button=document.getElementById('validateDownloadButton');button.disabled=true;showMessage(`جاري التحقق من ${barcodeData.length} باركود...`,'info');try{const payloadForServer={action:'validateBarcodes',sheetName:GOOGLE_SHEET_NAME_TO_USE,payload:barcodeData.map(row=>String(row.barcode).trim())};const response=await fetch(SCRIPT_URL,{method:'POST',mode:'cors',body:JSON.stringify(payloadForServer)});if(!response.ok)throw new Error(`خطأ من الخادم: ${response.statusText}`);const result=await response.json();if(result.status==='error')throw new Error(result.message);const wb=XLSX.utils.book_new();const header=["الباركود","حالة التحقق","كود الصنف","اسم الصنف","المورد"];let ws=XLSX.utils.aoa_to_sheet([header,...result.results]);ws['!cols']=[{wch:20},{wch:20},{wch:15},{wch:50},{wch:30}];applyStylesToWorksheet(ws);XLSX.utils.book_append_sheet(wb,ws,"نتائج التحقق");const formattedDate=new Date().toISOString().slice(0,10);XLSX.writeFile(wb,`نتائج_التحقق_من_الباركود_${formattedDate}.xlsx`);showMessage('نجاح! تم التحقق من الباركود وتنزيل النتائج.','success')}catch(error){showMessage(`خطأ في المعالجة: ${error.message}`,'error')}finally{button.disabled=false}}
-        function showMessage(message,type='info'){let messageDiv=document.querySelector('.page[style*="block"] .message-display');if(!messageDiv){messageDiv=document.querySelector('#homePage .message-display')}if(!messageDiv)return;messageDiv.innerText=message;messageDiv.className='message-display';if(type==='success'){messageDiv.classList.add('success')}else if(type==='error'){messageDiv.classList.add('error')}else if(type==='info'){messageDiv.classList.add('info')}}
+                currentUserData = JSON.parse(userString);
+                const permissions = currentUserData.permissions || [];
+                if (!permissions.includes('admin') && !permissions.includes('resupply_app')) {
+                    alert("وصول مرفوض."); window.location.href = '../index.html'; return;
+                }
+                document.addEventListener('DOMContentLoaded', () => { document.body.style.visibility = 'visible'; });
+            } catch (e) {
+                sessionStorage.removeItem('keroUser');
+                window.location.href = '../login/';
+            }
+        })();
     </script>
+    <div id="loading-overlay">
+        <div class="spinner-border text-primary" role="status" style="width: 3.5rem; height: 3.5rem;"></div>
+        <p class="mt-3 fs-5">...جاري التحميل</p>
+    </div>
+    <div id="app-view" class="view active">
+        <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="#"><i class="fas fa-boxes-packing me-2"></i>طلب نواقص الفرع</a>
+                <div class="d-flex align-items-center">
+                    <a href="../index.html" class="btn btn-outline-secondary btn-sm ms-3"><i class="fas fa-arrow-left"></i> الرئيسية</a>
+                    <span class="navbar-text ms-3 text-white-50">المستخدم: <strong class="text-white" id="loggedInUser"></strong> | الفرع: <strong class="text-white" id="currentBranchName">...</strong></span>
+                    <button id="logoutBtn" class="btn btn-outline-light btn-sm">خروج</button>
+                </div>
+            </div>
+        </nav>
+        <div class="container my-4">
+            <div id="branch-selector-view" class="row justify-content-center">
+                <div class="col-md-8 col-lg-6">
+                    <div class="card p-4"><div class="card-body text-center"><i class="fas fa-store fa-3x text-primary mb-3"></i><h4 class="card-title">اختر الفرع</h4><p class="text-muted">يجب اختيار فرع لعرض الارصدة.</p><select class="form-select form-select-lg" id="branchSelect"></select></div></div>
+                </div>
+            </div>
+            <div id="main-content" class="d-none">
+                <ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
+                    <li class="nav-item" role="presentation"><button class="nav-link active" id="pills-resupply-tab" data-bs-toggle="pill" data-bs-target="#pills-resupply">إنشاء طلب</button></li>
+                    <li class="nav-item" role="presentation"><button class="nav-link" id="pills-update-tab" data-bs-toggle="pill" data-bs-target="#pills-update">تحديث الارصدة</button></li>
+                    <li class="nav-item" role="presentation"><button class="nav-link" id="pills-extract-tab" data-bs-toggle="pill" data-bs-target="#pills-extract">استخراج رصيد مورد</button></li>
+                </ul>
+                <div class="tab-content" id="pills-tabContent">
+                    <div class="tab-pane fade show active" id="pills-resupply" role="tabpanel">
+                       <div class="row g-4">
+                           <div class="col-lg-8">
+                                <div id="search-container" class="card mb-4">
+                                    <div class="card-body p-4"><h5 class="card-title mb-3"> البحث عن الأصناف</h5><div class="row g-2 align-items-end"><div class="col-sm-5"><label for="supplierFilter" class="form-label">بحث حسب المورد</label><select id="supplierFilter" class="form-select"></select></div><div class="col-sm-5"><label for="searchTerm" class="form-label">بحث بالاسم او الكود او الباركود</label><input type="search" class="form-control" id="searchTerm" placeholder="..."></div><div class="col-sm-2 d-grid"><button id="searchBtn" class="btn btn-primary w-100">بحث</button></div></div></div>
+                                </div>
+                                <div class="card">
+                                    <div class="card-body p-4"><div class="table-responsive table-responsive-scrollable"><table id="itemsTable" class="table table-hover" style="width:100%"><thead><tr><th>الاسم</th><th>المورد</th><th>الكمية الحالية</th><th>الكمية المطلوبة</th></tr></thead><tbody></tbody></table></div></div>
+                                    <div class="card-footer text-start bg-light p-3"><button id="addItemsBtn" class="btn btn-success"><i class="fas fa-cart-plus me-2"></i>حفظ الاصناف المختارة</button></div>
+                                </div>
+                           </div>
+                           <div class="col-lg-4">
+                               <div id="order-summary-card" class="card">
+                                   <div class="card-body p-4"><h5 class="card-title mb-3"> مراجعة الطلب</h5><div id="order-summary-content"><p class="placeholder-text text-center">الأصناف المختارة</p></div><div class="d-grid mt-3"><button id="exportBtn" class="btn btn-success btn-lg" disabled>استخراج الطلب (<span id="selectionCount">0</span>)</button></div></div>
+                               </div>
+                           </div>
+                       </div>
+                    </div>
+                    <div class="tab-pane fade" id="pills-update" role="tabpanel">
+                        <div class="row justify-content-center"><div class="col-md-8 col-lg-6"><div class="card"><div class="card-body p-4"><h4 class="card-title">تحديث الارصدة </h4><p class="card-subtitle mb-3 text-muted">ارفع ملف Excel. سيتم استبدال الارصدة الحالية</p><div id="update-error" class="alert alert-danger d-none"></div><div id="update-success" class="alert alert-success d-none"></div><div class="mb-3"><label for="stockFile" class="form-label">ملف ارصدة الفروع</label><input class="form-control" type="file" id="stockFile" accept=".xlsx, .xls"></div><button id="updateStockBtn" class="btn btn-danger w-100"><i class="fas fa-sync-alt me-2"></i>تحديث الارصدة</button></div></div></div></div>
+                    </div>
+                    <div class="tab-pane fade" id="pills-extract" role="tabpanel">
+                        <div class="row justify-content-center">
+                            <div class="col-md-8 col-lg-6">
+                                <div class="card">
+                                    <div class="card-body p-4">
+                                        <h4 class="card-title">استخراج رصيد مورد</h4>
+                                        <p class="card-subtitle mb-3 text-muted">اختر الفروع والموردين المطلوبين لاستخراج أرصدتهم الحالية.</p>
+                                        <div class="mb-3">
+                                            <label for="extractBranchSelect" class="form-label fw-bold">الفروع</label>
+                                            <select id="extractBranchSelect" class="form-select" multiple></select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="extractSupplierSelect" class="form-label fw-bold">الموردين</label>
+                                            <select id="extractSupplierSelect" class="form-select" multiple></select>
+                                        </div>
+                                        <button id="extractStockBtn" class="btn btn-info w-100"><i class="fas fa-file-excel me-2"></i>استخراج الملف</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="../assets/js/session.js"></script>
+    <script src="main.js"></script>
 </body>
 </html>
+--- END OF FILE index.html ---
