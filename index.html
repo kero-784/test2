@@ -19,61 +19,29 @@
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: 'Cairo', sans-serif; background-color: var(--bg-color); color: var(--text-color);
-            display: flex; height: 100vh; overflow: hidden; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
-        }
+        body { font-family: 'Cairo', sans-serif; background-color: var(--bg-color); color: var(--text-color); display: flex; height: 100vh; overflow: hidden; }
         .app-container { display: flex; width: 100%; height: 100%; flex-direction: row-reverse; }
-
-        .control-panel {
-            width: 450px; min-width: 420px; background-color: var(--bg-color);
-            padding: 30px; height: 100vh; overflow-y: auto; border-left: 1px solid var(--border-color);
-        }
-        .preview-panel {
-            flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; 
-            padding: 30px; height: 100vh; background-color: var(--preview-bg);
-            background-image: radial-gradient(var(--border-color) 1px, transparent 1px);
-            background-size: 15px 15px;
-        }
-
-        h1 { font-size: 2rem; font-weight: 700; color: var(--text-color); margin-bottom: 25px; }
-        h2 { font-size: 1.25rem; font-weight: 600; color: var(--text-color); margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid var(--border-color); }
+        .control-panel { width: 450px; min-width: 420px; background-color: var(--bg-color); padding: 30px; height: 100vh; overflow-y: auto; border-left: 1px solid var(--border-color); }
+        .preview-panel { flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; height: 100vh; background-color: var(--preview-bg); }
+        h1 { font-size: 2rem; font-weight: 700; margin-bottom: 25px; }
+        h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid var(--border-color); }
         h3 { font-size: 1.5rem; font-weight: 700; color: var(--primary-color); margin: 40px 0 25px 0; border-bottom: 2px solid; padding-bottom: 15px;}
-
-        button, .btn-link {
-            background-color: var(--primary-color); color: white; border: none; padding: 12px 25px; border-radius: var(--radius-md); font-family: 'Cairo', sans-serif;
-            font-size: 1rem; font-weight: 600; cursor: pointer; transition: var(--transition); box-shadow: var(--shadow);
-            display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none;
-        }
+        button, .btn-link { background-color: var(--primary-color); color: white; border: none; padding: 12px 25px; border-radius: var(--radius-md); font-family: 'Cairo', sans-serif; font-size: 1rem; font-weight: 600; cursor: pointer; transition: var(--transition); box-shadow: var(--shadow); display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; }
         button:hover, .btn-link:hover { background-color: var(--primary-hover); transform: translateY(-2px); box-shadow: var(--shadow-lg); }
         button:disabled, .btn-link:disabled { background-color: #94a3b8; cursor: not-allowed; transform: none; box-shadow: none; }
         .btn-link { background: none; box-shadow: none; color: var(--primary-color); padding: 0; font-size: 0.9rem; }
         .btn-link:hover { color: var(--primary-hover); text-decoration: underline; transform: none; }
         .btn-icon svg { width:18px; height:18px; }
-        
         input, select { width: 100%; padding: 10px 12px; border-radius: var(--radius-md); border: 1px solid var(--border-color); font-family: 'Cairo', sans-serif; background-color: #f8fafc; transition: var(--transition); }
         input:focus, select:focus { border-color: var(--primary-color); background-color: white; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); outline: none; }
-        
         .section-card { background: var(--card-bg); padding: 25px; border-radius: var(--radius-lg); box-shadow: var(--shadow); margin-bottom: 30px; }
-        .loader { border: 4px solid #e2e8f0; border-top: 4px solid var(--primary-color); border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; display: none; margin: 0 auto; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        
         .app-status { padding: 15px 20px; margin-bottom: 20px; border-radius: var(--radius-md); color: #fff; text-align: center; font-weight: 600; box-shadow: var(--shadow); display: none; align-items: center; justify-content: center; gap: 10px; }
-        .app-status.error { background: #ef4444; } .app-status.success { background: #22c55e; }
-        .app-status .icon { display: inline-flex; }
+        .app-status.error { background: #ef4444; } .app-status.success { background: #22c55e; } .app-status .icon { display: inline-flex; }
         
-        /* --- MODAL STYLES (REDESIGNED) --- */
-        .modal-overlay {
-            position: fixed; top: 0; right: 0; bottom: 0; left: 0; background: rgba(15, 23, 42, 0.6);
-            display: flex; align-items: center; justify-content: center; z-index: 1000;
-            opacity: 0; visibility: hidden; transition: opacity 0.25s ease, visibility 0.25s ease; backdrop-filter: blur(4px);
-        }
+        /* Modal Styles */
+        .modal-overlay { position: fixed; top: 0; right: 0; bottom: 0; left: 0; background: rgba(15, 23, 42, 0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; visibility: hidden; transition: opacity 0.25s ease, visibility 0.25s ease; backdrop-filter: blur(4px); }
         .modal-overlay.is-visible { opacity: 1; visibility: visible; }
-        .modal-content {
-            background: var(--bg-color); border-radius: var(--radius-lg); width: 90%; max-width: 700px;
-            max-height: 85vh; display: flex; flex-direction: column; box-shadow: var(--shadow-lg);
-            transform: scale(0.95) translateY(10px); transition: transform 0.25s ease;
-        }
+        .modal-content { background: var(--bg-color); border-radius: var(--radius-lg); width: 90%; max-width: 700px; max-height: 85vh; display: flex; flex-direction: column; box-shadow: var(--shadow-lg); transform: scale(0.95) translateY(10px); transition: transform 0.25s ease; }
         .modal-overlay.is-visible .modal-content { transform: scale(1) translateY(0); }
         .modal-header { padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); background: white; border-radius: var(--radius-lg) var(--radius-lg) 0 0; flex-shrink: 0; }
         .modal-header h2 { margin: 0; font-size: 1.2rem; }
@@ -81,31 +49,30 @@
         .modal-body { flex-grow: 1; overflow-y: auto; padding: 0; position: relative; }
         .modal-footer { padding: 15px 25px; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; background-color: #f8fafc; flex-shrink: 0; }
         #modal-selection-count { font-weight: 600; color: var(--muted-text); }
-        .search-header {
-            display: flex; gap: 10px; align-items: center; position: sticky; top: 0; background: white; padding: 20px 25px; z-index: 10;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03), 0 2px 4px -2px rgba(0,0,0,0.03);
-        }
+        .search-header { display: flex; gap: 10px; align-items: center; position: sticky; top: 0; background: white; padding: 20px 25px; z-index: 10; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03), 0 2px 4px -2px rgba(0,0,0,0.03); }
         #search-container { border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 5px; display: flex; align-items: center; background-color: #f8fafc; flex-grow: 1; }
-        #search-container:focus-within { border-color: var(--primary-color); background-color: white; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); }
         #search-input { border: none; flex-grow: 1; padding: 5px; outline: none; background: transparent; }
-        
         #item-list { padding: 15px 25px; }
-        .item-card {
-            display: flex; align-items: center; justify-content: space-between; padding: 15px; border-bottom: 1px solid var(--border-color);
-            transition: background-color 0.2s ease; cursor: pointer; position: relative; background-color: white;
-        }
+        .item-card { display: flex; align-items: center; justify-content: space-between; padding: 15px; border-bottom: 1px solid var(--border-color); transition: background-color 0.2s ease; cursor: pointer; position: relative; background-color: white; }
         .item-card:first-child { border-top: 1px solid var(--border-color); }
         .item-card:hover { background-color: #f8fafc; }
         .item-card.selected { background-color: #eff6ff; color: #1e40af; font-weight: 600; }
         .item-card.selected::before { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 4px; background-color: var(--primary-color); }
         .item-card .item-name { font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
         .item-card .item-meta { font-size: 0.85rem; color: var(--muted-text); white-space: nowrap; }
-        .item-card.selected .item-meta { color: #60a5fa; }
-
-        #selected-item-display { background-color: #f8fafc; padding: 20px; border-radius: var(--radius-md); border: 1px solid var(--border-color); text-align: center; margin-bottom: 15px; }
-        #selected-item-display .placeholder { color: var(--muted-text); }
-        #selected-item-display .summary { display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 700; font-size: 1.2rem; color: #1e3a8a; }
-
+        
+        /* Staging List Styles */
+        #staging-list .staging-item { background: #f8fafc; padding: 15px; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 15px; }
+        .staging-item-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+        .staging-item-details .item-name { font-weight: 700; color: #1e3a8a; }
+        .staging-item-details .item-meta { font-size: 0.8rem; color: var(--muted-text); }
+        .staging-item-remove-btn { background: none; border: none; color: var(--muted-text); font-size: 20px; cursor: pointer; padding: 0; line-height: 1; box-shadow: none; }
+        .staging-item-remove-btn:hover { color: #ef4444; }
+        .staging-item-controls { display: grid; grid-template-columns: 1fr 1fr 80px; gap: 10px; align-items: center; }
+        .staging-item-controls input { padding: 8px; font-size: 0.9rem; }
+        .staging-item-controls button { padding: 8px 12px; font-size: 0.9rem; width: 100%; }
+        
+        #selection-summary { color: var(--muted-text); margin-bottom: 15px; }
         #a4-sheet { background: white; width: 21cm; height: 29.7cm; box-shadow: var(--shadow-lg); padding: 1cm; transform-origin: center center; transform: scale(0.65); display: grid; align-content: start; }
         #print-button { margin-top: 25px; }
         
@@ -120,14 +87,12 @@
         legend { font-weight: 700; color: var(--text-color); padding: 0 5px; font-size: 1.1rem; }
         .control-group { margin-bottom: 20px; } .control-group:last-child { margin-bottom: 0; }
         .control-group label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--muted-text); }
-        .grid-2, .grid-3 { display: grid; gap: 15px; align-items: end; }
-        .grid-2 { grid-template-columns: repeat(2, 1fr); }
-        .grid-3 { grid-template-columns: 1fr 1fr auto; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
         #layout-calculation-status, #queue-summary { background-color: #eef2ff; padding: 10px; border-radius: var(--radius-md); text-align: center; font-weight: 600; color: #4338ca; margin-top: 15px; display:none; }
         #print-queue-list { max-height: 25vh; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--radius-lg); background: white; }
         .queue-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; border-bottom: 1px solid var(--border-color); }
         .queue-item-details { flex-grow: 1; min-width: 0; }
-        .queue-item-name { font-weight: 600; color: var(--text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .queue-item-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .queue-item-meta { font-size: 14px; color: var(--muted-text); }
         .queue-item-remove { background: #fee2e2; color: #b91c1c; border: none; width: 28px; height: 28px; border-radius: 50%; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; padding: 0; transition: var(--transition); flex-shrink: 0; margin-right: 10px; box-shadow:none; }
         .queue-item-remove:hover { background-color: #ef4444; color: white; transform: scale(1.1); }
@@ -146,27 +111,32 @@
             <h1>شيلف مجمع</h1>
             <a href="../index.html" class="btn-link" style="display: block; text-align: center; margin-bottom: 25px; font-weight: 500;">← العودة إلى لوحة التحكم</a>
             <div id="app-status" class="app-status"></div>
-            <section class="section-card"><h2>1. تحميل البيانات</h2><div id="loader" class="loader"></div></section>
+            
             <section id="item-selection-section" class="section-card" style="display:none;">
-                <h2>2. الأصناف المحددة</h2>
-                <div id="selected-item-display"><span class="placeholder">لم يتم تحديد أي صنف</span></div>
-                <button id="open-item-modal-btn" style="width: 100%;"><span class="btn-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M3.75 3.75a.75.75 0 0 0-1.5 0v1.5c0 .414.336.75.75.75h1.5a.75.75 0 0 0 .75-.75v-1.5a.75.75 0 0 0-.75-.75Zm3.25.75a.75.75 0 0 1 .75-.75h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1-.75-.75ZM3 8.25a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1-.75-.75v-1.5ZM7 8.25a.75.75 0 0 1 .75-.75h8.5a.75.75 0 0 1 0 1.5h-8.5A.75.75 0 0 1 7 8.25Zm-4 4a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1-.75-.75v-1.5Zm3.25.75a.75.75 0 0 1 .75-.75h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1-.75-.75Z" /></svg></span> تحديد أصناف للإضافة</button>
+                <h2>1. تحديد الأصناف</h2>
+                <p id="selection-summary">لم يتم تحديد أي صنف.</p>
+                <button id="open-item-modal-btn" style="width: 100%;"><span class="btn-icon"></span> تحديد أصناف للإضافة</button>
             </section>
-            <section id="generation-section" class="section-card" style="display:none;">
-                 <h2>3. إضافة للطباعة</h2>
-                 <p style="font-size: 0.9rem; color: var(--muted-text); margin-bottom: 15px;">سيتم تطبيق السعر والكمية على جميع الأصناف المحددة.</p>
+            
+            <section id="staging-section" class="section-card" style="display:none;">
+                 <h2>2. تجهيز وإضافة الأصناف</h2>
                  <div class="control-group">
-                    <div class="grid-3">
-                       <input type="number" id="price-input" placeholder="السعر لجميع الأصناف" step="0.01" min="0">
-                       <input type="number" id="quantity-input" placeholder="الكمية لكل صنف" value="1" min="1">
-                       <button id="add-to-queue-btn">إضافة</button>
-                    </div>
+                    <label for="price-category-setter">تعبئة السعر تلقائياً حسب الفئة</label>
+                    <select id="price-category-setter">
+                        <option value="">اختر فئة سعرية...</option>
+                        <option value="sokhna">السخنة</option>
+                        <option value="sahel">الساحل</option>
+                        <option value="cairo">القاهرة</option>
+                    </select>
                  </div>
+                 <div id="staging-list"></div>
             </section>
+
             <section id="print-queue-section" class="section-card" style="display:none;">
-                <h2>4. قائمة الطباعة</h2><div id="print-queue-list"></div><div id="queue-summary" style="display: none;"></div>
+                <h2>3. قائمة الطباعة</h2><div id="print-queue-list"></div><div id="queue-summary" style="display: none;"></div>
             </section>
-            <h3>5. تخصيص التصميم</h3>
+
+            <h3>4. تخصيص التصميم</h3>
             <fieldset> <legend>تخطيط الصفحة</legend> <div id="layout-calculation-status"></div> </fieldset>
             <fieldset>
                 <legend>النصوص والخطوط</legend>
@@ -178,27 +148,17 @@
         </aside>
     </div>
 
-    <!-- MODAL HTML (REDESIGNED) -->
     <div id="item-selection-modal" class="modal-overlay">
         <div class="modal-content">
-            <div class="modal-header">
-                <h2>اختر الأصناف</h2>
-                <button class="modal-close-btn" title="إغلاق">&times;</button>
-            </div>
+            <div class="modal-header"><h2>اختر الأصناف</h2><button class="modal-close-btn" title="إغلاق">&times;</button></div>
             <div class="modal-body">
                 <div class="search-header">
-                    <div id="search-container">
-                        <select id="search-field"><option value="name">الاسم</option><option value="code">الكود</option></select>
-                        <input type="search" id="search-input" placeholder="اكتب هنا للبحث...">
-                    </div>
+                    <div id="search-container"><select id="search-field"><option value="name">الاسم</option><option value="code">الكود</option></select><input type="search" id="search-input" placeholder="اكتب هنا للبحث..."></div>
                     <button id="select-all-btn" class="btn-link">تحديد الكل</button>
                 </div>
                 <div id="item-list"></div>
             </div>
-            <div class="modal-footer">
-                <span id="modal-selection-count">0 صنف محدد</span>
-                <button id="confirm-selection-btn" disabled>تأكيد الإختيار</button>
-            </div>
+            <div class="modal-footer"><span id="modal-selection-count">0 صنف محدد</span><button id="confirm-selection-btn" disabled>تأكيد الإختيار</button></div>
         </div>
     </div>
 
@@ -208,16 +168,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw_TeuaYi3odExgQNHKXj52grDm-QvPrbEJwMKibQxD8rkxff1EuX2VKmpWWKCwOBqD/exec';
     const state = { allItems: [], selectedItemIds: new Set(), printQueue: [], visibleItemIds: [] };
     
-    // Explicitly define DOM elements for reliability
     const dom = {
         appStatus: document.getElementById('app-status'),
-        loader: document.getElementById('loader'),
         itemSelectionSection: document.getElementById('item-selection-section'),
-        selectedItemDisplay: document.getElementById('selected-item-display'),
-        generationSection: document.getElementById('generation-section'),
-        priceInput: document.getElementById('price-input'),
-        quantityInput: document.getElementById('quantity-input'),
-        addToQueueBtn: document.getElementById('add-to-queue-btn'),
+        selectionSummary: document.getElementById('selection-summary'),
+        stagingSection: document.getElementById('staging-section'),
+        stagingList: document.getElementById('staging-list'),
+        priceCategorySetter: document.getElementById('price-category-setter'),
         printQueueSection: document.getElementById('print-queue-section'),
         printQueueList: document.getElementById('print-queue-list'),
         queueSummary: document.getElementById('queue-summary'),
@@ -240,18 +197,10 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // --- HELPER & CORE FUNCTIONS ---
     const debounce = (f, d) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => f.apply(this, a), d); }; };
-
-    const showStatus = (message, type = 'error') => {
-        const icon = type === 'success' ? '✔️' : '❌';
-        dom.appStatus.innerHTML = `<span class="icon">${icon}</span> ${message}`;
-        dom.appStatus.className = `app-status ${type}`;
-        dom.appStatus.style.display = 'flex';
-        setTimeout(() => { dom.appStatus.style.display = 'none'; }, type === 'error' ? 8000 : 4000);
-    };
-
+    const showStatus = (message, type = 'error') => { const icon = type === 'success' ? '✔️' : '❌'; dom.appStatus.innerHTML = `<span class="icon">${icon}</span> ${message}`; dom.appStatus.className = `app-status ${type}`; dom.appStatus.style.display = 'flex'; setTimeout(() => { dom.appStatus.style.display = 'none'; }, 4000); };
     const openModal = () => { dom.modal.classList.add('is-visible'); setTimeout(() => dom.searchInput.focus(), 50); };
     const closeModal = () => { dom.modal.classList.remove('is-visible'); };
-
+    
     const updateModalUI = () => {
         const count = state.selectedItemIds.size;
         dom.modalSelectionCount.textContent = `${count} صنف محدد`;
@@ -263,10 +212,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     const renderItems = (items) => {
         state.visibleItemIds = items.map(i => i.id);
-        dom.itemList.innerHTML = items.length === 0 
-            ? '<p style="text-align:center; padding: 20px; color: var(--muted-text);">لا توجد نتائج مطابقة</p>'
-            : '';
-        const fragment = document.createDocumentFragment();
+        dom.itemList.innerHTML = items.length === 0 ? '<p style="text-align:center; padding: 20px; color: var(--muted-text);">لا توجد نتائج</p>' : '';
+        const f = document.createDocumentFragment();
         items.forEach(item => {
             const isSelected = state.selectedItemIds.has(item.id);
             const card = document.createElement('div');
@@ -275,139 +222,127 @@ document.addEventListener('DOMContentLoaded', function() {
             card.innerHTML = `<span class="item-name" title="${item.name}">${item.name}</span><span class="item-meta">الكود: ${item.code || 'N/A'}</span>`;
             card.addEventListener('click', () => {
                 const id = parseInt(card.dataset.id, 10);
-                if (state.selectedItemIds.has(id)) {
-                    state.selectedItemIds.delete(id);
-                } else {
-                    state.selectedItemIds.add(id);
-                }
+                if (state.selectedItemIds.has(id)) { state.selectedItemIds.delete(id); } else { state.selectedItemIds.add(id); }
                 card.classList.toggle('selected');
                 updateModalUI();
             });
-            fragment.appendChild(card);
+            f.appendChild(card);
         });
-        dom.itemList.appendChild(fragment);
+        dom.itemList.appendChild(f);
         updateModalUI();
     };
 
-    const handleSearch = () => {
-        const q = dom.searchInput.value.toLowerCase().trim();
-        const f = dom.searchField.value;
-        const filtered = q ? state.allItems.filter(i => String(i[f] || '').toLowerCase().includes(q)) : state.allItems;
-        renderItems(filtered);
-    };
-
+    const handleSearch = () => { const q = dom.searchInput.value.toLowerCase().trim(), f = dom.searchField.value; const filtered = q ? state.allItems.filter(i => String(i[f] || '').toLowerCase().includes(q)) : state.allItems; renderItems(filtered); };
+    
     const renderPrintQueue = () => {
         dom.printQueueList.innerHTML = '';
-        if (state.printQueue.length === 0) {
-            dom.printQueueSection.style.display = 'none';
-            dom.queueSummary.style.display = 'none';
-        } else {
-            dom.printQueueSection.style.display = 'block';
-            const fragment = document.createDocumentFragment();
-            state.printQueue.forEach(job => {
-                const itemEl = document.createElement('div');
-                itemEl.className = 'queue-item';
-                itemEl.innerHTML = `<div class="queue-item-details"><span class="queue-item-name" title="${job.name}">${job.name}</span><span class="queue-item-meta">السعر: ${job.price.toFixed(2)} ج.م - الكمية: ${job.quantity}</span></div><button class="queue-item-remove" data-id="${job.id}" title="إزالة">&times;</button>`;
-                fragment.appendChild(itemEl);
-            });
-            dom.printQueueList.appendChild(fragment);
-            const totalLabels = state.printQueue.reduce((sum, job) => sum + parseInt(job.quantity), 0);
-            dom.queueSummary.textContent = `الإجمالي: ${totalLabels} بطاقة`;
-            dom.queueSummary.style.display = 'block';
-        }
+        if (state.printQueue.length === 0) { dom.printQueueSection.style.display = 'none'; dom.queueSummary.style.display = 'none'; return; }
+        dom.printQueueSection.style.display = 'block';
+        const f = document.createDocumentFragment();
+        state.printQueue.forEach(job => {
+            const el = document.createElement('div');
+            el.className = 'queue-item';
+            el.innerHTML = `<div class="queue-item-details"><span class="queue-item-name" title="${job.name}">${job.name}</span><span class="queue-item-meta">السعر: ${job.price.toFixed(2)} - الكمية: ${job.quantity}</span></div><button class="queue-item-remove" data-id="${job.id}" title="إزالة">&times;</button>`;
+            f.appendChild(el);
+        });
+        dom.printQueueList.appendChild(f);
+        const total = state.printQueue.reduce((s, j) => s + parseInt(j.quantity), 0);
+        dom.queueSummary.textContent = `الإجمالي: ${total} بطاقة`;
+        dom.queueSummary.style.display = 'block';
     };
 
     const updatePreview = () => {
-        const root = document.documentElement.style;
-        root.setProperty('--label-item-font-size', `${dom.controls.itemFontSize.value}px`);
-        root.setProperty('--label-price-font-size', `${dom.controls.priceFontSize.value}px`);
+        const r = document.documentElement.style;
+        r.setProperty('--label-item-font-size', `${dom.controls.itemFontSize.value}px`);
+        r.setProperty('--label-price-font-size', `${dom.controls.priceFontSize.value}px`);
         const labelsPerPage = 9;
         dom.a4Sheet.innerHTML = '';
-        dom.a4Sheet.style.gridTemplateColumns = `1fr`;
-        dom.a4Sheet.style.gap = `5mm`;
-        dom.a4Sheet.style.gridTemplateRows = `repeat(${labelsPerPage}, 30mm)`;
+        dom.a4Sheet.style.cssText = `grid-template-columns: 1fr; gap: 5mm; grid-template-rows: repeat(${labelsPerPage}, 30mm);`;
         const labelsToRender = state.printQueue.flatMap(job => Array(parseInt(job.quantity)).fill(job));
-        const fragment = document.createDocumentFragment();
+        const f = document.createDocumentFragment();
         labelsToRender.slice(0, labelsPerPage).forEach(job => {
-            const label = document.createElement('div');
-            label.className = 'price-label';
-            label.innerHTML = `<div class="label-logo-area"></div><div class="label-info-area">${job.name}</div><div class="label-price-area"><div class="label-price-container"><div class="label-price">${job.price.toFixed(2)} ج.م</div></div></div>`;
-            fragment.appendChild(label);
+            const l = document.createElement('div');
+            l.className = 'price-label';
+            l.innerHTML = `<div class="label-logo-area"></div><div class="label-info-area">${job.name}</div><div class="label-price-area"><div class="label-price-container"><div class="label-price">${job.price.toFixed(2)} ج.م</div></div></div>`;
+            f.appendChild(l);
         });
-        dom.a4Sheet.appendChild(fragment);
+        dom.a4Sheet.appendChild(f);
         dom.a4Sheet.querySelectorAll('.price-label').forEach(el => {
-            const infoArea = el.querySelector('.label-info-area');
-            if (!infoArea) return;
-            infoArea.style.fontSize = ''; 
-            let currentFontSize = parseInt(window.getComputedStyle(infoArea).fontSize);
-            while (infoArea.scrollWidth > infoArea.clientWidth && currentFontSize > 8) {
-                currentFontSize--;
-                infoArea.style.fontSize = `${currentFontSize}px`;
-            }
+            const iA = el.querySelector('.label-info-area');
+            if (!iA) return;
+            iA.style.fontSize = '';
+            let fs = parseInt(window.getComputedStyle(iA).fontSize);
+            while (iA.scrollWidth > iA.clientWidth && fs > 8) { fs--; iA.style.fontSize = `${fs}px`; }
         });
-        const totalInQueue = state.printQueue.reduce((sum, job) => sum + parseInt(job.quantity), 0);
-        dom.layoutStatus.textContent = `سعة الصفحة: ${labelsPerPage} بطاقات | القائمة تحتوي على ${totalInQueue} بطاقة.`;
+        const total = state.printQueue.reduce((s, j) => s + parseInt(j.quantity), 0);
+        dom.layoutStatus.textContent = `سعة الصفحة: ${labelsPerPage} بطاقات | القائمة: ${total} بطاقة`;
         dom.layoutStatus.style.display = 'block';
         dom.printButton.style.display = labelsToRender.length > 0 ? 'inline-flex' : 'none';
     };
 
-    const handleSelectAll = () => {
-        state.visibleItemIds.forEach(id => state.selectedItemIds.add(id));
-        dom.itemList.querySelectorAll('.item-card').forEach(card => card.classList.add('selected'));
-        updateModalUI();
-    };
-
-    const handleDeselectAll = () => {
-        state.visibleItemIds.forEach(id => state.selectedItemIds.delete(id));
-        dom.itemList.querySelectorAll('.item-card').forEach(card => card.classList.remove('selected'));
-        updateModalUI();
-    };
-
-    const handleConfirmSelection = () => {
-        const count = state.selectedItemIds.size;
-        if (count > 0) {
-            dom.selectedItemDisplay.innerHTML = `<div class="summary"><span class="icon">✔️</span> ${count} أصناف محددة</div>`;
-            dom.generationSection.style.display = 'block';
-            dom.priceInput.value = '';
-            dom.priceInput.focus();
-        } else {
-            dom.selectedItemDisplay.innerHTML = `<span class="placeholder">لم يتم تحديد أي صنف</span>`;
-            dom.generationSection.style.display = 'none';
+    const renderStagingList = () => {
+        dom.stagingList.innerHTML = '';
+        if (state.selectedItemIds.size === 0) {
+            dom.stagingSection.style.display = 'none';
+            dom.selectionSummary.textContent = 'لم يتم تحديد أي صنف.';
+            return;
         }
-        closeModal();
-    };
-
-    const handleAddToQueue = () => {
-        if (state.selectedItemIds.size === 0) return showStatus('خطأ: يرجى تحديد صنف واحد على الأقل.', 'error');
-        const price = parseFloat(dom.priceInput.value);
-        if (isNaN(price) || price <= 0) return showStatus('خطأ: يرجى إدخال سعر صحيح وموجب.', 'error');
-        const quantity = parseInt(dom.quantityInput.value);
-        if (isNaN(quantity) || quantity < 1) return showStatus('خطأ: يرجى إدخال كمية صحيحة.', 'error');
-        
-        let itemsAdded = 0;
+        dom.selectionSummary.textContent = `${state.selectedItemIds.size} أصناف جاهزة للتجهيز.`;
+        dom.stagingSection.style.display = 'block';
+        const f = document.createDocumentFragment();
         state.selectedItemIds.forEach(id => {
             const item = state.allItems.find(i => i.id === id);
-            if (item) {
-                state.printQueue.push({ id: Date.now() + itemsAdded, name: item.name, price, quantity });
-                itemsAdded++;
-            }
+            if (!item) return;
+            const card = document.createElement('div');
+            card.className = 'staging-item';
+            card.dataset.id = id;
+            card.innerHTML = `<div class="staging-item-header"><div class="staging-item-details"><div class="item-name">${item.name}</div><div class="item-meta">الكود: ${item.code || 'N/A'}</div></div><button class="staging-item-remove-btn" title="إزالة">&times;</button></div><div class="staging-item-controls"><input type="number" class="staging-price" placeholder="السعر" step="0.01" min="0"><input type="number" class="staging-quantity" value="1" placeholder="الكمية" min="1"><button class="staging-add-btn">إضافة</button></div>`;
+            f.appendChild(card);
         });
-        
-        showStatus(`تمت إضافة ${itemsAdded} صنف للقائمة بنجاح.`, 'success');
+        dom.stagingList.appendChild(f);
+    };
 
-        state.selectedItemIds.clear();
-        dom.selectedItemDisplay.innerHTML = `<span class="placeholder">لم يتم تحديد أي صنف</span>`;
-        dom.generationSection.style.display = 'none';
-        dom.quantityInput.value = '1';
-        dom.priceInput.value = '';
-        
-        renderPrintQueue();
-        updatePreview();
-        updateModalUI();
+    const handleSelectAll = () => { state.visibleItemIds.forEach(id => state.selectedItemIds.add(id)); dom.itemList.querySelectorAll('.item-card').forEach(card => card.classList.add('selected')); updateModalUI(); };
+    const handleDeselectAll = () => { state.visibleItemIds.forEach(id => state.selectedItemIds.delete(id)); dom.itemList.querySelectorAll('.item-card').forEach(card => card.classList.remove('selected')); updateModalUI(); };
+    
+    const handleConfirmSelection = () => { renderStagingList(); closeModal(); };
+
+    const handleStagingListClick = (e) => {
+        const target = e.target;
+        const card = target.closest('.staging-item');
+        if (!card) return;
+        const id = parseInt(card.dataset.id, 10);
+        if (target.classList.contains('staging-item-remove-btn')) {
+            state.selectedItemIds.delete(id);
+            renderStagingList();
+        }
+        if (target.classList.contains('staging-add-btn')) {
+            const priceInput = card.querySelector('.staging-price'), quantityInput = card.querySelector('.staging-quantity');
+            const price = parseFloat(priceInput.value), quantity = parseInt(quantityInput.value, 10);
+            if (isNaN(price) || price <= 0) { showStatus('الرجاء إدخال سعر صحيح.', 'error'); priceInput.focus(); return; }
+            if (isNaN(quantity) || quantity < 1) { showStatus('الرجاء إدخال كمية صحيحة.', 'error'); quantityInput.focus(); return; }
+            const item = state.allItems.find(i => i.id === id);
+            state.printQueue.push({ id: Date.now(), name: item.name, price, quantity });
+            state.selectedItemIds.delete(id);
+            renderStagingList();
+            renderPrintQueue();
+            updatePreview();
+        }
     };
     
+    const handlePriceCategoryChange = () => {
+        const category = dom.priceCategorySetter.value;
+        if (!category) return;
+        dom.stagingList.querySelectorAll('.staging-item').forEach(card => {
+            const id = parseInt(card.dataset.id, 10);
+            const item = state.allItems.find(i => i.id === id);
+            if (item && item.prices[category] !== undefined) {
+                card.querySelector('.staging-price').value = item.prices[category].toFixed(2);
+            }
+        });
+    };
+
     const loadData = async () => {
-        dom.loader.style.display = 'block';
         try {
             const response = await fetch(WEB_APP_URL);
             if (!response.ok) throw new Error(`Server Error (${response.status})`);
@@ -419,14 +354,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 dom.itemSelectionSection.style.display = 'block';
                 renderItems(state.allItems);
                 updatePreview();
-            } else {
-                showStatus('لم يتم العثور على بيانات في الصفحة.', 'error');
-            }
-        } catch (error) {
-            showStatus(`فشل تحميل البيانات: ${error.message}.`, 'error');
-        } finally {
-            dom.loader.style.display = 'none';
-        }
+            } else { showStatus('لم يتم العثور على بيانات.', 'error'); }
+        } catch (error) { showStatus(`فشل تحميل البيانات: ${error.message}.`, 'error'); }
     };
 
     // --- INITIALIZATION & EVENT LISTENERS ---
@@ -437,7 +366,8 @@ document.addEventListener('DOMContentLoaded', function() {
     dom.modal.addEventListener('click', (e) => { if (e.target === dom.modal || e.target.closest('.modal-close-btn')) closeModal(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
     dom.confirmSelectionBtn.addEventListener('click', handleConfirmSelection);
-    dom.addToQueueBtn.addEventListener('click', handleAddToQueue);
+    dom.stagingList.addEventListener('click', handleStagingListClick);
+    dom.priceCategorySetter.addEventListener('change', handlePriceCategoryChange);
     dom.printButton.addEventListener('click', () => window.print());
     dom.printQueueList.addEventListener('click', e => {
         const removeButton = e.target.closest('.queue-item-remove');
@@ -451,15 +381,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     dom.searchInput.addEventListener('input', debouncedSearch);
     dom.searchField.addEventListener('change', handleSearch);
-    
     Object.values(dom.controls).forEach(c => c.addEventListener('input', debouncedUpdatePreview));
     
     ['item-font-size', 'price-font-size'].forEach(id => {
         const input = document.getElementById(id), valueSpan = document.getElementById(`${id}-value`);
-        if(input && valueSpan) {
-            valueSpan.textContent = input.value;
-            input.addEventListener('input', e => valueSpan.textContent = e.target.value);
-        }
+        if(input && valueSpan) { valueSpan.textContent = input.value; input.addEventListener('input', e => valueSpan.textContent = e.target.value); }
     });
     
     loadData();
