@@ -15,7 +15,16 @@
             --shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.05);
             --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.07), 0 4px 6px -4px rgba(0,0,0,0.07);
             --radius-md: 8px; --radius-lg: 12px; --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-            --label-item-font-size: 16px; --label-price-font-size: 24px;
+            
+            /* Restored Original Label Style Variables */
+            --label-price-color: #ef4444; --label-border-width: 1px; --label-border-style: dashed; --label-border-color: #cbd5e1;
+            --label-padding: 5px; --label-border-radius: 8px; --price-box-bg: rgba(255, 255, 255, 0.85);
+            --price-box-border-color: var(--label-price-color);
+            --label-item-font-weight: 700;
+            
+            /* Font sizes are still configurable */
+            --label-item-font-size: 16px;
+            --label-price-font-size: 24px;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -23,35 +32,15 @@
         
         .app-container { display: none; width: 100%; height: 100%; flex-direction: row-reverse; }
         
-        /* Setup Modal Styles */
-        .setup-modal-overlay {
-            position: fixed; top: 0; right: 0; bottom: 0; left: 0;
-            background: var(--bg-color);
-            display: flex; align-items: center; justify-content: center;
-            z-index: 10000;
-            transition: opacity 0.3s ease;
-        }
-        .setup-modal-content {
-            background: var(--card-bg); padding: 40px; border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-lg); text-align: center; width: 90%; max-width: 450px;
-        }
+        .setup-modal-overlay { position: fixed; top: 0; right: 0; bottom: 0; left: 0; background: var(--bg-color); display: flex; align-items: center; justify-content: center; z-index: 10000; transition: opacity 0.3s ease; }
+        .setup-modal-content { background: var(--card-bg); padding: 40px; border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); text-align: center; width: 90%; max-width: 450px; }
         .setup-modal-content h2 { border-bottom: none; padding-bottom: 0; }
         .setup-modal-content p { color: var(--muted-text); margin-bottom: 25px; }
         .setup-modal-buttons { display: flex; flex-direction: column; gap: 15px; }
         .setup-modal-buttons button { width: 100%; }
 
         .control-panel { width: 450px; min-width: 420px; background-color: var(--bg-color); padding: 30px; height: 100vh; overflow-y: auto; border-left: 1px solid var(--border-color); }
-        .preview-panel { 
-            flex-grow: 1; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: flex-start; /* Align sheet to the top */
-            padding: 30px; 
-            height: 100vh; 
-            background-color: var(--preview-bg);
-            overflow: auto; /* Allow scrolling */
-        }
+        .preview-panel { flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; height: 100vh; background-color: var(--preview-bg); }
         h1 { font-size: 2rem; font-weight: 700; margin-bottom: 25px; }
         h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid var(--border-color); }
         button, .btn-link { background-color: var(--primary-color); color: white; border: none; padding: 12px 25px; border-radius: var(--radius-md); font-family: 'Cairo', sans-serif; font-size: 1rem; font-weight: 600; cursor: pointer; transition: var(--transition); box-shadow: var(--shadow); display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; }
@@ -94,23 +83,22 @@
         #selection-summary { color: var(--muted-text); margin-bottom: 15px; }
         
         #a4-sheet {
-            background: white;
-            width: 21cm;
-            min-height: 29.7cm; /* Use min-height to allow content to expand if needed */
-            box-shadow: var(--shadow-lg);
-            padding: 1cm;
-            display: grid;
-            align-content: start;
-            flex-shrink: 0;
-            margin: 2rem 0;
+            background: white; width: 21cm; height: 29.7cm; box-shadow: var(--shadow-lg); padding: 1cm;
+            transform-origin: center center; transform: scale(0.65); display: grid; align-content: start;
         }
-        #print-button { margin-bottom: 2rem; } /* Add margin to bottom */
-        .price-label { display: flex; flex-direction: row; align-items: center; overflow: hidden; background-color: white; border: 1px solid #cbd5e1; border-radius: 8px; padding: 5px; }
+        #print-button { margin-top: 25px; }
+
+        .price-label {
+            display: flex; flex-direction: row; align-items: center;
+            overflow: hidden; background-color: white; color: var(--text-color); font-family: 'Cairo', sans-serif;
+            border: var(--label-border-width) var(--label-border-style) var(--label-border-color); border-radius: var(--label-border-radius); padding: var(--label-padding);
+        }
         .label-logo-area { flex: 0 0 25%; height: 100%; }
-        .label-info-area { flex: 1 1 auto; text-align: center; padding: 0 10px; font-weight: 700; font-size: var(--label-item-font-size); white-space: nowrap; overflow: hidden; }
+        .label-info-area { flex: 1 1 auto; text-align: center; padding: 0 10px; font-size: var(--label-item-font-size); font-weight: var(--label-item-font-weight); }
         .label-price-area { flex: 0 0 30%; text-align: center; padding: 0 5px; }
-        .label-price-container { border: 2px solid #ef4444; border-radius: 8px; text-align: center; background: white; padding: 5px 10px; display: inline-block; }
-        .label-price { font-size: var(--label-price-font-size); font-weight: 700; color: #ef4444; white-space: nowrap; }
+        .label-price-container { border: 2px solid var(--price-box-border-color); border-radius: 8px; text-align: center; background: var(--price-box-bg); padding: 5px 10px; display: inline-block; }
+        .label-price { font-size: var(--label-price-font-size); font-weight: 700; color: var(--label-price-color); white-space: nowrap; }
+
         .slider-value { font-weight: 600; color: var(--primary-color); }
         fieldset { border: none; border-radius: var(--radius-lg); padding: 20px; margin-bottom: 20px; background-color: #f8fafc; border: 1px solid var(--border-color); }
         legend { font-weight: 700; padding: 0 5px; font-size: 1.1rem; }
@@ -133,13 +121,12 @@
             .control-panel, #print-button, .app-status, .modal-overlay, .setup-modal-overlay { display: none !important; }
             body, .app-container, .preview-panel { display: block !important; width: 100% !important; height: auto !important; overflow: visible !important; background: #fff !important; padding: 0 !important; margin: 0 !important; }
             #a4-sheet {
-                box-shadow: none !important; border: none !important; padding: 0 !important; margin: 0 !important;
-                width: 100% !important;
-                height: auto !important; /* CORRECTED: Allow content to define height */
-                display: grid !important;
-                page-break-after: always;
+                transform: none !important; box-shadow: none !important; border: none !important; padding: 0 !important; margin: 0 !important;
+                width: 100% !important; height: auto !important; /* height:auto prevents extra blank page */
+                display: grid !important; page-break-after: always;
             }
             .price-label { page-break-inside: avoid !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; border: none !important; background: transparent !important; }
+            .label-logo-area { visibility: hidden !important; }
             .label-price-container { border: none !important; background: transparent !important; }
         }
     </style>
@@ -322,12 +309,19 @@ document.addEventListener('DOMContentLoaded', function() {
         const r = document.documentElement.style;
         r.setProperty('--label-item-font-size', `${dom.controls.itemFontSize.value}px`);
         r.setProperty('--label-price-font-size', `${dom.controls.priceFontSize.value}px`);
-        const labelsPerPage = 9;
+        
+        const PAGE_HEIGHT_MM = 297, MARGIN_MM = 10, PRINTABLE_HEIGHT = PAGE_HEIGHT_MM - (MARGIN_MM * 2);
+        const labelHeight = 30, gap = 5;
+        const labelsPerPage = Math.floor((PRINTABLE_HEIGHT + gap) / (labelHeight + gap));
+
         dom.a4Sheet.innerHTML = '';
-        dom.a4Sheet.style.cssText = `grid-template-columns: 1fr; gap: 5mm; grid-template-rows: repeat(${labelsPerPage}, 30mm);`;
+        dom.a4Sheet.style.gridTemplateColumns = `1fr`;
+        dom.a4Sheet.style.gap = `${gap}mm`;
+        dom.a4Sheet.style.gridTemplateRows = `repeat(${labelsPerPage}, ${labelHeight}mm)`;
+        
         const labelsToRender = state.printQueue.flatMap(job => Array(parseInt(job.quantity)).fill(job));
         const f = document.createDocumentFragment();
-        labelsToRender.slice(0, labelsPerPage).forEach(job => {
+        labelsToRender.forEach(job => {
             const l = document.createElement('div');
             l.className = 'price-label';
             l.innerHTML = `<div class="label-logo-area"></div><div class="label-info-area">${job.name}</div><div class="label-price-area"><div class="label-price-container"><div class="label-price">${job.price.toFixed(2)} ج.م</div></div></div>`;
