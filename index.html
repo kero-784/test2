@@ -41,7 +41,17 @@
         .setup-modal-buttons button { width: 100%; }
 
         .control-panel { width: 450px; min-width: 420px; background-color: var(--bg-color); padding: 30px; height: 100vh; overflow-y: auto; border-left: 1px solid var(--border-color); }
-        .preview-panel { flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; height: 100vh; background-color: var(--preview-bg); }
+        .preview-panel { 
+            flex-grow: 1; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: flex-start; /* Align sheet to the top */
+            padding: 30px; 
+            height: 100vh; 
+            background-color: var(--preview-bg);
+            overflow: auto; /* Allow scrolling */
+        }
         h1 { font-size: 2rem; font-weight: 700; margin-bottom: 25px; }
         h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid var(--border-color); }
         button, .btn-link { background-color: var(--primary-color); color: white; border: none; padding: 12px 25px; border-radius: var(--radius-md); font-family: 'Cairo', sans-serif; font-size: 1rem; font-weight: 600; cursor: pointer; transition: var(--transition); box-shadow: var(--shadow); display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; }
@@ -82,7 +92,19 @@
         .staging-item-controls input { padding: 8px; font-size: 0.9rem; }
         .staging-item-controls button { padding: 8px 12px; font-size: 0.9rem; width: 100%; }
         #selection-summary { color: var(--muted-text); margin-bottom: 15px; }
-        #a4-sheet { background: white; width: 21cm; height: 29.7cm; box-shadow: var(--shadow-lg); padding: 1cm; transform-origin: center center; transform: scale(0.65); display: grid; align-content: start; }
+
+        /* --- FIXED A4 SHEET STYLES (CORRECTED) --- */
+        #a4-sheet {
+            background: white;
+            width: 794px; /* A4 width in pixels at 96 DPI */
+            height: 1123px; /* A4 height in pixels at 96 DPI */
+            box-shadow: var(--shadow-lg);
+            padding: 1cm;
+            display: grid;
+            align-content: start;
+            flex-shrink: 0; /* Prevent sheet from shrinking */
+            margin: 2rem 0; /* Add margin for better spacing in scroll view */
+        }
         #print-button { margin-top: 25px; }
         .price-label { display: flex; flex-direction: row; align-items: center; overflow: hidden; background-color: white; border: 1px solid #cbd5e1; border-radius: 8px; padding: 5px; }
         .label-logo-area { flex: 0 0 25%; height: 100%; }
@@ -109,40 +131,20 @@
         .accordion-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
         
         @media print {
-            .control-panel, #print-button, .app-status, .modal-overlay, .setup-modal-overlay {
-                display: none !important;
-            }
-            body, .app-container, .preview-panel {
-                display: block !important;
-                width: 100% !important;
-                height: auto !important;
-                overflow: visible !important;
-                background: #fff !important;
-                padding: 0 !important;
-                margin: 0 !important;
-            }
+            .control-panel, #print-button, .app-status, .modal-overlay, .setup-modal-overlay { display: none !important; }
+            body, .app-container, .preview-panel { display: block !important; width: 100% !important; height: auto !important; overflow: visible !important; background: #fff !important; padding: 0 !important; margin: 0 !important; }
             #a4-sheet {
-                transform: none !important;
                 box-shadow: none !important;
                 border: none !important;
                 padding: 0 !important;
                 margin: 0 !important;
                 width: 100% !important;
-                /* height: 100% !important; <-- THIS WAS THE BUG. REMOVED. */
+                height: auto !important; /* Allow content to define height */
                 display: grid !important;
                 page-break-after: always;
             }
-            .price-label {
-                page-break-inside: avoid !important;
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-                border: none !important;
-                background: transparent !important;
-            }
-            .label-price-container {
-                border: none !important;
-                background: transparent !important;
-            }
+            .price-label { page-break-inside: avoid !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; border: none !important; background: transparent !important; }
+            .label-price-container { border: none !important; background: transparent !important; }
         }
     </style>
 </head>
