@@ -235,7 +235,10 @@
 document.addEventListener('DOMContentLoaded', function() {
     const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw_TeuaYi3odExgQNHKXj52grDm-QvPrbEJwMKibQxD8rkxff1EuX2VKmpWWKCwOBqD/exec';
     
-    const icons = { /* ... icon svgs ... */ };
+    const icons = {
+        success: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clip-rule="evenodd" /></svg>`,
+        error: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd" /></svg>`,
+    };
     
     const state = { allItems: [], selectedItemIds: new Set(), printQueue: [] };
     
@@ -262,7 +265,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const debounce = (f, d) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => f.apply(this, a), d); }; };
 
-    const showStatus = (m, t = 'error') => { /* ... showStatus implementation ... */ };
+    const showStatus = (message, type = 'error') => {
+        dom.appStatus.innerHTML = `<span class="icon">${type === 'success' ? icons.success : icons.error}</span> ${message}`;
+        dom.appStatus.className = `app-status ${type}`;
+        dom.appStatus.style.display = 'flex';
+        setTimeout(() => { dom.appStatus.style.display = 'none'; }, type === 'error' ? 8000 : 4000);
+    };
     
     const openModal = () => { dom.modal.classList.add('is-visible'); setTimeout(() => dom.searchInput.focus(), 50); };
     const closeModal = () => { dom.modal.classList.remove('is-visible'); };
@@ -305,13 +313,58 @@ document.addEventListener('DOMContentLoaded', function() {
         renderItems(filtered);
     };
 
-    const renderPrintQueue = () => { /* ... renderPrintQueue implementation, no changes needed ... */ };
-    const adjustLabelFontSize = (el) => { /* ... adjustLabelFontSize implementation, no changes needed ... */ };
-    const updatePreview = () => { /* ... updatePreview implementation, no changes needed ... */ };
+    const renderPrintQueue = () => {
+        dom.printQueueList.innerHTML = '';
+        if (state.printQueue.length === 0) {
+            dom.printQueueSection.style.display = 'none';
+            dom.queueSummary.style.display = 'none';
+        } else {
+            dom.printQueueSection.style.display = 'block';
+            state.printQueue.forEach(job => {
+                const itemEl = document.createElement('div');
+                itemEl.className = 'queue-item';
+                itemEl.innerHTML = `<div class="queue-item-details"><span class="queue-item-name" title="${job.name}">${job.name}</span><span class="queue-item-meta">السعر: ${job.price.toFixed(2)} ج.م - الكمية: ${job.quantity}</span></div><button class="queue-item-remove" data-id="${job.id}" title="إزالة">&times;</button>`;
+                dom.printQueueList.appendChild(itemEl);
+            });
+            const totalLabels = state.printQueue.reduce((sum, job) => sum + parseInt(job.quantity), 0);
+            dom.queueSummary.textContent = `الإجمالي: ${totalLabels} بطاقة`;
+            dom.queueSummary.style.display = 'block';
+        }
+    };
 
-    // --- REIMPLEMENTED CORE LOGIC ---
+    const adjustLabelFontSize = (labelElement) => {
+        const infoArea = labelElement.querySelector('.label-info-area');
+        if (!infoArea) return;
+        infoArea.style.fontSize = ''; 
+        let currentFontSize = parseInt(window.getComputedStyle(infoArea).fontSize);
+        while (infoArea.scrollWidth > infoArea.clientWidth && currentFontSize > 8) {
+            currentFontSize--;
+            infoArea.style.fontSize = `${currentFontSize}px`;
+        }
+    };
     
-    // (Helper implementations for showStatus, renderPrintQueue, adjustLabelFontSize, updatePreview are omitted for brevity as they remain the same)
+    const updatePreview = () => {
+        const root = document.documentElement.style;
+        root.setProperty('--label-item-font-size', `${dom.controls.itemFontSize.value}px`);
+        root.setProperty('--label-price-font-size', `${dom.controls.priceFontSize.value}px`);
+        const labelsPerPage = 9;
+        dom.a4Sheet.innerHTML = '';
+        dom.a4Sheet.style.gridTemplateColumns = `1fr`;
+        dom.a4Sheet.style.gap = `5mm`;
+        dom.a4Sheet.style.gridTemplateRows = `repeat(${labelsPerPage}, 30mm)`;
+        const labelsToRender = state.printQueue.flatMap(job => Array(parseInt(job.quantity)).fill(job));
+        labelsToRender.slice(0, labelsPerPage).forEach(job => {
+            const label = document.createElement('div');
+            label.className = 'price-label';
+            label.innerHTML = `<div class="label-logo-area"></div><div class="label-info-area">${job.name}</div><div class="label-price-area"><div class="label-price-container"><div class="label-price">${job.price.toFixed(2)} ج.م</div></div></div>`;
+            dom.a4Sheet.appendChild(label);
+            adjustLabelFontSize(label);
+        });
+        const totalInQueue = state.printQueue.reduce((sum, job) => sum + parseInt(job.quantity), 0);
+        dom.layoutStatus.textContent = `سعة الصفحة: ${labelsPerPage} بطاقات | القائمة تحتوي على ${totalInQueue} بطاقة.`;
+        dom.layoutStatus.style.display = 'block';
+        dom.printButton.style.display = labelsToRender.length > 0 ? 'inline-flex' : 'none';
+    };
     
     const handleConfirmSelection = () => {
         const count = state.selectedItemIds.size;
@@ -353,12 +406,34 @@ document.addEventListener('DOMContentLoaded', function() {
         dom.quantityInput.value = '1';
         dom.priceInput.value = '';
         updateModalFooter();
+        renderItems(state.allItems); // Re-render list to uncheck boxes
         
         renderPrintQueue();
         updatePreview();
     };
 
-    const loadData = async () => { /* ... loadData implementation, no changes needed ... */ };
+    const loadData = async () => {
+        dom.loader.style.display = 'block';
+        try {
+            const response = await fetch(WEB_APP_URL);
+            if (!response.ok) throw new Error(`Server Error (${response.status})`);
+            const data = await response.json();
+            if (data.error) throw new Error(data.message);
+            state.allItems = data.map((item, index) => ({ ...item, id: item.id ?? index }));
+            if (state.allItems.length > 0) {
+                showStatus(`تم تحميل ${state.allItems.length} صنف.`, 'success');
+                dom.itemSelectionSection.style.display = 'block';
+                renderItems(state.allItems);
+                updatePreview();
+            } else {
+                showStatus('لم يتم العثور على بيانات في الصفحة.', 'error');
+            }
+        } catch (error) {
+            showStatus(`فشل تحميل البيانات: ${error.message}.`, 'error');
+        } finally {
+            dom.loader.style.display = 'none';
+        }
+    };
     
     // --- EVENT LISTENERS ---
     const debouncedSearch = debounce(handleSearch, 250);
@@ -392,86 +467,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // OMITTED a few function bodies for brevity, but they are included here for the final script
-    showStatus = (message, type = 'error') => {
-        dom.appStatus.innerHTML = `<span class="icon">${type === 'success' ? icons.success : icons.error}</span> ${message}`;
-        dom.appStatus.className = `app-status ${type}`;
-        dom.appStatus.style.display = 'flex';
-        setTimeout(() => { dom.appStatus.style.display = 'none'; }, type === 'error' ? 8000 : 4000);
-    };
-    renderPrintQueue = () => {
-        dom.printQueueList.innerHTML = '';
-        if (state.printQueue.length === 0) {
-            dom.printQueueSection.style.display = 'none';
-            dom.queueSummary.style.display = 'none';
-        } else {
-            dom.printQueueSection.style.display = 'block';
-            state.printQueue.forEach(job => {
-                const itemEl = document.createElement('div');
-                itemEl.className = 'queue-item';
-                itemEl.innerHTML = `<div class="queue-item-details"><span class="queue-item-name" title="${job.name}">${job.name}</span><span class="queue-item-meta">السعر: ${job.price.toFixed(2)} ج.م - الكمية: ${job.quantity}</span></div><button class="queue-item-remove" data-id="${job.id}" title="إزالة">&times;</button>`;
-                dom.printQueueList.appendChild(itemEl);
-            });
-            const totalLabels = state.printQueue.reduce((sum, job) => sum + parseInt(job.quantity), 0);
-            dom.queueSummary.textContent = `الإجمالي: ${totalLabels} بطاقة`;
-            dom.queueSummary.style.display = 'block';
-        }
-    };
-    adjustLabelFontSize = (labelElement) => {
-        const infoArea = labelElement.querySelector('.label-info-area');
-        if (!infoArea) return;
-        infoArea.style.fontSize = ''; 
-        let currentFontSize = parseInt(window.getComputedStyle(infoArea).fontSize);
-        while (infoArea.scrollWidth > infoArea.clientWidth && currentFontSize > 8) {
-            currentFontSize--;
-            infoArea.style.fontSize = `${currentFontSize}px`;
-        }
-    };
-    updatePreview = () => {
-        const root = document.documentElement.style;
-        root.setProperty('--label-item-font-size', `${dom.controls.itemFontSize.value}px`);
-        root.setProperty('--label-price-font-size', `${dom.controls.priceFontSize.value}px`);
-        const labelsPerPage = 9;
-        dom.a4Sheet.innerHTML = '';
-        dom.a4Sheet.style.gridTemplateColumns = `1fr`;
-        dom.a4Sheet.style.gap = `5mm`;
-        dom.a4Sheet.style.gridTemplateRows = `repeat(${labelsPerPage}, 30mm)`;
-        const labelsToRender = state.printQueue.flatMap(job => Array(parseInt(job.quantity)).fill(job));
-        labelsToRender.slice(0, labelsPerPage).forEach(job => {
-            const label = document.createElement('div');
-            label.className = 'price-label';
-            label.innerHTML = `<div class="label-logo-area"></div><div class="label-info-area">${job.name}</div><div class="label-price-area"><div class="label-price-container"><div class="label-price">${job.price.toFixed(2)} ج.م</div></div></div>`;
-            dom.a4Sheet.appendChild(label);
-            adjustLabelFontSize(label);
-        });
-        const totalInQueue = state.printQueue.reduce((sum, job) => sum + parseInt(job.quantity), 0);
-        dom.layoutStatus.textContent = `سعة الصفحة: ${labelsPerPage} بطاقات | القائمة تحتوي على ${totalInQueue} بطاقة.`;
-        dom.layoutStatus.style.display = 'block';
-        dom.printButton.style.display = labelsToRender.length > 0 ? 'inline-flex' : 'none';
-    };
-    loadData = async () => {
-        dom.loader.style.display = 'block';
-        try {
-            const response = await fetch(WEB_APP_URL);
-            if (!response.ok) throw new Error(`Server Error (${response.status})`);
-            const data = await response.json();
-            if (data.error) throw new Error(data.message);
-            state.allItems = data.map((item, index) => ({ ...item, id: item.id ?? index }));
-            if (state.allItems.length > 0) {
-                showStatus(`Loaded ${state.allItems.length} items.`, 'success');
-                dom.itemSelectionSection.style.display = 'block';
-                renderItems(state.allItems);
-                updatePreview();
-            } else {
-                showStatus('No items found in the sheet.', 'error');
-            }
-        } catch (error) {
-            showStatus(`Failed to load data: ${error.message}.`, 'error');
-        } finally {
-            dom.loader.style.display = 'none';
-        }
-    };
-
     loadData();
 });
 </script>
