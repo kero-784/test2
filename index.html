@@ -37,8 +37,8 @@
         }
         .setup-modal-content h2 { border-bottom: none; padding-bottom: 0; }
         .setup-modal-content p { color: var(--muted-text); margin-bottom: 25px; }
-        .setup-modal-content select { margin-bottom: 20px; font-size: 1.1rem; text-align: center; }
-        .setup-modal-content button { width: 100%; }
+        .setup-modal-buttons { display: flex; flex-direction: column; gap: 15px; }
+        .setup-modal-buttons button { width: 100%; }
 
         .control-panel { width: 450px; min-width: 420px; background-color: var(--bg-color); padding: 30px; height: 100vh; overflow-y: auto; border-left: 1px solid var(--border-color); }
         .preview-panel { flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; height: 100vh; background-color: var(--preview-bg); }
@@ -114,13 +114,11 @@
         <div class="setup-modal-content">
             <h2>اختر فئة السعر</h2>
             <p>الرجاء تحديد فئة السعر لهذه الجلسة للمتابعة.</p>
-            <select id="session-price-category">
-                <option value="" disabled selected>-- اختر من القائمة --</option>
-                <option value="sokhna">السخنة</option>
-                <option value="sahel">الساحل</option>
-                <option value="cairo">القاهرة</option>
-            </select>
-            <button id="start-session-btn" disabled>بدء الجلسة</button>
+            <div class="setup-modal-buttons">
+                <button data-category="sokhna" data-name="السخنة">أسعار السخنة</button>
+                <button data-category="sahel" data-name="الساحل">أسعار الساحل</button>
+                <button data-category="cairo" data-name="القاهرة">أسعار القاهرة</button>
+            </div>
         </div>
     </div>
 
@@ -176,11 +174,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // --- SETUP: CONSTANTS, STATE, DOM ---
     const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw_TeuaYi3odExgQNHKXj52grDm-QvPrbEJwMKibQxD8rkxff1EuX2VKmpWWKCwOBqD/exec';
     const state = { allItems: [], selectedItemIds: new Set(), printQueue: [], visibleItemIds: [], activePriceCategory: null };
-    
-    const dom = {
+    const dom = {};
+    Object.assign(dom, {
         setupModal: document.getElementById('setup-modal-overlay'),
-        sessionPriceCategory: document.getElementById('session-price-category'),
-        startSessionBtn: document.getElementById('start-session-btn'),
         appContainer: document.querySelector('.app-container'),
         appStatus: document.getElementById('app-status'),
         itemSelectionSection: document.getElementById('item-selection-section'),
@@ -197,13 +193,9 @@ document.addEventListener('DOMContentLoaded', function() {
         modal: document.getElementById('item-selection-modal'),
         openModalBtn: document.getElementById('open-item-modal-btn'),
         accordionHeader: document.getElementById('accordion-header'),
-        controls: {
-            itemFontSize: document.getElementById('item-font-size'),
-            priceFontSize: document.getElementById('price-font-size'),
-        }
-    };
+        controls: { itemFontSize: document.getElementById('item-font-size'), priceFontSize: document.getElementById('price-font-size') }
+    });
     
-    // Inject and then map modal elements
     dom.modal.innerHTML = `
         <div class="modal-content">
             <div class="modal-header"><h2>اختر الأصناف</h2><button class="modal-close-btn" title="إغلاق">&times;</button></div>
@@ -216,19 +208,20 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
             <div class="modal-footer"><span id="modal-selection-count">0 صنف محدد</span><button id="confirm-selection-btn" disabled>تأكيد الإختيار</button></div>
         </div>`;
-    dom.searchInput = document.getElementById('search-input');
-    dom.searchField = document.getElementById('search-field');
-    dom.itemList = document.getElementById('item-list');
-    dom.modalSelectionCount = document.getElementById('modal-selection-count');
-    dom.confirmSelectionBtn = document.getElementById('confirm-selection-btn');
-    dom.selectAllBtn = document.getElementById('select-all-btn');
+    Object.assign(dom, {
+        searchInput: document.getElementById('search-input'),
+        searchField: document.getElementById('search-field'),
+        itemList: document.getElementById('item-list'),
+        modalSelectionCount: document.getElementById('modal-selection-count'),
+        confirmSelectionBtn: document.getElementById('confirm-selection-btn'),
+        selectAllBtn: document.getElementById('select-all-btn')
+    });
     
     // --- HELPER & CORE FUNCTIONS ---
     const debounce = (f, d) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => f.apply(this, a), d); }; };
     const showStatus = (message, type = 'error') => { const icon = type === 'success' ? '✔️' : '❌'; dom.appStatus.innerHTML = `<span class="icon">${icon}</span> ${message}`; dom.appStatus.className = `app-status ${type}`; dom.appStatus.style.display = 'flex'; setTimeout(() => { dom.appStatus.style.display = 'none'; }, 4000); };
     const openModal = () => { dom.modal.classList.add('is-visible'); setTimeout(() => dom.searchInput.focus(), 50); };
     const closeModal = () => { dom.modal.classList.remove('is-visible'); };
-    
     const updateModalUI = () => { /* ... implementation ... */ };
     const renderItems = (items) => { /* ... implementation ... */ };
     const handleSearch = () => { /* ... implementation ... */ };
@@ -262,9 +255,7 @@ document.addEventListener('DOMContentLoaded', function() {
         dom.stagingList.appendChild(f);
     };
 
-    const startSession = () => {
-        const category = dom.sessionPriceCategory.value;
-        const categoryName = dom.sessionPriceCategory.options[dom.sessionPriceCategory.selectedIndex].text;
+    const startSession = (category, categoryName) => {
         if (!category) return;
         state.activePriceCategory = category;
         dom.activeCategoryDisplay.innerHTML = `أسعار فرع: <strong>${categoryName}</strong>`;
@@ -294,8 +285,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const debouncedSearch = debounce(handleSearch, 250);
     const debouncedUpdatePreview = debounce(updatePreview, 250);
     
-    dom.sessionPriceCategory.addEventListener('change', () => { dom.startSessionBtn.disabled = !dom.sessionPriceCategory.value; });
-    dom.startSessionBtn.addEventListener('click', startSession);
+    dom.setupModal.addEventListener('click', (e) => {
+        const button = e.target.closest('button[data-category]');
+        if (button) {
+            startSession(button.dataset.category, button.dataset.name);
+        }
+    });
+
     dom.openModalBtn.addEventListener('click', openModal);
     dom.modal.addEventListener('click', (e) => { if (e.target.classList.contains('modal-overlay') || e.target.closest('.modal-close-btn')) closeModal(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
