@@ -78,7 +78,6 @@
         .staging-item-details .item-name { font-weight: 700; color: #1e3a8a; }
         .staging-item-details .item-meta { font-size: 0.8rem; color: var(--muted-text); }
         .staging-item-remove-btn { background: none; border: none; color: var(--muted-text); font-size: 20px; cursor: pointer; padding: 0; line-height: 1; box-shadow: none; }
-        .staging-item-remove-btn:hover { color: #ef4444; }
         .staging-item-controls { display: grid; grid-template-columns: 1fr 1fr 80px; gap: 10px; align-items: center; }
         .staging-item-controls input { padding: 8px; font-size: 0.9rem; }
         .staging-item-controls button { padding: 8px 12px; font-size: 0.9rem; width: 100%; }
@@ -170,28 +169,15 @@
         </aside>
     </div>
 
-    <div id="item-selection-modal" class="modal-overlay">
-        <div class="modal-content">
-            <div class="modal-header"><h2>اختر الأصناف</h2><button class="modal-close-btn" title="إغلاق">&times;</button></div>
-            <div class="modal-body">
-                <div class="search-header">
-                    <div id="search-container"><select id="search-field"><option value="name">الاسم</option><option value="code">الكود</option></select><input type="search" id="search-input" placeholder="اكتب هنا للبحث..."></div>
-                    <button id="select-all-btn" class="btn-link">تحديد الكل</button>
-                </div>
-                <div id="item-list"></div>
-            </div>
-            <div class="modal-footer"><span id="modal-selection-count">0 صنف محدد</span><button id="confirm-selection-btn" disabled>تأكيد الإختيار</button></div>
-        </div>
-    </div>
+    <div id="item-selection-modal" class="modal-overlay"> <!-- Modal HTML is injected by JS --> </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // --- SETUP: CONSTANTS, STATE, DOM ---
-    const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyMvUxMBy7UyTWAqT7EMYlwkTdh1Zdc0BWupeMVOYyJSWxcivkSBnozStQSfJGacklAXQ/exec';
+    const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw_TeuaYi3odExgQNHKXj52grDm-QvPrbEJwMKibQxD8rkxff1EuX2VKmpWWKCwOBqD/exec';
     const state = { allItems: [], selectedItemIds: new Set(), printQueue: [], visibleItemIds: [], activePriceCategory: null };
-    const dom = { /* ... DOM mapping as before ... */ };
-    // Explicitly define all DOM elements
-    Object.assign(dom, {
+    
+    const dom = {
         setupModal: document.getElementById('setup-modal-overlay'),
         sessionPriceCategory: document.getElementById('session-price-category'),
         startSessionBtn: document.getElementById('start-session-btn'),
@@ -211,23 +197,38 @@ document.addEventListener('DOMContentLoaded', function() {
         modal: document.getElementById('item-selection-modal'),
         openModalBtn: document.getElementById('open-item-modal-btn'),
         accordionHeader: document.getElementById('accordion-header'),
-        searchInput: document.getElementById('search-input'),
-        searchField: document.getElementById('search-field'),
-        itemList: document.getElementById('item-list'),
-        modalSelectionCount: document.getElementById('modal-selection-count'),
-        confirmSelectionBtn: document.getElementById('confirm-selection-btn'),
-        selectAllBtn: document.getElementById('select-all-btn'),
         controls: {
             itemFontSize: document.getElementById('item-font-size'),
             priceFontSize: document.getElementById('price-font-size'),
         }
-    });
+    };
+    
+    // Inject and then map modal elements
+    dom.modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header"><h2>اختر الأصناف</h2><button class="modal-close-btn" title="إغلاق">&times;</button></div>
+            <div class="modal-body">
+                <div class="search-header">
+                    <div id="search-container"><select id="search-field"><option value="name">الاسم</option><option value="code">الكود</option></select><input type="search" id="search-input" placeholder="اكتب هنا للبحث..."></div>
+                    <button id="select-all-btn" class="btn-link">تحديد الكل</button>
+                </div>
+                <div id="item-list"></div>
+            </div>
+            <div class="modal-footer"><span id="modal-selection-count">0 صنف محدد</span><button id="confirm-selection-btn" disabled>تأكيد الإختيار</button></div>
+        </div>`;
+    dom.searchInput = document.getElementById('search-input');
+    dom.searchField = document.getElementById('search-field');
+    dom.itemList = document.getElementById('item-list');
+    dom.modalSelectionCount = document.getElementById('modal-selection-count');
+    dom.confirmSelectionBtn = document.getElementById('confirm-selection-btn');
+    dom.selectAllBtn = document.getElementById('select-all-btn');
     
     // --- HELPER & CORE FUNCTIONS ---
     const debounce = (f, d) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => f.apply(this, a), d); }; };
     const showStatus = (message, type = 'error') => { const icon = type === 'success' ? '✔️' : '❌'; dom.appStatus.innerHTML = `<span class="icon">${icon}</span> ${message}`; dom.appStatus.className = `app-status ${type}`; dom.appStatus.style.display = 'flex'; setTimeout(() => { dom.appStatus.style.display = 'none'; }, 4000); };
     const openModal = () => { dom.modal.classList.add('is-visible'); setTimeout(() => dom.searchInput.focus(), 50); };
     const closeModal = () => { dom.modal.classList.remove('is-visible'); };
+    
     const updateModalUI = () => { /* ... implementation ... */ };
     const renderItems = (items) => { /* ... implementation ... */ };
     const handleSearch = () => { /* ... implementation ... */ };
@@ -296,7 +297,7 @@ document.addEventListener('DOMContentLoaded', function() {
     dom.sessionPriceCategory.addEventListener('change', () => { dom.startSessionBtn.disabled = !dom.sessionPriceCategory.value; });
     dom.startSessionBtn.addEventListener('click', startSession);
     dom.openModalBtn.addEventListener('click', openModal);
-    dom.modal.addEventListener('click', (e) => { if (e.target === dom.modal || e.target.closest('.modal-close-btn')) closeModal(); });
+    dom.modal.addEventListener('click', (e) => { if (e.target.classList.contains('modal-overlay') || e.target.closest('.modal-close-btn')) closeModal(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
     dom.confirmSelectionBtn.addEventListener('click', handleConfirmSelection);
     dom.stagingList.addEventListener('click', handleStagingListClick);
