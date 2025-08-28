@@ -171,11 +171,10 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // --- SETUP: CONSTANTS, STATE, DOM ---
     const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw_TeuaYi3odExgQNHKXj52grDm-QvPrbEJwMKibQxD8rkxff1EuX2VKmpWWKCwOBqD/exec';
     const state = { allItems: [], selectedItemIds: new Set(), printQueue: [], visibleItemIds: [], activePriceCategory: null };
-    const dom = {};
-    Object.assign(dom, {
+    
+    const dom = {
         setupModal: document.getElementById('setup-modal-overlay'),
         appContainer: document.querySelector('.app-container'),
         appStatus: document.getElementById('app-status'),
@@ -194,7 +193,7 @@ document.addEventListener('DOMContentLoaded', function() {
         openModalBtn: document.getElementById('open-item-modal-btn'),
         accordionHeader: document.getElementById('accordion-header'),
         controls: { itemFontSize: document.getElementById('item-font-size'), priceFontSize: document.getElementById('price-font-size') }
-    });
+    };
     
     dom.modal.innerHTML = `
         <div class="modal-content">
@@ -217,21 +216,103 @@ document.addEventListener('DOMContentLoaded', function() {
         selectAllBtn: document.getElementById('select-all-btn')
     });
     
-    // --- HELPER & CORE FUNCTIONS ---
     const debounce = (f, d) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => f.apply(this, a), d); }; };
-    const showStatus = (message, type = 'error') => { const icon = type === 'success' ? '✔️' : '❌'; dom.appStatus.innerHTML = `<span class="icon">${icon}</span> ${message}`; dom.appStatus.className = `app-status ${type}`; dom.appStatus.style.display = 'flex'; setTimeout(() => { dom.appStatus.style.display = 'none'; }, 4000); };
+    
+    const showStatus = (message, type = 'error') => {
+        const icon = type === 'success' ? '✔️' : '❌';
+        dom.appStatus.innerHTML = `<span class="icon">${icon}</span> ${message}`;
+        dom.appStatus.className = `app-status ${type}`;
+        dom.appStatus.style.display = 'flex';
+        setTimeout(() => { dom.appStatus.style.display = 'none'; }, 4000);
+    };
+
     const openModal = () => { dom.modal.classList.add('is-visible'); setTimeout(() => dom.searchInput.focus(), 50); };
     const closeModal = () => { dom.modal.classList.remove('is-visible'); };
-    const updateModalUI = () => { /* ... implementation ... */ };
-    const renderItems = (items) => { /* ... implementation ... */ };
-    const handleSearch = () => { /* ... implementation ... */ };
-    const renderPrintQueue = () => { /* ... implementation ... */ };
-    const updatePreview = () => { /* ... implementation ... */ };
-    const handleSelectAll = () => { /* ... implementation ... */ };
-    const handleDeselectAll = () => { /* ... implementation ... */ };
-    const handleConfirmSelection = () => { /* ... implementation ... */ };
-    const handleStagingListClick = (e) => { /* ... implementation ... */ };
     
+    const updateModalUI = () => {
+        const count = state.selectedItemIds.size;
+        dom.modalSelectionCount.textContent = `${count} صنف محدد`;
+        dom.confirmSelectionBtn.disabled = count === 0;
+        const allVisibleSelected = state.visibleItemIds.length > 0 && state.visibleItemIds.every(id => state.selectedItemIds.has(id));
+        dom.selectAllBtn.textContent = allVisibleSelected ? 'إلغاء تحديد الكل' : 'تحديد الكل';
+        dom.selectAllBtn.onclick = allVisibleSelected ? handleDeselectAll : handleSelectAll;
+    };
+    
+    const renderItems = (items) => {
+        state.visibleItemIds = items.map(i => i.id);
+        dom.itemList.innerHTML = items.length === 0 ? '<p style="text-align:center; padding: 20px; color: var(--muted-text);">لا توجد نتائج</p>' : '';
+        const f = document.createDocumentFragment();
+        items.forEach(item => {
+            const isSelected = state.selectedItemIds.has(item.id);
+            const card = document.createElement('div');
+            card.className = `item-card ${isSelected ? 'selected' : ''}`;
+            card.dataset.id = item.id;
+            card.innerHTML = `<span class="item-name" title="${item.name}">${item.name}</span><span class="item-meta">الكود: ${item.code || 'N/A'}</span>`;
+            card.addEventListener('click', () => {
+                const id = parseInt(card.dataset.id, 10);
+                if (state.selectedItemIds.has(id)) { state.selectedItemIds.delete(id); } else { state.selectedItemIds.add(id); }
+                card.classList.toggle('selected');
+                updateModalUI();
+            });
+            f.appendChild(card);
+        });
+        dom.itemList.appendChild(f);
+        updateModalUI();
+    };
+
+    const handleSearch = () => {
+        const q = dom.searchInput.value.toLowerCase().trim();
+        const f = dom.searchField.value;
+        const filtered = q ? state.allItems.filter(i => String(i[f] || '').toLowerCase().includes(q)) : state.allItems;
+        renderItems(filtered);
+    };
+    
+    const renderPrintQueue = () => {
+        dom.printQueueList.innerHTML = '';
+        if (state.printQueue.length === 0) { dom.printQueueSection.style.display = 'none'; dom.queueSummary.style.display = 'none'; return; }
+        dom.printQueueSection.style.display = 'block';
+        const f = document.createDocumentFragment();
+        state.printQueue.forEach(job => {
+            const el = document.createElement('div');
+            el.className = 'queue-item';
+            el.innerHTML = `<div class="queue-item-details"><span class="queue-item-name" title="${job.name}">${job.name}</span><span class="queue-item-meta">السعر: ${job.price.toFixed(2)} - الكمية: ${job.quantity}</span></div><button class="queue-item-remove" data-id="${job.id}" title="إزالة">&times;</button>`;
+            f.appendChild(el);
+        });
+        dom.printQueueList.appendChild(f);
+        const total = state.printQueue.reduce((s, j) => s + parseInt(j.quantity), 0);
+        dom.queueSummary.textContent = `الإجمالي: ${total} بطاقة`;
+        dom.queueSummary.style.display = 'block';
+    };
+
+    const updatePreview = () => {
+        const r = document.documentElement.style;
+        r.setProperty('--label-item-font-size', `${dom.controls.itemFontSize.value}px`);
+        r.setProperty('--label-price-font-size', `${dom.controls.priceFontSize.value}px`);
+        const labelsPerPage = 9;
+        dom.a4Sheet.innerHTML = '';
+        dom.a4Sheet.style.cssText = `grid-template-columns: 1fr; gap: 5mm; grid-template-rows: repeat(${labelsPerPage}, 30mm);`;
+        const labelsToRender = state.printQueue.flatMap(job => Array(parseInt(job.quantity)).fill(job));
+        const f = document.createDocumentFragment();
+        labelsToRender.slice(0, labelsPerPage).forEach(job => {
+            const l = document.createElement('div');
+            l.className = 'price-label';
+            l.innerHTML = `<div class="label-logo-area"></div><div class="label-info-area">${job.name}</div><div class="label-price-area"><div class="label-price-container"><div class="label-price">${job.price.toFixed(2)} ج.م</div></div></div>`;
+            f.appendChild(l);
+        });
+        dom.a4Sheet.appendChild(f);
+        dom.a4Sheet.querySelectorAll('.price-label').forEach(el => {
+            const iA = el.querySelector('.label-info-area');
+            if (!iA) return;
+            iA.style.fontSize = '';
+            let fs = parseInt(window.getComputedStyle(iA).fontSize);
+            while (iA.scrollWidth > iA.clientWidth && fs > 8) { fs--; iA.style.fontSize = `${fs}px`; }
+        });
+        const total = state.printQueue.reduce((s, j) => s + parseInt(j.quantity), 0);
+        dom.layoutStatus.textContent = `سعة الصفحة: ${labelsPerPage} بطاقات | القائمة: ${total} بطاقة`;
+        dom.layoutStatus.style.display = 'block';
+        dom.printButton.style.display = labelsToRender.length > 0 ? 'inline-flex' : 'none';
+    };
+
     const renderStagingList = () => {
         dom.stagingList.innerHTML = '';
         if (state.selectedItemIds.size === 0) {
@@ -255,6 +336,49 @@ document.addEventListener('DOMContentLoaded', function() {
         dom.stagingList.appendChild(f);
     };
 
+    const handleSelectAll = () => { state.visibleItemIds.forEach(id => state.selectedItemIds.add(id)); dom.itemList.querySelectorAll('.item-card').forEach(card => card.classList.add('selected')); updateModalUI(); };
+    const handleDeselectAll = () => { state.visibleItemIds.forEach(id => state.selectedItemIds.delete(id)); dom.itemList.querySelectorAll('.item-card').forEach(card => card.classList.remove('selected')); updateModalUI(); };
+    const handleConfirmSelection = () => { renderStagingList(); closeModal(); };
+
+    const handleStagingListClick = (e) => {
+        const target = e.target;
+        const card = target.closest('.staging-item');
+        if (!card) return;
+        const id = parseInt(card.dataset.id, 10);
+        if (target.classList.contains('staging-item-remove-btn')) {
+            state.selectedItemIds.delete(id);
+            renderStagingList();
+        }
+        if (target.classList.contains('staging-add-btn')) {
+            const priceInput = card.querySelector('.staging-price'), quantityInput = card.querySelector('.staging-quantity');
+            const price = parseFloat(priceInput.value), quantity = parseInt(quantityInput.value, 10);
+            if (isNaN(price) || price <= 0) { showStatus('الرجاء إدخال سعر صحيح.', 'error'); priceInput.focus(); return; }
+            if (isNaN(quantity) || quantity < 1) { showStatus('الرجاء إدخال كمية صحيحة.', 'error'); quantityInput.focus(); return; }
+            const item = state.allItems.find(i => i.id === id);
+            state.printQueue.push({ id: Date.now(), name: item.name, price, quantity });
+            state.selectedItemIds.delete(id);
+            renderStagingList();
+            renderPrintQueue();
+            updatePreview();
+        }
+    };
+    
+    const loadData = async () => {
+        showStatus('جاري تحميل البيانات...', 'success');
+        try {
+            const response = await fetch(WEB_APP_URL);
+            if (!response.ok) throw new Error(`Server Error (${response.status})`);
+            const data = await response.json();
+            if (data.error) throw new Error(data.message);
+            state.allItems = data.map((item, index) => ({ ...item, id: item.id ?? index }));
+            if (state.allItems.length > 0) {
+                showStatus(`تم تحميل ${state.allItems.length} صنف.`, 'success');
+                renderItems(state.allItems);
+                updatePreview();
+            } else { showStatus('لم يتم العثور على بيانات.', 'error'); }
+        } catch (error) { showStatus(`فشل تحميل البيانات: ${error.message}.`, 'error'); }
+    };
+
     const startSession = (category, categoryName) => {
         if (!category) return;
         state.activePriceCategory = category;
@@ -267,20 +391,6 @@ document.addEventListener('DOMContentLoaded', function() {
         loadData();
     };
     
-    const loadData = async () => { /* ... implementation ... */ };
-
-    // --- Fill in function bodies ---
-    updateModalUI = () => { const count = state.selectedItemIds.size; dom.modalSelectionCount.textContent = `${count} صنف محدد`; dom.confirmSelectionBtn.disabled = count === 0; const allVisibleSelected = state.visibleItemIds.length > 0 && state.visibleItemIds.every(id => state.selectedItemIds.has(id)); dom.selectAllBtn.textContent = allVisibleSelected ? 'إلغاء تحديد الكل' : 'تحديد الكل'; dom.selectAllBtn.onclick = allVisibleSelected ? handleDeselectAll : handleSelectAll; };
-    renderItems = (items) => { state.visibleItemIds = items.map(i => i.id); dom.itemList.innerHTML = items.length === 0 ? '<p style="text-align:center; padding: 20px; color: var(--muted-text);">لا توجد نتائج</p>' : ''; const f = document.createDocumentFragment(); items.forEach(item => { const isSelected = state.selectedItemIds.has(item.id); const card = document.createElement('div'); card.className = `item-card ${isSelected ? 'selected' : ''}`; card.dataset.id = item.id; card.innerHTML = `<span class="item-name" title="${item.name}">${item.name}</span><span class="item-meta">الكود: ${item.code || 'N/A'}</span>`; card.addEventListener('click', () => { const id = parseInt(card.dataset.id, 10); if (state.selectedItemIds.has(id)) { state.selectedItemIds.delete(id); } else { state.selectedItemIds.add(id); } card.classList.toggle('selected'); updateModalUI(); }); f.appendChild(card); }); dom.itemList.appendChild(f); updateModalUI(); };
-    handleSearch = () => { const q = dom.searchInput.value.toLowerCase().trim(), f = dom.searchField.value; const filtered = q ? state.allItems.filter(i => String(i[f] || '').toLowerCase().includes(q)) : state.allItems; renderItems(filtered); };
-    renderPrintQueue = () => { dom.printQueueList.innerHTML = ''; if (state.printQueue.length === 0) { dom.printQueueSection.style.display = 'none'; dom.queueSummary.style.display = 'none'; return; } dom.printQueueSection.style.display = 'block'; const f = document.createDocumentFragment(); state.printQueue.forEach(job => { const el = document.createElement('div'); el.className = 'queue-item'; el.innerHTML = `<div class="queue-item-details"><span class="queue-item-name" title="${job.name}">${job.name}</span><span class="queue-item-meta">السعر: ${job.price.toFixed(2)} - الكمية: ${job.quantity}</span></div><button class="queue-item-remove" data-id="${job.id}" title="إزالة">&times;</button>`; f.appendChild(el); }); dom.printQueueList.appendChild(f); const total = state.printQueue.reduce((s, j) => s + parseInt(j.quantity), 0); dom.queueSummary.textContent = `الإجمالي: ${total} بطاقة`; dom.queueSummary.style.display = 'block'; };
-    updatePreview = () => { const r = document.documentElement.style; r.setProperty('--label-item-font-size', `${dom.controls.itemFontSize.value}px`); r.setProperty('--label-price-font-size', `${dom.controls.priceFontSize.value}px`); const labelsPerPage = 9; dom.a4Sheet.innerHTML = ''; dom.a4Sheet.style.cssText = `grid-template-columns: 1fr; gap: 5mm; grid-template-rows: repeat(${labelsPerPage}, 30mm);`; const labelsToRender = state.printQueue.flatMap(job => Array(parseInt(job.quantity)).fill(job)); const f = document.createDocumentFragment(); labelsToRender.slice(0, labelsPerPage).forEach(job => { const l = document.createElement('div'); l.className = 'price-label'; l.innerHTML = `<div class="label-logo-area"></div><div class="label-info-area">${job.name}</div><div class="label-price-area"><div class="label-price-container"><div class="label-price">${job.price.toFixed(2)} ج.م</div></div></div>`; f.appendChild(l); }); dom.a4Sheet.appendChild(f); dom.a4Sheet.querySelectorAll('.price-label').forEach(el => { const iA = el.querySelector('.label-info-area'); if (!iA) return; iA.style.fontSize = ''; let fs = parseInt(window.getComputedStyle(iA).fontSize); while (iA.scrollWidth > iA.clientWidth && fs > 8) { fs--; iA.style.fontSize = `${fs}px`; } }); const total = state.printQueue.reduce((s, j) => s + parseInt(j.quantity), 0); dom.layoutStatus.textContent = `سعة الصفحة: ${labelsPerPage} بطاقات | القائمة: ${total} بطاقة`; dom.layoutStatus.style.display = 'block'; dom.printButton.style.display = labelsToRender.length > 0 ? 'inline-flex' : 'none'; };
-    handleSelectAll = () => { state.visibleItemIds.forEach(id => state.selectedItemIds.add(id)); dom.itemList.querySelectorAll('.item-card').forEach(card => card.classList.add('selected')); updateModalUI(); };
-    handleDeselectAll = () => { state.visibleItemIds.forEach(id => state.selectedItemIds.delete(id)); dom.itemList.querySelectorAll('.item-card').forEach(card => card.classList.remove('selected')); updateModalUI(); };
-    handleConfirmSelection = () => { renderStagingList(); closeModal(); };
-    handleStagingListClick = (e) => { const target = e.target; const card = target.closest('.staging-item'); if (!card) return; const id = parseInt(card.dataset.id, 10); if (target.classList.contains('staging-item-remove-btn')) { state.selectedItemIds.delete(id); renderStagingList(); } if (target.classList.contains('staging-add-btn')) { const priceInput = card.querySelector('.staging-price'), quantityInput = card.querySelector('.staging-quantity'); const price = parseFloat(priceInput.value), quantity = parseInt(quantityInput.value, 10); if (isNaN(price) || price <= 0) { showStatus('الرجاء إدخال سعر صحيح.', 'error'); priceInput.focus(); return; } if (isNaN(quantity) || quantity < 1) { showStatus('الرجاء إدخال كمية صحيحة.', 'error'); quantityInput.focus(); return; } const item = state.allItems.find(i => i.id === id); state.printQueue.push({ id: Date.now(), name: item.name, price, quantity }); state.selectedItemIds.delete(id); renderStagingList(); renderPrintQueue(); updatePreview(); } };
-    loadData = async () => { showStatus('جاري تحميل البيانات...', 'success'); try { const response = await fetch(WEB_APP_URL); if (!response.ok) throw new Error(`Server Error (${response.status})`); const data = await response.json(); if (data.error) throw new Error(data.message); state.allItems = data.map((item, index) => ({ ...item, id: item.id ?? index })); if (state.allItems.length > 0) { showStatus(`تم تحميل ${state.allItems.length} صنف.`, 'success'); renderItems(state.allItems); updatePreview(); } else { showStatus('لم يتم العثور على بيانات.', 'error'); } } catch (error) { showStatus(`فشل تحميل البيانات: ${error.message}.`, 'error'); } };
-
     // --- INITIALIZATION & EVENT LISTENERS ---
     const debouncedSearch = debounce(handleSearch, 250);
     const debouncedUpdatePreview = debounce(updatePreview, 250);
