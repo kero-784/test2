@@ -16,13 +16,11 @@
             --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.07), 0 4px 6px -4px rgba(0,0,0,0.07);
             --radius-md: 8px; --radius-lg: 12px; --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
             
-            /* Restored Original Label Style Variables */
             --label-price-color: #ef4444; --label-border-width: 1px; --label-border-style: dashed; --label-border-color: #cbd5e1;
             --label-padding: 5px; --label-border-radius: 8px; --price-box-bg: rgba(255, 255, 255, 0.85);
             --price-box-border-color: var(--label-price-color);
             --label-item-font-weight: 700;
             
-            /* Font sizes are still configurable */
             --label-item-font-size: 16px;
             --label-price-font-size: 24px;
         }
@@ -130,13 +128,13 @@
         .accordion-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
         
         @media print {
-            .control-panel, #print-button-container, .app-status, .modal-overlay, .setup-modal-overlay, .preview-panel > h1, .preview-panel > a { display: none !important; }
+            .control-panel, #print-button-container, .app-status, .modal-overlay, .setup-modal-overlay { display: none !important; }
             body, .app-container, .preview-panel { display: block !important; width: 100% !important; height: auto !important; overflow: visible !important; background: #fff !important; padding: 0 !important; margin: 0 !important; }
             #sheets-container { display: block !important; }
             .a4-sheet {
-                transform: none !important; box-shadow: none !important; border: none !important; padding: 1cm !important; margin: 0 !important;
-                width: 100% !important; height: 29.7cm !important; 
-                page-break-after: always;
+                transform: none !important; box-shadow: none !important; border: none !important; padding: 0 !important; margin: 0 !important;
+                width: 100% !important; height: 100% !important; 
+                display: grid !important; page-break-after: always;
             }
             .a4-sheet:last-child { page-break-after: avoid; }
             .price-label { page-break-inside: avoid !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; border: none !important; background: transparent !important; }
