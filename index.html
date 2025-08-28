@@ -25,7 +25,7 @@
         .preview-panel { flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; height: 100vh; background-color: var(--preview-bg); }
         h1 { font-size: 2rem; font-weight: 700; margin-bottom: 25px; }
         h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid var(--border-color); }
-        h3 { font-size: 1.5rem; font-weight: 700; color: var(--primary-color); margin: 40px 0 25px 0; border-bottom: 2px solid; padding-bottom: 15px;}
+        
         button, .btn-link { background-color: var(--primary-color); color: white; border: none; padding: 12px 25px; border-radius: var(--radius-md); font-family: 'Cairo', sans-serif; font-size: 1rem; font-weight: 600; cursor: pointer; transition: var(--transition); box-shadow: var(--shadow); display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; }
         button:hover, .btn-link:hover { background-color: var(--primary-hover); transform: translateY(-2px); box-shadow: var(--shadow-lg); }
         button:disabled, .btn-link:disabled { background-color: #94a3b8; cursor: not-allowed; transform: none; box-shadow: none; }
@@ -97,6 +97,25 @@
         .queue-item-remove { background: #fee2e2; color: #b91c1c; border: none; width: 28px; height: 28px; border-radius: 50%; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; padding: 0; transition: var(--transition); flex-shrink: 0; margin-right: 10px; box-shadow:none; }
         .queue-item-remove:hover { background-color: #ef4444; color: white; transform: scale(1.1); }
         ::-webkit-scrollbar { width: 8px; } ::-webkit-scrollbar-track { background: var(--bg-color); } ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; } ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+        
+        /* --- Accordion Styles (NEW) --- */
+        .accordion-header {
+            font-size: 1.5rem; font-weight: 700; color: var(--primary-color); margin: 40px 0 25px 0;
+            border-bottom: 2px solid; padding-bottom: 15px; cursor: pointer;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .accordion-icon {
+            transition: transform 0.3s ease; font-size: 1rem;
+        }
+        .accordion-header.active .accordion-icon {
+            transform: rotate(180deg);
+        }
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+
         @media print { /* print styles unchanged */ }
     </style>
 </head>
@@ -136,15 +155,23 @@
                 <h2>3. قائمة الطباعة</h2><div id="print-queue-list"></div><div id="queue-summary" style="display: none;"></div>
             </section>
 
-            <h3>4. تخصيص التصميم</h3>
-            <fieldset> <legend>تخطيط الصفحة</legend> <div id="layout-calculation-status"></div> </fieldset>
-            <fieldset>
-                <legend>النصوص والخطوط</legend>
-                <div class="control-group grid-2">
-                     <div><label>خط الصنف (px): <span id="item-font-size-value" class="slider-value">16</span></label><input type="range" id="item-font-size" min="8" max="28" value="16"></div>
-                     <div><label>خط السعر (px): <span id="price-font-size-value" class="slider-value">24</span></label><input type="range" id="price-font-size" min="12" max="48" value="24"></div>
+            <!-- Accordion for Design Settings -->
+            <div class="design-accordion">
+                <div id="accordion-header" class="accordion-header">
+                    <span>تخصيص التصميم</span>
+                    <span class="accordion-icon">▼</span>
                 </div>
-            </fieldset>
+                <div class="accordion-content">
+                    <fieldset> <legend>تخطيط الصفحة</legend> <div id="layout-calculation-status"></div> </fieldset>
+                    <fieldset>
+                        <legend>النصوص والخطوط</legend>
+                        <div class="control-group grid-2">
+                             <div><label>خط الصنف (px): <span id="item-font-size-value" class="slider-value">16</span></label><input type="range" id="item-font-size" min="8" max="28" value="16"></div>
+                             <div><label>خط السعر (px): <span id="price-font-size-value" class="slider-value">24</span></label><input type="range" id="price-font-size" min="12" max="48" value="24"></div>
+                        </div>
+                    </fieldset>
+                </div>
+            </div>
         </aside>
     </div>
 
@@ -189,6 +216,7 @@ document.addEventListener('DOMContentLoaded', function() {
         modalSelectionCount: document.getElementById('modal-selection-count'),
         confirmSelectionBtn: document.getElementById('confirm-selection-btn'),
         selectAllBtn: document.getElementById('select-all-btn'),
+        accordionHeader: document.getElementById('accordion-header'),
         controls: {
             itemFontSize: document.getElementById('item-font-size'),
             priceFontSize: document.getElementById('price-font-size'),
@@ -388,6 +416,17 @@ document.addEventListener('DOMContentLoaded', function() {
         if(input && valueSpan) { valueSpan.textContent = input.value; input.addEventListener('input', e => valueSpan.textContent = e.target.value); }
     });
     
+    // Accordion functionality
+    dom.accordionHeader.addEventListener('click', function() {
+        this.classList.toggle('active');
+        const content = this.nextElementSibling;
+        if (content.style.maxHeight) {
+            content.style.maxHeight = null;
+        } else {
+            content.style.maxHeight = content.scrollHeight + "px";
+        } 
+    });
+
     loadData();
 });
 </script>
