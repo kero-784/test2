@@ -56,11 +56,11 @@
         
         .section-card { background: var(--card-bg); padding: 25px; border-radius: var(--radius-lg); box-shadow: var(--shadow); margin-bottom: 30px; }
         .loader { border: 4px solid #e2e8f0; border-top: 4px solid var(--primary-color); border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; display: none; margin: 0 auto; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(3 merkezi0deg); } }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
         .app-status { padding: 15px 20px; margin-bottom: 20px; border-radius: var(--radius-md); color: #fff; text-align: center; font-weight: 600; box-shadow: var(--shadow); display: none; align-items: center; justify-content: center; gap: 10px; }
         .app-status.error { background: #ef4444; } .app-status.success { background: #22c55e; }
-        .app-status .icon svg { width: 20px; height: 20px; fill: white; }
+        .app-status .icon { display: inline-flex; }
         
         /* --- MODAL STYLES (REDESIGNED) --- */
         .modal-overlay {
@@ -102,7 +102,6 @@
         .item-card .item-meta { font-size: 0.85rem; color: var(--muted-text); white-space: nowrap; }
         .item-card.selected .item-meta { color: #60a5fa; }
 
-        /* Selected item display on main page */
         #selected-item-display { background-color: #f8fafc; padding: 20px; border-radius: var(--radius-md); border: 1px solid var(--border-color); text-align: center; margin-bottom: 15px; }
         #selected-item-display .placeholder { color: var(--muted-text); }
         #selected-item-display .summary { display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 700; font-size: 1.2rem; color: #1e3a8a; }
@@ -110,8 +109,6 @@
         #a4-sheet { background: white; width: 21cm; height: 29.7cm; box-shadow: var(--shadow-lg); padding: 1cm; transform-origin: center center; transform: scale(0.65); display: grid; align-content: start; }
         #print-button { margin-top: 25px; }
         
-        .price-label, #print-queue-list, #layout-calculation-status, #queue-summary, fieldset { /* ... existing styles ... */ }
-        /* (Styles for price-label, queue, sliders, etc. remain unchanged) */
         .price-label { display: flex; flex-direction: row; align-items: center; overflow: hidden; background-color: white; color: var(--text-color); font-family: 'Cairo', sans-serif; border: 1px solid #cbd5e1; border-radius: 8px; padding: 5px; }
         .label-logo-area { flex: 0 0 25%; height: 100%; }
         .label-info-area { flex: 1 1 auto; text-align: center; padding: 0 10px; font-weight: 700; font-size: var(--label-item-font-size); white-space: nowrap; overflow: hidden; }
@@ -149,15 +146,12 @@
             <h1>شيلف مجمع</h1>
             <a href="../index.html" class="btn-link" style="display: block; text-align: center; margin-bottom: 25px; font-weight: 500;">← العودة إلى لوحة التحكم</a>
             <div id="app-status" class="app-status"></div>
-
             <section class="section-card"><h2>1. تحميل البيانات</h2><div id="loader" class="loader"></div></section>
-
             <section id="item-selection-section" class="section-card" style="display:none;">
                 <h2>2. الأصناف المحددة</h2>
                 <div id="selected-item-display"><span class="placeholder">لم يتم تحديد أي صنف</span></div>
                 <button id="open-item-modal-btn" style="width: 100%;"><span class="btn-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M3.75 3.75a.75.75 0 0 0-1.5 0v1.5c0 .414.336.75.75.75h1.5a.75.75 0 0 0 .75-.75v-1.5a.75.75 0 0 0-.75-.75Zm3.25.75a.75.75 0 0 1 .75-.75h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1-.75-.75ZM3 8.25a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1-.75-.75v-1.5ZM7 8.25a.75.75 0 0 1 .75-.75h8.5a.75.75 0 0 1 0 1.5h-8.5A.75.75 0 0 1 7 8.25Zm-4 4a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1-.75-.75v-1.5Zm3.25.75a.75.75 0 0 1 .75-.75h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1-.75-.75Z" /></svg></span> تحديد أصناف للإضافة</button>
             </section>
-            
             <section id="generation-section" class="section-card" style="display:none;">
                  <h2>3. إضافة للطباعة</h2>
                  <p style="font-size: 0.9rem; color: var(--muted-text); margin-bottom: 15px;">سيتم تطبيق السعر والكمية على جميع الأصناف المحددة.</p>
@@ -169,13 +163,9 @@
                     </div>
                  </div>
             </section>
-
             <section id="print-queue-section" class="section-card" style="display:none;">
-                <h2>4. قائمة الطباعة</h2>
-                <div id="print-queue-list"></div>
-                <div id="queue-summary" style="display: none;"></div>
+                <h2>4. قائمة الطباعة</h2><div id="print-queue-list"></div><div id="queue-summary" style="display: none;"></div>
             </section>
-
             <h3>5. تخصيص التصميم</h3>
             <fieldset> <legend>تخطيط الصفحة</legend> <div id="layout-calculation-status"></div> </fieldset>
             <fieldset>
@@ -212,52 +202,44 @@
         </div>
     </div>
 
-
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // --- SETUP: CONSTANTS, STATE, DOM ---
     const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw_TeuaYi3odExgQNHKXj52grDm-QvPrbEJwMKibQxD8rkxff1EuX2VKmpWWKCwOBqD/exec';
     const state = { allItems: [], selectedItemIds: new Set(), printQueue: [], visibleItemIds: [] };
-    const dom = { /* DOM elements mapping */ };
-    const elements = ['app-status','loader','item-selection-section','selected-item-display','generation-section','price-input','quantity-input','add-to-queue-btn','print-queue-section','print-queue-list','queue-summary','a4-sheet','print-button','layout-calculation-status','modal:item-selection-modal','open-modal-btn:open-item-modal-btn','search-input','search-field','item-list','modal-selection-count','confirm-selection-btn','select-all-btn:select-all-btn','item-font-size','price-font-size'];
-    elements.forEach(el => {
-        const parts = el.split(':');
-        const id = parts[1] || parts[0];
-        const key = parts[0].replace(/-(\w)/g, (m, p1) => p1.toUpperCase());
+    const dom = {};
+    const elements = ['app-status','loader','item-selection-section','selected-item-display','generation-section','price-input','quantity-input','add-to-queue-btn','print-queue-section','print-queue-list','queue-summary','a4-sheet','print-button','layout-calculation-status','item-selection-modal','open-item-modal-btn','search-input','search-field','item-list','modal-selection-count','confirm-selection-btn','select-all-btn','item-font-size','price-font-size'];
+    elements.forEach(id => {
+        const key = id.replace(/-(\w)/g, (m, p1) => p1.toUpperCase());
         dom[key] = document.getElementById(id);
     });
     dom.controls = { itemFontSize: dom.itemFontSize, priceFontSize: dom.priceFontSize };
     
-    // --- HELPERS ---
+    // --- HELPER & CORE FUNCTIONS (DEFINED ONCE) ---
     const debounce = (f, d) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => f.apply(this, a), d); }; };
+
     const showStatus = (message, type = 'error') => {
-        dom.appStatus.innerHTML = `<span class="icon">${type === 'success' ? '✔️' : '❌'}</span> ${message}`;
+        const icon = type === 'success' ? '✔️' : '❌';
+        dom.appStatus.innerHTML = `<span class="icon">${icon}</span> ${message}`;
         dom.appStatus.className = `app-status ${type}`;
         dom.appStatus.style.display = 'flex';
         setTimeout(() => { dom.appStatus.style.display = 'none'; }, type === 'error' ? 8000 : 4000);
     };
 
-    // --- MODAL LOGIC ---
-    const openModal = () => { dom.modal.classList.add('is-visible'); setTimeout(() => dom.searchInput.focus(), 50); };
-    const closeModal = () => { dom.modal.classList.remove('is-visible'); };
+    const openModal = () => { dom.itemSelectionModal.classList.add('is-visible'); setTimeout(() => dom.searchInput.focus(), 50); };
+    const closeModal = () => { dom.itemSelectionModal.classList.remove('is-visible'); };
+
     const updateModalUI = () => {
         const count = state.selectedItemIds.size;
         dom.modalSelectionCount.textContent = `${count} صنف محدد`;
         dom.confirmSelectionBtn.disabled = count === 0;
-
         const allVisibleSelected = state.visibleItemIds.length > 0 && state.visibleItemIds.every(id => state.selectedItemIds.has(id));
-        if (allVisibleSelected) {
-            dom.selectAllBtn.textContent = 'إلغاء تحديد الكل';
-            dom.selectAllBtn.onclick = handleDeselectAll;
-        } else {
-            dom.selectAllBtn.textContent = 'تحديد الكل';
-            dom.selectAllBtn.onclick = handleSelectAll;
-        }
+        dom.selectAllBtn.textContent = allVisibleSelected ? 'إلغاء تحديد الكل' : 'تحديد الكل';
+        dom.selectAllBtn.onclick = allVisibleSelected ? handleDeselectAll : handleSelectAll;
     };
     
-    // --- DATA & RENDERING ---
     const renderItems = (items) => {
-        state.visibleItemIds = items.map(i => i.id); // Store visible IDs for select all
+        state.visibleItemIds = items.map(i => i.id);
         dom.itemList.innerHTML = items.length === 0 
             ? '<p style="text-align:center; padding: 20px; color: var(--muted-text);">لا توجد نتائج مطابقة</p>'
             : '';
@@ -291,24 +273,75 @@ document.addEventListener('DOMContentLoaded', function() {
         renderItems(filtered);
     };
 
-    const updatePreview = () => { /* ... existing updatePreview logic ... */ };
-    const renderPrintQueue = () => { /* ... existing renderPrintQueue logic ... */ };
+    const renderPrintQueue = () => {
+        dom.printQueueList.innerHTML = '';
+        if (state.printQueue.length === 0) {
+            dom.printQueueSection.style.display = 'none';
+            dom.queueSummary.style.display = 'none';
+        } else {
+            dom.printQueueSection.style.display = 'block';
+            state.printQueue.forEach(job => {
+                const itemEl = document.createElement('div');
+                itemEl.className = 'queue-item';
+                itemEl.innerHTML = `<div class="queue-item-details"><span class="queue-item-name" title="${job.name}">${job.name}</span><span class="queue-item-meta">السعر: ${job.price.toFixed(2)} ج.م - الكمية: ${job.quantity}</span></div><button class="queue-item-remove" data-id="${job.id}" title="إزالة">&times;</button>`;
+                dom.printQueueList.appendChild(itemEl);
+            });
+            const totalLabels = state.printQueue.reduce((sum, job) => sum + parseInt(job.quantity), 0);
+            dom.queueSummary.textContent = `الإجمالي: ${totalLabels} بطاقة`;
+            dom.queueSummary.style.display = 'block';
+        }
+    };
 
-    // --- EVENT HANDLERS ---
+    const updatePreview = () => {
+        const root = document.documentElement.style;
+        root.setProperty('--label-item-font-size', `${dom.controls.itemFontSize.value}px`);
+        root.setProperty('--label-price-font-size', `${dom.controls.priceFontSize.value}px`);
+        const labelsPerPage = 9;
+        dom.a4Sheet.innerHTML = '';
+        dom.a4Sheet.style.gridTemplateColumns = `1fr`;
+        dom.a4Sheet.style.gap = `5mm`;
+        dom.a4Sheet.style.gridTemplateRows = `repeat(${labelsPerPage}, 30mm)`;
+        const labelsToRender = state.printQueue.flatMap(job => Array(parseInt(job.quantity)).fill(job));
+        const fragment = document.createDocumentFragment();
+        labelsToRender.slice(0, labelsPerPage).forEach(job => {
+            const label = document.createElement('div');
+            label.className = 'price-label';
+            label.innerHTML = `<div class="label-logo-area"></div><div class="label-info-area">${job.name}</div><div class="label-price-area"><div class="label-price-container"><div class="label-price">${job.price.toFixed(2)} ج.م</div></div></div>`;
+            fragment.appendChild(label);
+        });
+        dom.a4Sheet.appendChild(fragment);
+        dom.a4Sheet.querySelectorAll('.price-label').forEach(el => {
+            const infoArea = el.querySelector('.label-info-area');
+            if (!infoArea) return;
+            infoArea.style.fontSize = ''; 
+            let currentFontSize = parseInt(window.getComputedStyle(infoArea).fontSize);
+            while (infoArea.scrollWidth > infoArea.clientWidth && currentFontSize > 8) {
+                currentFontSize--;
+                infoArea.style.fontSize = `${currentFontSize}px`;
+            }
+        });
+        const totalInQueue = state.printQueue.reduce((sum, job) => sum + parseInt(job.quantity), 0);
+        dom.layoutStatus.textContent = `سعة الصفحة: ${labelsPerPage} بطاقات | القائمة تحتوي على ${totalInQueue} بطاقة.`;
+        dom.layoutStatus.style.display = 'block';
+        dom.printButton.style.display = labelsToRender.length > 0 ? 'inline-flex' : 'none';
+    };
+
     const handleSelectAll = () => {
         state.visibleItemIds.forEach(id => state.selectedItemIds.add(id));
-        renderItems(state.allItems.filter(i => state.visibleItemIds.includes(i.id)));
+        dom.itemList.querySelectorAll('.item-card').forEach(card => card.classList.add('selected'));
+        updateModalUI();
     };
+
     const handleDeselectAll = () => {
         state.visibleItemIds.forEach(id => state.selectedItemIds.delete(id));
-        renderItems(state.allItems.filter(i => state.visibleItemIds.includes(i.id)));
+        dom.itemList.querySelectorAll('.item-card').forEach(card => card.classList.remove('selected'));
+        updateModalUI();
     };
 
     const handleConfirmSelection = () => {
         const count = state.selectedItemIds.size;
         if (count > 0) {
-            const icon = `<span class="btn-icon" style="color: #22c55e;">✔️</span>`;
-            dom.selectedItemDisplay.innerHTML = `<div class="summary">${icon} ${count} أصناف محددة</div>`;
+            dom.selectedItemDisplay.innerHTML = `<div class="summary"><span class="icon">✔️</span> ${count} أصناف محددة</div>`;
             dom.generationSection.style.display = 'block';
             dom.priceInput.value = '';
             dom.priceInput.focus();
@@ -342,68 +375,13 @@ document.addEventListener('DOMContentLoaded', function() {
         dom.generationSection.style.display = 'none';
         dom.quantityInput.value = '1';
         dom.priceInput.value = '';
-        updateModalUI();
         
         renderPrintQueue();
         updatePreview();
+        updateModalUI();
     };
     
-    const loadData = async () => { /* ... existing loadData logic ... */ };
-
-    // --- INITIALIZATION ---
-    // (Copying full function bodies here to avoid errors)
-    updatePreview = () => {
-        const root = document.documentElement.style;
-        root.setProperty('--label-item-font-size', `${dom.controls.itemFontSize.value}px`);
-        root.setProperty('--label-price-font-size', `${dom.controls.priceFontSize.value}px`);
-        const labelsPerPage = 9;
-        dom.a4Sheet.innerHTML = '';
-        dom.a4Sheet.style.gridTemplateColumns = `1fr`;
-        dom.a4Sheet.style.gap = `5mm`;
-        dom.a4Sheet.style.gridTemplateRows = `repeat(${labelsPerPage}, 30mm)`;
-        const labelsToRender = state.printQueue.flatMap(job => Array(parseInt(job.quantity)).fill(job));
-        const fragment = document.createDocumentFragment();
-        labelsToRender.slice(0, labelsPerPage).forEach(job => {
-            const label = document.createElement('div');
-            label.className = 'price-label';
-            label.innerHTML = `<div class="label-logo-area"></div><div class="label-info-area">${job.name}</div><div class="label-price-area"><div class="label-price-container"><div class="label-price">${job.price.toFixed(2)} ج.م</div></div></div>`;
-            fragment.appendChild(label);
-        });
-        dom.a4Sheet.appendChild(fragment);
-        dom.a4Sheet.querySelectorAll('.price-label').forEach(el => {
-            const infoArea = el.querySelector('.label-info-area');
-            if (!infoArea) return;
-            infoArea.style.fontSize = ''; 
-            let currentFontSize = parseInt(window.getComputedStyle(infoArea).fontSize);
-            while (infoArea.scrollWidth > infoArea.clientWidth && currentFontSize > 8) {
-                currentFontSize--;
-                infoArea.style.fontSize = `${currentFontSize}px`;
-            }
-        });
-        const totalInQueue = state.printQueue.reduce((sum, job) => sum + parseInt(job.quantity), 0);
-        dom.layoutStatus.textContent = `سعة الصفحة: ${labelsPerPage} بطاقات | القائمة تحتوي على ${totalInQueue} بطاقة.`;
-        dom.layoutStatus.style.display = 'block';
-        dom.printButton.style.display = labelsToRender.length > 0 ? 'inline-flex' : 'none';
-    };
-    renderPrintQueue = () => {
-        dom.printQueueList.innerHTML = '';
-        if (state.printQueue.length === 0) {
-            dom.printQueueSection.style.display = 'none';
-            dom.queueSummary.style.display = 'none';
-        } else {
-            dom.printQueueSection.style.display = 'block';
-            state.printQueue.forEach(job => {
-                const itemEl = document.createElement('div');
-                itemEl.className = 'queue-item';
-                itemEl.innerHTML = `<div class="queue-item-details"><span class="queue-item-name" title="${job.name}">${job.name}</span><span class="queue-item-meta">السعر: ${job.price.toFixed(2)} ج.م - الكمية: ${job.quantity}</span></div><button class="queue-item-remove" data-id="${job.id}" title="إزالة">&times;</button>`;
-                dom.printQueueList.appendChild(itemEl);
-            });
-            const totalLabels = state.printQueue.reduce((sum, job) => sum + parseInt(job.quantity), 0);
-            dom.queueSummary.textContent = `الإجمالي: ${totalLabels} بطاقة`;
-            dom.queueSummary.style.display = 'block';
-        }
-    };
-    loadData = async () => {
+    const loadData = async () => {
         dom.loader.style.display = 'block';
         try {
             const response = await fetch(WEB_APP_URL);
@@ -426,18 +404,20 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
+    // --- INITIALIZATION & EVENT LISTENERS ---
     const debouncedSearch = debounce(handleSearch, 250);
     const debouncedUpdatePreview = debounce(updatePreview, 250);
     
     dom.openModalBtn.addEventListener('click', openModal);
-    dom.modal.addEventListener('click', (e) => { if (e.target === dom.modal || e.target.closest('.modal-close-btn')) closeModal(); });
+    dom.itemSelectionModal.addEventListener('click', (e) => { if (e.target === dom.itemSelectionModal || e.target.closest('.modal-close-btn')) closeModal(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
     dom.confirmSelectionBtn.addEventListener('click', handleConfirmSelection);
     dom.addToQueueBtn.addEventListener('click', handleAddToQueue);
     dom.printButton.addEventListener('click', () => window.print());
     dom.printQueueList.addEventListener('click', e => {
-        if (e.target.closest('.queue-item-remove')) {
-            const jobId = parseInt(e.target.closest('.queue-item-remove').dataset.id, 10);
+        const removeButton = e.target.closest('.queue-item-remove');
+        if (removeButton) {
+            const jobId = parseInt(removeButton.dataset.id, 10);
             state.printQueue = state.printQueue.filter(job => job.id !== jobId);
             renderPrintQueue();
             updatePreview();
@@ -448,6 +428,7 @@ document.addEventListener('DOMContentLoaded', function() {
     dom.searchField.addEventListener('change', handleSearch);
     
     Object.values(dom.controls).forEach(c => c.addEventListener('input', debouncedUpdatePreview));
+    
     ['item-font-size', 'price-font-size'].forEach(id => {
         const input = document.getElementById(id), valueSpan = document.getElementById(`${id}-value`);
         if(input && valueSpan) {
