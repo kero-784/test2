@@ -107,6 +107,44 @@
         .accordion-icon { transition: transform 0.3s ease; font-size: 1rem; }
         .accordion-header.active .accordion-icon { transform: rotate(180deg); }
         .accordion-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
+        
+        /* --- CORRECTED PRINT STYLES --- */
+        @media print {
+            .control-panel, #print-button, .app-status, .modal-overlay, .setup-modal-overlay {
+                display: none !important;
+            }
+            body, .app-container, .preview-panel {
+                display: block !important;
+                width: 100% !important;
+                height: auto !important;
+                overflow: visible !important;
+                background: #fff !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            #a4-sheet {
+                transform: none !important;
+                box-shadow: none !important;
+                border: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                width: 100% !important;
+                height: 100% !important;
+                display: grid !important;
+                page-break-after: always;
+            }
+            .price-label {
+                page-break-inside: avoid !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                border: none !important;
+                background: transparent !important;
+            }
+            .label-price-container {
+                border: none !important;
+                background: transparent !important;
+            }
+        }
     </style>
 </head>
 <body>
