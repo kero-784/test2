@@ -207,15 +207,38 @@ document.addEventListener('DOMContentLoaded', function() {
     // --- SETUP: CONSTANTS, STATE, DOM ---
     const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw_TeuaYi3odExgQNHKXj52grDm-QvPrbEJwMKibQxD8rkxff1EuX2VKmpWWKCwOBqD/exec';
     const state = { allItems: [], selectedItemIds: new Set(), printQueue: [], visibleItemIds: [] };
-    const dom = {};
-    const elements = ['app-status','loader','item-selection-section','selected-item-display','generation-section','price-input','quantity-input','add-to-queue-btn','print-queue-section','print-queue-list','queue-summary','a4-sheet','print-button','layout-calculation-status','item-selection-modal','open-item-modal-btn','search-input','search-field','item-list','modal-selection-count','confirm-selection-btn','select-all-btn','item-font-size','price-font-size'];
-    elements.forEach(id => {
-        const key = id.replace(/-(\w)/g, (m, p1) => p1.toUpperCase());
-        dom[key] = document.getElementById(id);
-    });
-    dom.controls = { itemFontSize: dom.itemFontSize, priceFontSize: dom.priceFontSize };
     
-    // --- HELPER & CORE FUNCTIONS (DEFINED ONCE) ---
+    // Explicitly define DOM elements for reliability
+    const dom = {
+        appStatus: document.getElementById('app-status'),
+        loader: document.getElementById('loader'),
+        itemSelectionSection: document.getElementById('item-selection-section'),
+        selectedItemDisplay: document.getElementById('selected-item-display'),
+        generationSection: document.getElementById('generation-section'),
+        priceInput: document.getElementById('price-input'),
+        quantityInput: document.getElementById('quantity-input'),
+        addToQueueBtn: document.getElementById('add-to-queue-btn'),
+        printQueueSection: document.getElementById('print-queue-section'),
+        printQueueList: document.getElementById('print-queue-list'),
+        queueSummary: document.getElementById('queue-summary'),
+        a4Sheet: document.getElementById('a4-sheet'),
+        printButton: document.getElementById('print-button'),
+        layoutStatus: document.getElementById('layout-calculation-status'),
+        modal: document.getElementById('item-selection-modal'),
+        openModalBtn: document.getElementById('open-item-modal-btn'),
+        searchInput: document.getElementById('search-input'),
+        searchField: document.getElementById('search-field'),
+        itemList: document.getElementById('item-list'),
+        modalSelectionCount: document.getElementById('modal-selection-count'),
+        confirmSelectionBtn: document.getElementById('confirm-selection-btn'),
+        selectAllBtn: document.getElementById('select-all-btn'),
+        controls: {
+            itemFontSize: document.getElementById('item-font-size'),
+            priceFontSize: document.getElementById('price-font-size'),
+        }
+    };
+    
+    // --- HELPER & CORE FUNCTIONS ---
     const debounce = (f, d) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => f.apply(this, a), d); }; };
 
     const showStatus = (message, type = 'error') => {
@@ -226,8 +249,8 @@ document.addEventListener('DOMContentLoaded', function() {
         setTimeout(() => { dom.appStatus.style.display = 'none'; }, type === 'error' ? 8000 : 4000);
     };
 
-    const openModal = () => { dom.itemSelectionModal.classList.add('is-visible'); setTimeout(() => dom.searchInput.focus(), 50); };
-    const closeModal = () => { dom.itemSelectionModal.classList.remove('is-visible'); };
+    const openModal = () => { dom.modal.classList.add('is-visible'); setTimeout(() => dom.searchInput.focus(), 50); };
+    const closeModal = () => { dom.modal.classList.remove('is-visible'); };
 
     const updateModalUI = () => {
         const count = state.selectedItemIds.size;
@@ -280,12 +303,14 @@ document.addEventListener('DOMContentLoaded', function() {
             dom.queueSummary.style.display = 'none';
         } else {
             dom.printQueueSection.style.display = 'block';
+            const fragment = document.createDocumentFragment();
             state.printQueue.forEach(job => {
                 const itemEl = document.createElement('div');
                 itemEl.className = 'queue-item';
                 itemEl.innerHTML = `<div class="queue-item-details"><span class="queue-item-name" title="${job.name}">${job.name}</span><span class="queue-item-meta">السعر: ${job.price.toFixed(2)} ج.م - الكمية: ${job.quantity}</span></div><button class="queue-item-remove" data-id="${job.id}" title="إزالة">&times;</button>`;
-                dom.printQueueList.appendChild(itemEl);
+                fragment.appendChild(itemEl);
             });
+            dom.printQueueList.appendChild(fragment);
             const totalLabels = state.printQueue.reduce((sum, job) => sum + parseInt(job.quantity), 0);
             dom.queueSummary.textContent = `الإجمالي: ${totalLabels} بطاقة`;
             dom.queueSummary.style.display = 'block';
@@ -409,7 +434,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const debouncedUpdatePreview = debounce(updatePreview, 250);
     
     dom.openModalBtn.addEventListener('click', openModal);
-    dom.itemSelectionModal.addEventListener('click', (e) => { if (e.target === dom.itemSelectionModal || e.target.closest('.modal-close-btn')) closeModal(); });
+    dom.modal.addEventListener('click', (e) => { if (e.target === dom.modal || e.target.closest('.modal-close-btn')) closeModal(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
     dom.confirmSelectionBtn.addEventListener('click', handleConfirmSelection);
     dom.addToQueueBtn.addEventListener('click', handleAddToQueue);
