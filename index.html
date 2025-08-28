@@ -171,7 +171,8 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw_TeuaYi3odExgQNHKXj52grDm-QvPrbEJwMKibQxD8rkxff1EuX2VKmpWWKCwOBqD/exec';
+    // --- SETUP: CONSTANTS, STATE, DOM ---
+    const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyu9Kqs4B9LDSGxO4kDwoPG8PrfwKAu6zUlawS3CC2AK_yswPPhL7zWYcj3MRVS5UTH/exec';
     const state = { allItems: [], selectedItemIds: new Set(), printQueue: [], visibleItemIds: [], activePriceCategory: null };
     
     const dom = {
@@ -261,8 +262,7 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     const handleSearch = () => {
-        const q = dom.searchInput.value.toLowerCase().trim();
-        const f = dom.searchField.value;
+        const q = dom.searchInput.value.toLowerCase().trim(), f = dom.searchField.value;
         const filtered = q ? state.allItems.filter(i => String(i[f] || '').toLowerCase().includes(q)) : state.allItems;
         renderItems(filtered);
     };
@@ -401,7 +401,7 @@ document.addEventListener('DOMContentLoaded', function() {
             startSession(button.dataset.category, button.dataset.name);
         }
     });
-
+    
     dom.openModalBtn.addEventListener('click', openModal);
     dom.modal.addEventListener('click', (e) => { if (e.target.classList.contains('modal-overlay') || e.target.closest('.modal-close-btn')) closeModal(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
