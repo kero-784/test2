@@ -8,41 +8,6 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
         
-        :root { /* ... existing CSS variables ... */ }
-
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Cairo', sans-serif; background-color: var(--bg-color); color: var(--text-color); display: flex; height: 100vh; overflow: hidden; }
-        
-        /* Hide app by default, show setup modal */
-        .app-container { display: none; width: 100%; height: 100%; flex-direction: row-reverse; }
-        
-        .control-panel, .preview-panel, h1, h2, h3, button, .btn-link, input, select, .section-card, .app-status, .modal-overlay, #a4-sheet, .price-label, fieldset, #print-queue-list {
-            /* All existing styles remain the same, they are just hidden initially with the container */
-        }
-
-        /* --- Setup Modal Styles (NEW) --- */
-        .setup-modal-overlay {
-            position: fixed; top: 0; right: 0; bottom: 0; left: 0;
-            background: var(--bg-color);
-            display: flex; align-items: center; justify-content: center;
-            z-index: 10000;
-            transition: opacity 0.3s ease;
-        }
-        .setup-modal-content {
-            background: var(--card-bg);
-            padding: 40px;
-            border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-lg);
-            text-align: center;
-            width: 90%;
-            max-width: 450px;
-        }
-        .setup-modal-content h2 { border-bottom: none; padding-bottom: 0; }
-        .setup-modal-content p { color: var(--muted-text); margin-bottom: 25px; }
-        .setup-modal-content select { margin-bottom: 20px; font-size: 1.1rem; text-align: center; }
-        .setup-modal-content button { width: 100%; }
-
-        /* Existing styles from previous versions */
         :root {
             --bg-color: #f4f7fa; --preview-bg: #e2e8f0; --text-color: #334155;
             --primary-color: #3b82f6; --primary-hover: #2563eb; --card-bg: #ffffff;
@@ -52,6 +17,29 @@
             --radius-md: 8px; --radius-lg: 12px; --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
             --label-item-font-size: 16px; --label-price-font-size: 24px;
         }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Cairo', sans-serif; background-color: var(--bg-color); color: var(--text-color); display: flex; height: 100vh; overflow: hidden; }
+        
+        .app-container { display: none; width: 100%; height: 100%; flex-direction: row-reverse; }
+        
+        /* Setup Modal Styles */
+        .setup-modal-overlay {
+            position: fixed; top: 0; right: 0; bottom: 0; left: 0;
+            background: var(--bg-color);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 10000;
+            transition: opacity 0.3s ease;
+        }
+        .setup-modal-content {
+            background: var(--card-bg); padding: 40px; border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg); text-align: center; width: 90%; max-width: 450px;
+        }
+        .setup-modal-content h2 { border-bottom: none; padding-bottom: 0; }
+        .setup-modal-content p { color: var(--muted-text); margin-bottom: 25px; }
+        .setup-modal-content select { margin-bottom: 20px; font-size: 1.1rem; text-align: center; }
+        .setup-modal-content button { width: 100%; }
+
         .control-panel { width: 450px; min-width: 420px; background-color: var(--bg-color); padding: 30px; height: 100vh; overflow-y: auto; border-left: 1px solid var(--border-color); }
         .preview-panel { flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; height: 100vh; background-color: var(--preview-bg); }
         h1 { font-size: 2rem; font-weight: 700; margin-bottom: 25px; }
@@ -116,7 +104,6 @@
         .queue-item-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .queue-item-meta { font-size: 14px; color: var(--muted-text); }
         .queue-item-remove { background: #fee2e2; color: #b91c1c; border: none; width: 28px; height: 28px; border-radius: 50%; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; padding: 0; transition: var(--transition); flex-shrink: 0; margin-right: 10px; box-shadow:none; }
-        .queue-item-remove:hover { background-color: #ef4444; color: white; transform: scale(1.1); }
         .accordion-header { font-size: 1.5rem; font-weight: 700; color: var(--primary-color); margin: 40px 0 25px 0; border-bottom: 2px solid; padding-bottom: 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
         .accordion-icon { transition: transform 0.3s ease; font-size: 1rem; }
         .accordion-header.active .accordion-icon { transform: rotate(180deg); }
@@ -183,15 +170,28 @@
         </aside>
     </div>
 
-    <div id="item-selection-modal" class="modal-overlay"> <!-- Modal HTML as before --> </div>
+    <div id="item-selection-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header"><h2>اختر الأصناف</h2><button class="modal-close-btn" title="إغلاق">&times;</button></div>
+            <div class="modal-body">
+                <div class="search-header">
+                    <div id="search-container"><select id="search-field"><option value="name">الاسم</option><option value="code">الكود</option></select><input type="search" id="search-input" placeholder="اكتب هنا للبحث..."></div>
+                    <button id="select-all-btn" class="btn-link">تحديد الكل</button>
+                </div>
+                <div id="item-list"></div>
+            </div>
+            <div class="modal-footer"><span id="modal-selection-count">0 صنف محدد</span><button id="confirm-selection-btn" disabled>تأكيد الإختيار</button></div>
+        </div>
+    </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // --- SETUP: CONSTANTS, STATE, DOM ---
-    const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw_TeuaYi3odExgQNHKXj52grDm-QvPrbEJwMKibQxD8rkxff1EuX2VKmpWWKCwOBqD/exec';
+    const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyMvUxMBy7UyTWAqT7EMYlwkTdh1Zdc0BWupeMVOYyJSWxcivkSBnozStQSfJGacklAXQ/exec';
     const state = { allItems: [], selectedItemIds: new Set(), printQueue: [], visibleItemIds: [], activePriceCategory: null };
-    
-    const dom = {
+    const dom = { /* ... DOM mapping as before ... */ };
+    // Explicitly define all DOM elements
+    Object.assign(dom, {
         setupModal: document.getElementById('setup-modal-overlay'),
         sessionPriceCategory: document.getElementById('session-price-category'),
         startSessionBtn: document.getElementById('start-session-btn'),
@@ -211,35 +211,18 @@ document.addEventListener('DOMContentLoaded', function() {
         modal: document.getElementById('item-selection-modal'),
         openModalBtn: document.getElementById('open-item-modal-btn'),
         accordionHeader: document.getElementById('accordion-header'),
+        searchInput: document.getElementById('search-input'),
+        searchField: document.getElementById('search-field'),
+        itemList: document.getElementById('item-list'),
+        modalSelectionCount: document.getElementById('modal-selection-count'),
+        confirmSelectionBtn: document.getElementById('confirm-selection-btn'),
+        selectAllBtn: document.getElementById('select-all-btn'),
         controls: {
             itemFontSize: document.getElementById('item-font-size'),
             priceFontSize: document.getElementById('price-font-size'),
         }
-    };
+    });
     
-    // --- DYNAMICALLY CREATE & INJECT MODAL HTML ---
-    const modalHTML = `
-        <div class="modal-content">
-            <div class="modal-header"><h2>اختر الأصناف</h2><button class="modal-close-btn" title="إغلاق">&times;</button></div>
-            <div class="modal-body">
-                <div class="search-header">
-                    <div id="search-container"><select id="search-field"><option value="name">الاسم</option><option value="code">الكود</option></select><input type="search" id="search-input" placeholder="اكتب هنا للبحث..."></div>
-                    <button id="select-all-btn" class="btn-link">تحديد الكل</button>
-                </div>
-                <div id="item-list"></div>
-            </div>
-            <div class="modal-footer"><span id="modal-selection-count">0 صنف محدد</span><button id="confirm-selection-btn" disabled>تأكيد الإختيار</button></div>
-        </div>`;
-    dom.modal.innerHTML = modalHTML;
-    
-    // Re-map modal DOM elements after creation
-    dom.searchInput = document.getElementById('search-input');
-    dom.searchField = document.getElementById('search-field');
-    dom.itemList = document.getElementById('item-list');
-    dom.modalSelectionCount = document.getElementById('modal-selection-count');
-    dom.confirmSelectionBtn = document.getElementById('confirm-selection-btn');
-    dom.selectAllBtn = document.getElementById('select-all-btn');
-
     // --- HELPER & CORE FUNCTIONS ---
     const debounce = (f, d) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => f.apply(this, a), d); }; };
     const showStatus = (message, type = 'error') => { const icon = type === 'success' ? '✔️' : '❌'; dom.appStatus.innerHTML = `<span class="icon">${icon}</span> ${message}`; dom.appStatus.className = `app-status ${type}`; dom.appStatus.style.display = 'flex'; setTimeout(() => { dom.appStatus.style.display = 'none'; }, 4000); };
@@ -282,16 +265,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const category = dom.sessionPriceCategory.value;
         const categoryName = dom.sessionPriceCategory.options[dom.sessionPriceCategory.selectedIndex].text;
         if (!category) return;
-        
         state.activePriceCategory = category;
         dom.activeCategoryDisplay.innerHTML = `أسعار فرع: <strong>${categoryName}</strong>`;
-        
         dom.setupModal.style.opacity = '0';
         setTimeout(() => {
             dom.setupModal.style.display = 'none';
             dom.appContainer.style.display = 'flex';
         }, 300);
-
         loadData();
     };
     
