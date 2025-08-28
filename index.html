@@ -92,20 +92,19 @@
         .staging-item-controls input { padding: 8px; font-size: 0.9rem; }
         .staging-item-controls button { padding: 8px 12px; font-size: 0.9rem; width: 100%; }
         #selection-summary { color: var(--muted-text); margin-bottom: 15px; }
-
-        /* --- FIXED A4 SHEET STYLES (CORRECTED) --- */
+        
         #a4-sheet {
             background: white;
-            width: 794px; /* A4 width in pixels at 96 DPI */
-            height: 1123px; /* A4 height in pixels at 96 DPI */
+            width: 21cm;
+            min-height: 29.7cm; /* Use min-height to allow content to expand if needed */
             box-shadow: var(--shadow-lg);
             padding: 1cm;
             display: grid;
             align-content: start;
-            flex-shrink: 0; /* Prevent sheet from shrinking */
-            margin: 2rem 0; /* Add margin for better spacing in scroll view */
+            flex-shrink: 0;
+            margin: 2rem 0;
         }
-        #print-button { margin-top: 25px; }
+        #print-button { margin-bottom: 2rem; } /* Add margin to bottom */
         .price-label { display: flex; flex-direction: row; align-items: center; overflow: hidden; background-color: white; border: 1px solid #cbd5e1; border-radius: 8px; padding: 5px; }
         .label-logo-area { flex: 0 0 25%; height: 100%; }
         .label-info-area { flex: 1 1 auto; text-align: center; padding: 0 10px; font-weight: 700; font-size: var(--label-item-font-size); white-space: nowrap; overflow: hidden; }
@@ -134,12 +133,9 @@
             .control-panel, #print-button, .app-status, .modal-overlay, .setup-modal-overlay { display: none !important; }
             body, .app-container, .preview-panel { display: block !important; width: 100% !important; height: auto !important; overflow: visible !important; background: #fff !important; padding: 0 !important; margin: 0 !important; }
             #a4-sheet {
-                box-shadow: none !important;
-                border: none !important;
-                padding: 0 !important;
-                margin: 0 !important;
+                box-shadow: none !important; border: none !important; padding: 0 !important; margin: 0 !important;
                 width: 100% !important;
-                height: auto !important; /* Allow content to define height */
+                height: auto !important; /* CORRECTED: Allow content to define height */
                 display: grid !important;
                 page-break-after: always;
             }
