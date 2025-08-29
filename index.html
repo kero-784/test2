@@ -128,20 +128,22 @@
             }
             .a4-sheet:last-child { page-break-after: avoid; }
             
+            /* --- CRITICAL FIX FOR PRINT LAYOUT --- */
             .price-label {
                 page-break-inside: avoid !important;
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
-                display: flex !important;
+                display: flex !important; /* Ensure flex is applied for printing */
                 flex-direction: row !important;
                 align-items: center !important;
-                border: none !important;
-                background: transparent !important;
+                border: var(--label-border-width) var(--label-border-style) var(--label-border-color) !important;
+                border-radius: var(--label-border-radius) !important;
+                padding: var(--label-padding) !important;
             }
             .label-logo-area { visibility: hidden !important; flex: 0 0 25% !important; }
             .label-info-area { flex: 1 1 auto !important; }
             .label-price-area { flex: 0 0 30% !important; }
-            .label-price-container { border: none !important; background: transparent !important; }
+            .label-price-container { border: 2px solid var(--price-box-border-color) !important; background: var(--price-box-bg) !important; }
         }
     </style>
 </head>
