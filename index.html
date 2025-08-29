@@ -85,7 +85,7 @@
             background: white; width: 21cm; height: 29.7cm; box-shadow: var(--shadow-lg); padding: 1cm;
             transform-origin: top center; transform: scale(0.65); display: grid; align-content: start; flex-shrink: 0;
         }
-        #print-button-container { position: sticky; bottom: 0; padding-top: 20px; width: 100%; text-align: center; }
+        #print-button-container { position: sticky; bottom: 0; padding: 20px; background: var(--preview-bg);}
         #print-button { margin: 0; }
 
         .price-label {
@@ -121,17 +121,27 @@
             .control-panel, #print-button-container, .app-status, .modal-overlay, .setup-modal-overlay { display: none !important; }
             body, .app-container, .preview-panel { display: block !important; width: 100% !important; height: auto !important; overflow: visible !important; background: #fff !important; padding: 0 !important; margin: 0 !important; }
             #sheets-container { display: block !important; }
+            
             .a4-sheet {
                 transform: none !important; box-shadow: none !important; border: none !important; padding: 0 !important; margin: 0 !important;
                 width: 100% !important; height: 100% !important; 
                 display: grid !important; page-break-after: always;
             }
             .a4-sheet:last-child { page-break-after: avoid; }
-            .price-label { page-break-inside: avoid !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; border-color: #000 !important; border: var(--label-border-width) var(--label-border-style) var(--label-border-color) !important; }
-            
-            /* Rules for pre-printed mode (now default on print) */
-            .price-label { border: none !important; background: transparent !important; }
-            .label-logo-area { visibility: hidden !important; }
+
+            /* --- CRITICAL FIX FOR PRINT LAYOUT --- */
+            .price-label {
+                page-break-inside: avoid !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                display: flex !important; /* Ensure flex is applied for printing */
+                flex-direction: row !important;
+                align-items: center !important;
+                border: none !important; background: transparent !important;
+            }
+            .label-logo-area { visibility: hidden !important; flex: 0 0 25% !important; }
+            .label-info-area { flex: 1 1 auto !important; }
+            .label-price-area { flex: 0 0 30% !important; }
             .label-price-container { border: none !important; background: transparent !important; }
         }
     </style>
