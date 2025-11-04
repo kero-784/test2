@@ -942,41 +942,58 @@ document.addEventListener('DOMContentLoaded', () => {
         modalItemList.innerHTML = '';
         const lowercasedFilter = filter.toLowerCase();
     
-        // Determine which items to show based on context
         let itemsToShow = state.items;
+        // In Purchase Order context, only show main items.
         if (modalContext === 'po') {
-            itemsToShow = state.items.filter(i => !i.ParentItemCode);
-        } else {
-            // For other contexts, show main items by default
             itemsToShow = state.items.filter(i => !i.ParentItemCode);
         }
     
-        // Filter by search term
         const filteredItems = itemsToShow.filter(item => 
             item.name.toLowerCase().includes(lowercasedFilter) || 
             item.code.toLowerCase().includes(lowercasedFilter)
         );
     
+        // Group sub-items under their parents for non-PO contexts
+        const itemTree = {};
         filteredItems.forEach(item => {
-            const isChecked = state.modalSelections.has(item.code);
+            if (item.ParentItemCode && modalContext !== 'po') {
+                if (!itemTree[item.ParentItemCode]) {
+                    itemTree[item.ParentItemCode] = { parent: findByKey(state.items, 'code', item.ParentItemCode), children: [] };
+                }
+                itemTree[item.ParentItemCode].children.push(item);
+            } else if (!item.ParentItemCode) {
+                 if (!itemTree[item.code]) {
+                    itemTree[item.code] = { parent: item, children: [] };
+                }
+            }
+        });
+    
+        Object.values(itemTree).forEach(node => {
+            if (!node.parent) return; // Skip if parent isn't in the filtered list
+            const isChecked = state.modalSelections.has(node.parent.code);
             const itemDiv = document.createElement('div');
             itemDiv.className = 'modal-item-container';
-            
-            const hasSubItems = state.items.some(sub => sub.ParentItemCode === item.code);
-    
+            const hasSubItems = state.items.some(sub => sub.ParentItemCode === node.parent.code);
+
+            let checkboxHtml = `<input type="checkbox" id="modal-item-${node.parent.code}" data-code="${node.parent.code}" ${isChecked ? 'checked' : ''}>`;
+            // If it's a main item with subs in a non-PO context, hide the checkbox.
+            if (hasSubItems && modalContext !== 'po') {
+                checkboxHtml = `<div class="modal-checkbox-placeholder"></div>`; 
+            }
+
             let itemHtml = `
                 <div class="modal-item">
-                    <input type="checkbox" id="modal-item-${item.code}" data-code="${item.code}" ${isChecked ? 'checked' : ''}>
-                    <label for="modal-item-${item.code}">
-                        <strong>${item.name}</strong><br>
-                        <small style="color:var(--text-light-color)">${_t('table_h_code')}: ${item.code}</small>
+                    ${checkboxHtml}
+                    <label for="modal-item-${node.parent.code}">
+                        <strong>${node.parent.name}</strong><br>
+                        <small style="color:var(--text-light-color)">${_t('table_h_code')}: ${node.parent.code}</small>
                     </label>`;
             
-            if (modalContext !== 'po' && hasSubItems) {
-                itemHtml += `<button class="secondary small btn-show-cuts" data-parent-code="${item.code}">${_t('show_cuts')}</button>`;
+            if (hasSubItems && modalContext !== 'po') {
+                itemHtml += `<button class="secondary small btn-show-cuts" data-parent-code="${node.parent.code}">${_t('show_cuts')}</button>`;
             }
     
-            itemHtml += `</div><div class="sub-item-list" id="sub-items-for-${item.code}" style="display:none;"></div>`;
+            itemHtml += `</div><div class="sub-item-list" id="sub-items-for-${node.parent.code}" style="display:none;"></div>`;
             itemDiv.innerHTML = itemHtml;
             modalItemList.appendChild(itemDiv);
         });
@@ -1172,7 +1189,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isLoading) {
             buttonEl.disabled = true;
             buttonEl.dataset.originalText = buttonEl.innerHTML;
-            buttonEl.innerHTML = `<div class="button-spinner"></div><span>${_t('loading')}</span>`;
+            const loaderText = (buttonEl.id === 'login-form' || buttonEl.closest('#login-form')) ? _t('signing_in') : _t('loading');
+            buttonEl.innerHTML = `<div class="button-spinner"></div><span>${loaderText}</span>`;
         } else {
             buttonEl.disabled = false;
             if (buttonEl.dataset.originalText) {
@@ -1180,7 +1198,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
-
 // PART 3 OF 4: VIEW RENDERING & DOCUMENT GENERATION
     function openSubItemEntryModal(mainItemCode, remainingMainItems) {
         const mainItem = findByKey(state.items, 'code', mainItemCode);
