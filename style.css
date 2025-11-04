@@ -1,3 +1,5 @@
+/* --- MODERN UI REDESIGN V3 --- */
+
 :root {
     --primary-color: #4A90E2;
     --primary-dark: #357ABD;
@@ -178,7 +180,9 @@ html[dir="rtl"] tbody tr.sub-item-row td:first-child { padding-left: 16px; paddi
 .modal-item:hover { background-color: var(--bg-color); }
 .modal-item input[type="checkbox"] { width: 20px; height: 20px; margin-right: 16px; accent-color: var(--primary-color); }
 .modal-item label { flex-grow: 1; margin: 0; display: block; }
+.modal-item .btn-show-cuts { margin-left: auto; }
 .modal-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 20px 24px; border-top: 1px solid var(--border-color); background-color: #F7F8FC; flex-shrink: 0; }
+.sub-item-list { padding-left: 30px; border-left: 2px solid var(--primary-light); margin-left: 22px; }
 
 /* --- Component-Specific Styles --- */
 #table-receive-list input, #table-transfer-list input, #table-po-list input, #table-return-list input, #table-edit-po-list input, #table-adjustment-list input, #sub-item-entry-table input, #table-extraction-preview input { padding: 8px; font-size: 14px; max-width: 120px; background-color: white; }
@@ -285,6 +289,20 @@ html[dir="rtl"] .form-group-checkbox {
 html[dir="rtl"] .modal-item input[type="checkbox"] {
     margin-right: 0;
     margin-left: 16px;
+}
+
+html[dir="rtl"] .modal-item .btn-show-cuts {
+    margin-left: 0;
+    margin-right: auto;
+}
+
+html[dir="rtl"] .sub-item-list {
+    padding-left: 0;
+    padding-right: 30px;
+    border-left: none;
+    border-right: 2px solid var(--primary-light);
+    margin-left: 0;
+    margin-right: 22px;
 }
 
 html[dir="rtl"] .slider:before {
