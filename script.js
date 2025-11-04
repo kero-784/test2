@@ -941,7 +941,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const lowercasedFilter = filter.toLowerCase();
     
         let itemsToShow = state.items;
-        // In Purchase Order context, only show main items.
         if (modalContext === 'po') {
             itemsToShow = state.items.filter(i => !i.ParentItemCode);
         }
@@ -951,14 +950,16 @@ document.addEventListener('DOMContentLoaded', () => {
             item.code.toLowerCase().includes(lowercasedFilter)
         );
     
-        // Group sub-items under their parents for non-PO contexts
         const itemTree = {};
         filteredItems.forEach(item => {
             if (item.ParentItemCode && modalContext !== 'po') {
                 if (!itemTree[item.ParentItemCode]) {
-                    itemTree[item.ParentItemCode] = { parent: findByKey(state.items, 'code', item.ParentItemCode), children: [] };
+                    const parent = findByKey(state.items, 'code', item.ParentItemCode);
+                    if (parent) { // Ensure parent exists
+                         itemTree[item.ParentItemCode] = { parent: parent, children: [] };
+                    }
                 }
-                if(itemTree[item.ParentItemCode]) { // Ensure parent exists in the tree
+                if(itemTree[item.ParentItemCode]) {
                     itemTree[item.ParentItemCode].children.push(item);
                 }
             } else if (!item.ParentItemCode) {
@@ -969,14 +970,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     
         Object.values(itemTree).forEach(node => {
-            if (!node.parent) return; // Skip if parent isn't in the filtered list
+            if (!node.parent) return; 
             const isChecked = state.modalSelections.has(node.parent.code);
             const itemDiv = document.createElement('div');
             itemDiv.className = 'modal-item-container';
             const hasSubItems = state.items.some(sub => sub.ParentItemCode === node.parent.code);
 
             let checkboxHtml = `<input type="checkbox" id="modal-item-${node.parent.code}" data-code="${node.parent.code}" ${isChecked ? 'checked' : ''}>`;
-            // If it's a main item with subs in a non-PO context, hide the checkbox.
             if (hasSubItems && modalContext !== 'po') {
                 checkboxHtml = `<div class="modal-checkbox-placeholder"></div>`; 
             }
@@ -998,7 +998,6 @@ document.addEventListener('DOMContentLoaded', () => {
             modalItemList.appendChild(itemDiv);
         });
     
-        // Add event listeners for "Show Cuts" buttons
         document.querySelectorAll('.btn-show-cuts').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -1116,11 +1115,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function confirmModalSelection() {
+        // *** FIX STARTS HERE ***
         if (modalContext === 'invoices') {
             renderPaymentList();
             closeModal();
             return;
         }
+        // *** FIX ENDS HERE ***
 
         const selectedCodes = Array.from(state.modalSelections);
         if (selectedCodes.length === 0) {
@@ -1135,10 +1136,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         const regularItems = selectedCodes.filter(code => !mainItemsWithSubItems.includes(code));
+        
+        // *** FIX STARTS HERE ***
+        // For POs, all selected items (which are only main items) are regular items.
+        if (modalContext === 'po') {
+            addRegularItemsToList(selectedCodes);
+            closeModal();
+            return;
+        }
+        // *** FIX ENDS HERE ***
 
         addRegularItemsToList(regularItems);
 
-        if (mainItemsWithSubItems.length > 0 && modalContext !== 'po') {
+        if (mainItemsWithSubItems.length > 0) {
             openSubItemEntryModal(mainItemsWithSubItems[0], mainItemsWithSubItems.slice(1));
         } else {
             closeModal();
@@ -1193,7 +1203,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isLoading) {
             buttonEl.disabled = true;
             buttonEl.dataset.originalText = buttonEl.innerHTML;
-            const loaderText = (buttonEl.id === 'login-form' || buttonEl.closest('#login-form')) ? _t('signing_in') : _t('loading');
+            const loaderText = (buttonEl.closest('#login-form')) ? _t('signing_in') : _t('loading');
             buttonEl.innerHTML = `<div class="button-spinner"></div><span>${loaderText}</span>`;
         } else {
             buttonEl.disabled = false;
