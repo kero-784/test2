@@ -1,5 +1,3 @@
-/* --- MODERN UI REDESIGN V3 --- */
-
 :root {
     --primary-color: #4A90E2;
     --primary-dark: #357ABD;
@@ -121,6 +119,8 @@ input[readonly], select[disabled] { background-color: #E9ECEF; color: var(--text
 .form-group-checkbox { display: flex; align-items: center; gap: 10px; }
 .form-group-checkbox input[type="checkbox"] { width: 20px; height: 20px; flex-shrink: 0; }
 .form-group-checkbox label { margin: 0; font-weight: 500; font-size: 14px; }
+label.button { display: inline-block; text-align: center; cursor: pointer; }
+
 
 /* --- Buttons --- */
 button { padding: 12px 24px; border-radius: var(--border-radius); border: 1px solid transparent; cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; line-height: 1; }
@@ -179,6 +179,7 @@ html[dir="rtl"] tbody tr.sub-item-row td:first-child { padding-left: 16px; paddi
 .modal-item { display: flex; align-items: center; padding: 12px; border-radius: var(--border-radius); cursor: pointer; transition: background-color 0.2s; }
 .modal-item:hover { background-color: var(--bg-color); }
 .modal-item input[type="checkbox"] { width: 20px; height: 20px; margin-right: 16px; accent-color: var(--primary-color); }
+.modal-item .modal-checkbox-placeholder { width: 20px; height: 20px; margin-right: 16px; flex-shrink: 0; }
 .modal-item label { flex-grow: 1; margin: 0; display: block; }
 .modal-item .btn-show-cuts { margin-left: auto; }
 .modal-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 20px 24px; border-top: 1px solid var(--border-color); background-color: #F7F8FC; flex-shrink: 0; }
@@ -204,6 +205,7 @@ tr.main-item-group-header, tr.main-item-group-footer { background-color: var(--b
 .permissions-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
 #view-transfer-modal-body p { margin: 4px 0; font-size: 16px; }
 #view-transfer-modal-body p strong { color: var(--text-light-color); display: inline-block; width: 120px; }
+.printable-footer { text-align: center; margin-top: 40px; font-size: 10pt; color: #777; }
 
 /* --- Toggle Switch Styles --- */
 .form-group-toggle { display: flex; align-items: center; justify-content: space-between; max-width: 400px; }
@@ -291,6 +293,11 @@ html[dir="rtl"] .modal-item input[type="checkbox"] {
     margin-left: 16px;
 }
 
+html[dir="rtl"] .modal-item .modal-checkbox-placeholder {
+    margin-right: 0;
+    margin-left: 16px;
+}
+
 html[dir="rtl"] .modal-item .btn-show-cuts {
     margin-left: 0;
     margin-right: auto;
@@ -328,4 +335,3 @@ html[dir="rtl"] @keyframes slideIn { to { transform: translateX(0); } }
 /* --- Print & Responsive --- */
 @media print { body { background-color: #fff !important; } .app-container, .no-print { display: none !important; } #print-area { display: block !important; } .printable-document { display: block !important; box-shadow: none; border: none; padding:0; } .printable-document h2, .printable-document p { margin: 0 0 10px 0; } #print-area table { table-layout: auto; } #print-area th, #print-area td { white-space: normal !important; word-break: break-word !important; overflow: visible !important; text-overflow: clip !important; font-size: 10pt; padding: 8px; } }
 @media (max-width: 1200px) { .report-generator-controls { flex-direction: column; align-items: stretch; } }
-@media (max-width: 768px) { :root { --sidebar-width: 0px; } .sidebar { width: 100%; height: auto; bottom: 0; top: auto; flex-direction: row; justify-content: space-around; padding: 5px; background-color: var(--sidebar-bg); border-top: 1px solid var(--border-color); box-shadow: 0 -2px 10px rgba(0,0,0,0.05); } .sidebar-header { display: none; } .sidebar-nav { display: flex; width: 100%; padding: 0; overflow-x: auto; flex-direction: row; } .nav-item { flex-shrink: 0; text-align: center; } .nav-item a { flex-direction: column; gap: 4px; padding: 8px 5px; font-size: 11px; font-weight: 500; border-radius: 8px; } .nav-item a .icon { width: 24px; height: 24px; } .nav-item a.active { color: var(--primary-color); background-color: var(--primary-light); } .nav-item-logout { margin-top: 0; padding-top: 0; border-top: none; } .main-content { margin-left: 0; margin-right:0; padding: 20px 20px 100px 20px; } #view-title { font-size: 24px; } .modal-content { max-width: 95vw; } .main-header { flex-wrap: wrap; } }
