@@ -567,8 +567,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setButtonLoading(false, buttonEl);
         }
     }
-
-// PART 2 OF 4: MODAL & UI LOGIC
+  // PART 2 OF 4: MODAL & UI LOGIC
     function showView(viewId, subViewId = null) {
         Logger.info(`Switching view to: ${viewId}` + (subViewId ? `/${subViewId}` : ''));
         
@@ -1104,8 +1103,36 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
+   // PART 3 OF 4: VIEW RENDERING & DOCUMENT GENERATION
+    function renderItemsTable(data = state.items) {
+        const tbody = document.getElementById('table-items').querySelector('tbody');
+        tbody.innerHTML = '';
+        if (!data || data.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">${_t('no_items_found')}</td></tr>`;
+            return;
+        }
+        const canEdit = userCan('editItem');
+        data.forEach(item => {
+            const parentItem = item.ParentItemCode ? findByKey(state.items, 'code', item.ParentItemCode) : null;
+            const parentName = parentItem ? parentItem.name : 'N/A';
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${item.code}</td>
+                <td>${item.name}</td>
+                <td>${parentName}</td>
+                <td>${_t(item.category?.toLowerCase()) || item.category || 'N/A'}</td>
+                <td>${item.unit}</td>
+                <td>${(parseFloat(item.cost) || 0).toFixed(2)} EGP</td>
+                <td>
+                    <div class="action-buttons">
+                        <button class="secondary small btn-edit" data-type="item" data-id="${item.code}" ${!canEdit ? 'disabled' : ''}>${_t('edit')}</button>
+                        <button class="secondary small btn-history" data-type="item" data-id="${item.code}">${_t('history')}</button>
+                    </div>
+                </td>`;
+            tbody.appendChild(tr);
+        });
+    }
 
-// PART 3 OF 4: VIEW RENDERING & DOCUMENT GENERATION
     function renderSuppliersTable(data = state.suppliers) {
         const tbody = document.getElementById('table-suppliers').querySelector('tbody');
         tbody.innerHTML = '';
@@ -1610,8 +1637,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const generatePaymentVoucher = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; let invoicesHtml = ''; data.payments.forEach(p => { invoicesHtml += `<tr><td>${p.invoiceNumber}</td><td>${p.amount.toFixed(2)} EGP</td></tr>`; }); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>Payment Voucher</h2><p><strong>Voucher ID:</strong> ${data.payments[0].paymentId}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><hr><p><strong>Paid To:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><p><strong>${_t('table_h_amount')}:</strong> ${data.totalAmount.toFixed(2)} EGP</p><p><strong>Method:</strong> ${data.method}</p><hr><h3>Payment Allocation</h3><table><thead><tr><th>${_t('table_h_invoice_no')}</th><th>${_t('table_h_amount_to_pay')}</th></tr></thead><tbody>${invoicesHtml}</tbody></table><br><p><strong>Signature:</strong> _________________</p></div>`; printContent(content); };
     const generatePODocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; let totalValue = 0; data.items.forEach(item => { totalValue += (item.quantity || 0) * (item.cost || 0); }); const headers = ['code', 'name', 'qty', 'cost', 'total']; const itemsHtml = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>${_t('po')}</h2><p><strong>${_t('table_h_po_no')}:</strong> ${data.poId || data.batchId}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>${_t('supplier')}:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><hr><h3>${_t('items_to_order')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">${_t('total_value')}</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>${_t('notes_optional')}:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Authorized By:</strong> ${data.createdBy || state.currentUser.Name}</p></div>`; printContent(content); };
     const generateReturnDocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; const branch = findByKey(state.branches, 'branchCode', data.fromBranchCode) || { branchName: 'DELETED' }; let totalValue = 0; data.items.forEach(item => { totalValue += (item.quantity || 0) * (item.cost || 0); }); const headers = ['code', 'name', 'qty', 'cost', 'total']; const itemsHtml = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>${_t('return_to_supplier')} Note</h2><p><strong>${_t('credit_note_ref')}:</strong> ${data.ref}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>Returned To:</strong> ${supplier.name}</p><p><strong>Returned From:</strong> ${branch.branchName}</p><hr><h3>${_t('items_to_return')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">${_t('total_value')}</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>Reason:</strong> ${data.notes || 'N/A'}</p></div>`; printContent(content); };
-
-// PART 4 OF 4: CALCULATION ENGINES, EVENT LISTENERS & INITIALIZATION
+    // PART 4 OF 4: CALCULATION ENGINES, EVENT LISTENERS & INITIALIZATION
     function updateReceiveGrandTotal() { let grandTotal = 0; (state.currentReceiveList || []).forEach(item => { grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); }); document.getElementById('receive-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; }
     function updateTransferGrandTotal() { let grandTotalQty = 0; (state.currentTransferList || []).forEach(item => { grandTotalQty += (parseFloat(item.quantity) || 0); }); document.getElementById('transfer-grand-total').textContent = grandTotalQty.toFixed(2); }
     function updatePOGrandTotal() { let grandTotal = 0; (state.currentPOList || []).forEach(item => { grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); }); document.getElementById('po-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; }
@@ -2577,7 +2603,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function initializeAppUI() {
         Logger.info('Application UI initializing...');
         setupRoleBasedNav();
-        attachEventListeners(); // Must be before attachSubNavListeners
+        attachEventListeners();
         attachSubNavListeners(); 
         setupSearch('search-items', renderItemsTable, 'items', ['name', 'code', 'category']);
         setupSearch('search-suppliers', renderSuppliersTable, 'suppliers', ['name', 'supplierCode']);
@@ -2750,6 +2776,188 @@ document.addEventListener('DOMContentLoaded', () => {
             notes,
             items: state.currentEditingPOList
         };
-        const result = await postData('editInvoice
-439.4s
-Use Arrow Up and Arrow Down to select a turn, Enter to jump to it, and Escape to return to the chat.
+        const result = await postData('editInvoice', payload, btn);
+        if (result) {
+            showToast('Invoice updated successfully!', 'success');
+            closeModal();
+            reloadDataAndRefreshUI();
+        }
+    }
+
+    // Admin Context Selector
+    async function requestAdminContext(config) {
+        const modal = document.getElementById('context-selector-modal');
+        
+        // Hide all first
+        modal.querySelectorAll('.form-group').forEach(el => el.style.display = 'none');
+        
+        // Populate and show required dropdowns
+        if(config.fromBranch) populateOptions(document.getElementById('context-from-branch-select'), state.branches, 'Select From Branch', 'branchCode', 'branchName');
+        if(config.toBranch) populateOptions(document.getElementById('context-to-branch-select'), state.branches, 'Select To Branch', 'branchCode', 'branchName');
+        if(config.branch) populateOptions(document.getElementById('context-branch-select'), state.branches, 'Select Branch', 'branchCode', 'branchName');
+
+
+        Object.keys(config).forEach(key => {
+            const group = document.getElementById(`context-modal-${key}-group`);
+            if(group) group.style.display = 'block';
+        });
+
+        modal.classList.add('active');
+        return new Promise((resolve, reject) => {
+            state.adminContextPromise = { resolve, reject };
+        });
+    }
+
+    // --- NEW EXTRACTION LOGIC ---
+    function renderExtractionPreview() {
+        const mainItemCode = document.getElementById('extraction-main-item').value;
+        const quantity = parseFloat(document.getElementById('extraction-quantity').value) || 0;
+        const branchCode = document.getElementById('extraction-branch').value;
+        const previewContainer = document.getElementById('extraction-preview-container');
+
+        if (!mainItemCode || !branchCode || quantity <= 0) {
+            previewContainer.innerHTML = '';
+            return;
+        }
+
+        const mainItem = findByKey(state.items, 'code', mainItemCode);
+        const subItems = state.items.filter(i => i.ParentItemCode === mainItemCode);
+        const stock = calculateStockLevels();
+        const availableQty = stock[branchCode]?.[mainItemCode]?.quantity || 0;
+        const mainItemCost = stock[branchCode]?.[mainItemCode]?.avgCost || mainItem.cost;
+
+        if (quantity > availableQty) {
+            previewContainer.innerHTML = `<p class="login-error">Error: Quantity to extract (${quantity}) exceeds available stock (${availableQty}).</p>`;
+            return;
+        }
+
+        let html = `<h4>${_t('extraction_results_preview')}</h4><table id="table-extraction-preview">
+            <thead><tr><th>${_t('table_h_name')}</th><th>${_t('table_h_quantity')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th></tr></thead>
+            <tbody>
+                <tr style="background-color: #FDEDE9;"><td data-translate-key="main_item_consumed">${_t('main_item_consumed')}</td><td></td><td></td><td></td></tr>
+                <tr><td>${mainItem.name} (${mainItem.code})</td><td>-${quantity.toFixed(2)}</td><td>${mainItemCost.toFixed(2)}</td><td>-${(quantity * mainItemCost).toFixed(2)}</td></tr>
+                <tr style="background-color: #E6F8F3;"><td data-translate-key="sub_item_produced">${_t('sub_item_produced')}</td><td></td><td></td><td></td></tr>`;
+
+        if (subItems.length === 0) {
+            html += `<tr><td colspan="4" style="text-align:center;">This main item has no sub-items defined.</td></tr>`;
+        } else {
+            subItems.forEach(sub => {
+                const producedQty = quantity * (parseFloat(sub.ConversionFactor) || 0);
+                const subItemCost = mainItemCost / (parseFloat(sub.ConversionFactor) || 1);
+                html += `<tr><td>${sub.name} (${sub.code})</td><td>+${producedQty.toFixed(2)}</td><td>${subItemCost.toFixed(2)}</td><td>+${(producedQty * subItemCost).toFixed(2)}</td></tr>`;
+            });
+        }
+
+        html += '</tbody></table>';
+        previewContainer.innerHTML = html;
+    }
+
+    async function handleExtractionSubmit(e) {
+        const btn = e.currentTarget;
+        const mainItemCode = document.getElementById('extraction-main-item').value;
+        const quantity = parseFloat(document.getElementById('extraction-quantity').value) || 0;
+        const branchCode = document.getElementById('extraction-branch').value;
+        const notes = document.getElementById('extraction-notes').value;
+
+        if (!mainItemCode || !branchCode || quantity <= 0) {
+            showToast('Please select a branch, a main item, and enter a valid quantity.', 'error');
+            return;
+        }
+
+        const mainItem = findByKey(state.items, 'code', mainItemCode);
+        const subItems = state.items.filter(i => i.ParentItemCode === mainItemCode);
+        if (subItems.length === 0) {
+            showToast('Cannot extract: This main item has no sub-items defined.', 'error');
+            return;
+        }
+
+        const stock = calculateStockLevels();
+        const availableQty = stock[branchCode]?.[mainItemCode]?.quantity || 0;
+        if (quantity > availableQty) {
+            showToast(`Error: Quantity to extract (${quantity}) exceeds available stock (${availableQty}).`, 'error');
+            return;
+        }
+        
+        const mainItemCost = stock[branchCode]?.[mainItemCode]?.avgCost || mainItem.cost;
+        const batchId = `EXT-${Date.now()}`;
+        
+        const itemsPayload = [];
+        // Main item out
+        itemsPayload.push({
+            type: 'extraction_out',
+            itemCode: mainItemCode,
+            quantity: quantity,
+            cost: mainItemCost
+        });
+        // Sub-items in
+        subItems.forEach(sub => {
+            itemsPayload.push({
+                type: 'extraction_in',
+                itemCode: sub.code,
+                quantity: quantity * (parseFloat(sub.ConversionFactor) || 0),
+                cost: mainItemCost / (parseFloat(sub.ConversionFactor) || 1)
+            });
+        });
+
+        const payload = {
+            type: 'extraction',
+            batchId: batchId,
+            ref: batchId,
+            fromBranchCode: branchCode,
+            notes: notes,
+            items: itemsPayload
+        };
+
+        const result = await postData('addTransactionBatch', payload, btn);
+        if(result) {
+            showToast('Extraction processed successfully!', 'success');
+            document.getElementById('form-extraction-details').reset();
+            renderExtractionPreview();
+            reloadDataAndRefreshUI();
+        }
+    }
+
+
+    function init() {
+        const langSwitcher = document.getElementById('lang-switcher');
+        const savedLang = localStorage.getItem('userLanguage') || 'en';
+        state.currentLanguage = savedLang;
+        langSwitcher.value = savedLang;
+        applyTranslations();
+        langSwitcher.addEventListener('change', e => {
+            const selectedLang = e.target.value;
+            localStorage.setItem('userLanguage', selectedLang);
+            state.currentLanguage = selectedLang;
+            reloadDataAndRefreshUI();
+        });
+        
+        document.getElementById('btn-confirm-context').addEventListener('click', () => {
+            const modal = document.getElementById('context-selector-modal');
+            const context = {
+                fromBranch: modal.querySelector('#context-modal-fromBranch-group').style.display === 'block' ? modal.querySelector('#context-from-branch-select').value : null,
+                toBranch: modal.querySelector('#context-modal-toBranch-group').style.display === 'block' ? modal.querySelector('#context-to-branch-select').value : null,
+                branch: modal.querySelector('#context-modal-branch-group').style.display === 'block' ? modal.querySelector('#context-branch-select').value : null,
+            };
+
+            if (Object.entries(context).some(([key, value]) => modal.querySelector(`#context-modal-${key}-group`).style.display === 'block' && !value)) {
+                showToast('Please make a selection for all required fields.', 'error');
+                return;
+            }
+            if (state.adminContextPromise.resolve) state.adminContextPromise.resolve(context);
+            modal.classList.remove('active');
+        });
+        
+        loginContainer.style.display = 'flex';
+        appContainer.style.display = 'none';
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const username = loginUsernameInput.value.trim();
+            const code = loginCodeInput.value;
+            if (username && code) {
+                attemptLogin(username, code);
+            }
+        });
+    }
+
+    init();
+});
