@@ -569,7 +569,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setButtonLoading(false, buttonEl);
         }
     }
-    // PART 2 OF 4: MODAL & UI LOGIC
+// PART 2 OF 4: MODAL & UI LOGIC
     function showView(viewId, subViewId = null) {
         Logger.info(`Switching view to: ${viewId}` + (subViewId ? `/${subViewId}` : ''));
         
@@ -760,11 +760,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 editModalTitle.textContent = _t('edit_item');
                 formHtml = `<div class="form-grid">
                     <div class="form-group"><label>${_t('item_code')}</label><input type="text" value="${record.code}" readonly></div>
-                    <div class="form-group"><label for="edit-item-barcode">${_t('barcode')}</label><input type="text" id="edit-item-barcode" name="barcode" value="${record.barcode || ''}"></div>
                     <div class="form-group"><label for="edit-item-name">${_t('item_name')}</label><input type="text" id="edit-item-name" name="name" value="${record.name}" required></div>
-                    <div class="form-group"><label for="edit-item-unit">${_t('unit')}</label><input type="text" id="edit-item-unit" name="unit" value="${record.unit}" required></div>
-                    <div class="form-group"><label for="edit-item-category">${_t('category')}</label><select id="edit-item-category" name="category" required><option value="Packing">${_t('packing')}</option><option value="Cleaning">${_t('cleaning')}</option></select></div>
-                    <div class="form-group"><label for="edit-item-supplier">${_t('default_supplier')}</label><select id="edit-item-supplier" name="supplierCode"></select></div>
                     <div class="form-group span-full"><label for="edit-item-cost">${_t('default_cost')}</label><input type="number" id="edit-item-cost" name="cost" step="0.01" min="0" value="${record.cost}" required></div>
                     <div class="form-group-checkbox span-full"><input type="checkbox" id="edit-is-sub-item-toggle" ${isSubItem ? 'checked' : ''}><label for="edit-is-sub-item-toggle">${_t('is_sub_item')}</label></div>
                     <div id="edit-sub-item-fields" class="form-grid span-full" style="display: ${isSubItem ? 'grid' : 'none'};">
@@ -772,11 +768,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>`;
                 editModalBody.innerHTML = formHtml;
-                document.getElementById('edit-item-category').value = record.category;
-                const supplierSelect = document.getElementById('edit-item-supplier');
-                populateOptions(supplierSelect, state.suppliers, _t('select_supplier'), 'supplierCode', 'name');
-                supplierSelect.value = record.supplierCode;
-
+                
                 const mainItems = state.items.filter(i => !i.ParentItemCode && i.code !== record.code);
                 const parentSelect = document.getElementById('edit-parent-item-code');
                 populateOptions(parentSelect, mainItems, _t('select_parent_item'), 'code', 'name');
@@ -795,7 +787,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 record = findByKey(state.suppliers, 'supplierCode', id);
                 if (!record) return;
                 editModalTitle.textContent = _t('edit_supplier');
-                formHtml = `<div class="form-grid"><div class="form-group"><label>${_t('supplier_code')}</label><input type="text" value="${record.supplierCode}" readonly></div><div class="form-group"><label for="edit-supplier-name">${_t('supplier_name')}</label><input type="text" id="edit-supplier-name" name="name" value="${record.name}" required></div><div class="form-group"><label for="edit-supplier-contact">${_t('contact_info')}</label><input type="text" id="edit-supplier-contact" name="contact" value="${record.contact || ''}"></div></div>`;
+                formHtml = `<div class="form-grid">
+                    <div class="form-group"><label>${_t('supplier_code')}</label><input type="text" value="${record.supplierCode}" readonly></div>
+                    <div class="form-group"><label for="edit-supplier-name">${_t('supplier_name')}</label><input type="text" id="edit-supplier-name" name="name" value="${record.name}" required></div>
+                </div>`;
                 editModalBody.innerHTML = formHtml;
                 break;
             case 'branch':
@@ -951,7 +946,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const isChecked = state.modalSelections.has(item.code);
             const itemDiv = document.createElement('div');
             itemDiv.className = 'modal-item';
-            itemDiv.innerHTML = `<input type="checkbox" id="modal-item-${item.code}" data-code="${item.code}" ${isChecked ? 'checked' : ''}><label for="modal-item-${item.code}"><strong>${item.name}</strong><br><small style="color:var(--text-light-color)">${_t('table_h_code')}: ${item.code} | ${_t('category')}: ${item.category || 'N/A'}</small></label>`;
+            itemDiv.innerHTML = `<input type="checkbox" id="modal-item-${item.code}" data-code="${item.code}" ${isChecked ? 'checked' : ''}><label for="modal-item-${item.code}"><strong>${item.name}</strong><br><small style="color:var(--text-light-color)">${_t('table_h_code')}: ${item.code}</small></label>`;
             modalItemList.appendChild(itemDiv);
         });
     }
@@ -1121,7 +1116,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
-    // PART 3 OF 4: VIEW RENDERING & DOCUMENT GENERATION
+// PART 3 OF 4: VIEW RENDERING & DOCUMENT GENERATION
     function openSubItemEntryModal(mainItemCode, remainingMainItems) {
         const mainItem = findByKey(state.items, 'code', mainItemCode);
         const subItems = state.items.filter(i => i.ParentItemCode === mainItemCode);
@@ -1240,7 +1235,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const tbody = document.getElementById('table-items').querySelector('tbody');
         tbody.innerHTML = '';
         if (!data || data.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">${_t('no_items_found')}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">${_t('no_items_found')}</td></tr>`;
             return;
         }
         const canEdit = userCan('editItem');
@@ -1252,8 +1247,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${item.code}</td>
                 <td>${item.name}</td>
                 <td>${parentName}</td>
-                <td>${_t(item.category?.toLowerCase()) || item.category || 'N/A'}</td>
-                <td>${item.unit}</td>
                 <td>${(parseFloat(item.cost) || 0).toFixed(2)} EGP</td>
                 <td>
                     <div class="action-buttons">
@@ -1269,7 +1262,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const tbody = document.getElementById('table-suppliers').querySelector('tbody');
         tbody.innerHTML = '';
         if (!data || data.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">${_t('no_suppliers_found')}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;">${_t('no_suppliers_found')}</td></tr>`;
             return;
         }
         const financials = calculateSupplierFinancials();
@@ -1277,7 +1270,7 @@ document.addEventListener('DOMContentLoaded', () => {
         data.forEach(supplier => {
             const balance = financials[supplier.supplierCode]?.balance || 0;
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${supplier.supplierCode || ''}</td><td>${supplier.name}</td><td>${supplier.contact}</td><td>${balance.toFixed(2)} EGP</td><td>${canEdit ? `<button class="secondary small btn-edit" data-type="supplier" data-id="${supplier.supplierCode}">${_t('edit')}</button>`: 'N/A'}</td>`;
+            tr.innerHTML = `<td>${supplier.supplierCode || ''}</td><td>${supplier.name}</td><td>${balance.toFixed(2)} EGP</td><td>${canEdit ? `<button class="secondary small btn-edit" data-type="supplier" data-id="${supplier.supplierCode}">${_t('edit')}</button>`: 'N/A'}</td>`;
             tbody.appendChild(tr);
         });
     }
@@ -1319,7 +1312,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const availableStock = (stock[fromBranch]?.[item.itemCode]?.quantity || 0);
                 switch (col.type) {
                     case 'text': content = item[col.key]; break;
-                    case 'number_input': content = `<input type="number" class="table-input" value="${item[col.key] || ''}" min="${col.min || 0.01}" ${col.maxKey ? `max="${availableStock}"` : ''} step="${col.step || 0.01}" data-index="${index}" data-field="${col.key}" ${item.isMainItemPlaceholder ? 'readonly' : ''}>`; break;
+                    case 'number_input': content = `<input type="number" class="table-input" value="${item[col.key] || ''}" min="${col.min || 0.01}" ${col.maxKey ? `max="${availableStock}"` : ''} step="0.01" data-index="${index}" data-field="${col.key}" ${item.isMainItemPlaceholder ? 'readonly' : ''}>`; break;
                     case 'cost_input': content = `<input type="number" class="table-input" value="${(item.cost || 0).toFixed(2)}" min="0" step="0.01" data-index="${index}" data-field="cost" ${itemDetails?.ParentItemCode ? 'readonly' : ''}>`; break;
                     case 'calculated': content = `<span>${col.calculator(item)}</span>`; break;
                     case 'available_stock': content = availableStock.toFixed(2); break;
@@ -1773,7 +1766,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const generatePaymentVoucher = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; let invoicesHtml = ''; data.payments.forEach(p => { invoicesHtml += `<tr><td>${p.invoiceNumber}</td><td>${p.amount.toFixed(2)} EGP</td></tr>`; }); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>Payment Voucher</h2><p><strong>Voucher ID:</strong> ${data.payments[0].paymentId}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><hr><p><strong>Paid To:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><p><strong>${_t('table_h_amount')}:</strong> ${data.totalAmount.toFixed(2)} EGP</p><p><strong>Method:</strong> ${data.method}</p><hr><h3>Payment Allocation</h3><table><thead><tr><th>${_t('table_h_invoice_no')}</th><th>${_t('table_h_amount_to_pay')}</th></tr></thead><tbody>${invoicesHtml}</tbody></table><br><p><strong>Signature:</strong> _________________</p></div>`; printContent(content); };
     const generatePODocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; let totalValue = 0; data.items.forEach(item => { totalValue += (item.quantity || 0) * (item.cost || 0); }); const headers = ['code', 'name', 'qty', 'cost', 'total']; const itemsHtml = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>${_t('po')}</h2><p><strong>${_t('table_h_po_no')}:</strong> ${data.poId || data.batchId}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>${_t('supplier')}:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><hr><h3>${_t('items_to_order')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">${_t('total_value')}</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>${_t('notes_optional')}:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Authorized By:</strong> ${data.createdBy || state.currentUser.Name}</p></div>`; printContent(content); };
     const generateReturnDocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; const branch = findByKey(state.branches, 'branchCode', data.fromBranchCode) || { branchName: 'DELETED' }; let totalValue = 0; data.items.forEach(item => { totalValue += (item.quantity || 0) * (item.cost || 0); }); const headers = ['code', 'name', 'qty', 'cost', 'total']; const itemsHtml = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>${_t('return_to_supplier')} Note</h2><p><strong>${_t('credit_note_ref')}:</strong> ${data.ref}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>Returned To:</strong> ${supplier.name}</p><p><strong>Returned From:</strong> ${branch.branchName}</p><hr><h3>${_t('items_to_return')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">${_t('total_value')}</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>Reason:</strong> ${data.notes || 'N/A'}</p></div>`; printContent(content); };
-    // PART 4 OF 4: CALCULATION ENGINES, EVENT LISTENERS & INITIALIZATION
+// PART 4 OF 4: CALCULATION ENGINES, EVENT LISTENERS & INITIALIZATION
     function updateReceiveGrandTotal() { let grandTotal = 0; (state.currentReceiveList || []).forEach(item => { grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); }); document.getElementById('receive-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; }
     function updateTransferGrandTotal() { let grandTotalQty = 0; (state.currentTransferList || []).forEach(item => { grandTotalQty += (parseFloat(item.quantity) || 0); }); document.getElementById('transfer-grand-total').textContent = grandTotalQty.toFixed(2); }
     function updatePOGrandTotal() { let grandTotal = 0; (state.currentPOList || []).forEach(item => { grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); }); document.getElementById('po-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; }
@@ -2128,7 +2121,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('form-add-item').parentElement.style.display = userCan('createItem') ? 'block' : 'none';
                 document.getElementById('form-add-supplier').parentElement.style.display = userCan('createSupplier') ? 'block' : 'none';
                 document.getElementById('form-add-branch').parentElement.style.display = userCan('createBranch') ? 'block' : 'none';
-                populateOptions(document.getElementById('item-supplier'), state.suppliers, _t('select_supplier'), 'supplierCode', 'name');
                 const mainItems = (state.items || []).filter(i => !i.ParentItemCode);
                 populateOptions(document.getElementById('parent-item-code'), mainItems, _t('select_parent_item'), 'code', 'name');
                 break;
@@ -2506,9 +2498,32 @@ document.addEventListener('DOMContentLoaded', () => {
         modalItemList.addEventListener('change', handleModalCheckboxChange);
         modalSearchInput.addEventListener('input', e => renderItemsInModal(e.target.value)); 
         formEditRecord.addEventListener('submit', handleUpdateSubmit);
-        document.getElementById('form-add-item').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const isSub = document.getElementById('is-sub-item-toggle').checked; const data = { code: document.getElementById('item-code').value, barcode: document.getElementById('item-barcode').value, name: document.getElementById('item-name').value, unit: document.getElementById('item-unit').value, category: document.getElementById('item-category').value, supplierCode: document.getElementById('item-supplier').value, cost: parseFloat(document.getElementById('item-cost').value), ParentItemCode: isSub ? document.getElementById('parent-item-code').value : '' }; if(isSub && !data.ParentItemCode) { showToast('Parent item is required for sub-items.', 'error'); return; } const result = await postData('addItem', data, btn); if (result) { showToast(_t('add_success_toast', {type: _t('item')}), 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
-        document.getElementById('form-add-supplier').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { supplierCode: document.getElementById('supplier-code').value, name: document.getElementById('supplier-name').value, contact: document.getElementById('supplier-contact').value }; const result = await postData('addSupplier', data, btn); if (result) { showToast(_t('add_success_toast', {type: _t('supplier')}), 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
-        document.getElementById('form-add-branch').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { branchCode: document.getElementById('branch-code').value, branchName: document.getElementById('branch-name').value }; const result = await postData('addBranch', data, btn); if (result) { showToast(_t('add_success_toast', {type: _t('branch')}), 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
+        
+        // CORRECTED "Add Item" Event Listener
+        document.getElementById('form-add-item').addEventListener('submit', async e => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button[type="submit"]');
+            const isSub = document.getElementById('is-sub-item-toggle').checked;
+            const data = {
+                name: document.getElementById('item-name').value,
+                cost: parseFloat(document.getElementById('item-cost').value),
+                ParentItemCode: isSub ? document.getElementById('parent-item-code').value : '',
+            };
+            if(isSub && !data.ParentItemCode) {
+                showToast('Parent item is required for sub-items.', 'error');
+                return;
+            }
+            const result = await postData('addItem', data, btn);
+            if (result) {
+                showToast(_t('add_success_toast', {type: _t('item')}), 'success');
+                e.target.reset();
+                document.getElementById('sub-item-fields').style.display = 'none';
+                reloadDataAndRefreshUI();
+            }
+        });
+
+        document.getElementById('form-add-supplier').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { name: document.getElementById('supplier-name').value }; const result = await postData('addSupplier', data, btn); if (result) { showToast(_t('add_success_toast', {type: _t('supplier')}), 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
+        document.getElementById('form-add-branch').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { branchName: document.getElementById('branch-name').value }; const result = await postData('addBranch', data, btn); if (result) { showToast(_t('add_success_toast', {type: _t('branch')}), 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
         document.getElementById('form-record-payment').addEventListener('submit', async e => {
             e.preventDefault(); 
             const btn = e.target.querySelector('button[type="submit"]');
@@ -2741,7 +2756,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setupRoleBasedNav();
         attachEventListeners();
         attachSubNavListeners(); 
-        setupSearch('search-items', renderItemsTable, 'items', ['name', 'code', 'category']);
+        setupSearch('search-items', renderItemsTable, 'items', ['name', 'code']);
         setupSearch('search-suppliers', renderSuppliersTable, 'suppliers', ['name', 'supplierCode']);
         setupSearch('search-branches', renderBranchesTable, 'branches', ['branchName', 'branchCode']);
         setupSearch('stock-levels-search', renderItemCentricStockView, 'items', ['name', 'code']);
