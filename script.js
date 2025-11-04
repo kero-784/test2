@@ -1121,7 +1121,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
- // PART 3 OF 4: VIEW RENDERING & DOCUMENT GENERATION
+    // PART 3 OF 4: VIEW RENDERING & DOCUMENT GENERATION
     function openSubItemEntryModal(mainItemCode, remainingMainItems) {
         const mainItem = findByKey(state.items, 'code', mainItemCode);
         const subItems = state.items.filter(i => i.ParentItemCode === mainItemCode);
@@ -1234,6 +1234,35 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             closeModal(); // All items processed
         }
+    }
+
+    function renderItemsTable(data = state.items) {
+        const tbody = document.getElementById('table-items').querySelector('tbody');
+        tbody.innerHTML = '';
+        if (!data || data.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">${_t('no_items_found')}</td></tr>`;
+            return;
+        }
+        const canEdit = userCan('editItem');
+        data.forEach(item => {
+            const parentItem = item.ParentItemCode ? findByKey(state.items, 'code', item.ParentItemCode) : null;
+            const parentName = parentItem ? parentItem.name : 'N/A';
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${item.code}</td>
+                <td>${item.name}</td>
+                <td>${parentName}</td>
+                <td>${_t(item.category?.toLowerCase()) || item.category || 'N/A'}</td>
+                <td>${item.unit}</td>
+                <td>${(parseFloat(item.cost) || 0).toFixed(2)} EGP</td>
+                <td>
+                    <div class="action-buttons">
+                        <button class="secondary small btn-edit" data-type="item" data-id="${item.code}" ${!canEdit ? 'disabled' : ''}>${_t('edit')}</button>
+                        <button class="secondary small btn-history" data-type="item" data-id="${item.code}">${_t('history')}</button>
+                    </div>
+                </td>`;
+            tbody.appendChild(tr);
+        });
     }
 
     function renderSuppliersTable(data = state.suppliers) {
@@ -2928,7 +2957,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const subItems = state.items.filter(i => i.ParentItemCode === mainItemCode);
         const stock = calculateStockLevels();
         const availableQty = stock[branchCode]?.[mainItemCode]?.quantity || 0;
-        const mainItemCost = stock[branchCode]?.[mainItemCode]?.avgCost || mainItem.cost;
 
         if (quantity > availableQty) {
             previewContainer.innerHTML = `<p class="login-error">Error: Quantity to consume (${quantity}) exceeds available stock (${availableQty}).</p>`;
