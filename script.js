@@ -352,7 +352,6 @@ document.addEventListener('DOMContentLoaded', () => {
             'table_h_qty_in': 'Qty In',
             'table_h_qty_out': 'Qty Out',
             'movement_details_receive': 'From: {supplier} To: {branch}',
-            'movement_details_issue': 'From: {branch} To: {section}',
             'movement_details_transfer_out': 'Sent from: {fromBranch} To: {toBranch}',
             'movement_details_transfer_in': 'Received at: {toBranch} From: {fromBranch}',
             'movement_details_return': 'Returned from: {branch} To: {supplier}',
@@ -367,20 +366,21 @@ document.addEventListener('DOMContentLoaded', () => {
             'is_sub_item': 'This is a Sub-Item',
             'parent_item': 'Parent Item',
             'select_parent_item': 'Select Parent Item',
-            'conversion_factor': 'Conversion Factor (Sub-items per Main)',
             'table_h_parent_item': 'Parent Item',
-            'extraction_title': 'Extract Sub-Items from a Main Item',
-            'select_main_item_to_extract': 'Select Main Item to Extract',
-            'quantity_to_extract': 'Quantity to Extract',
-            'extraction_results_preview': 'Extraction Results Preview',
-            'main_item_consumed': 'Main Item Consumed',
-            'sub_item_produced': 'Sub-Item Produced',
+            'extraction_title': 'Perform Production / Extraction',
+            'main_item_to_consume': 'Main Item to Consume',
+            'quantity_to_consume': 'Quantity to Consume',
+            'sub_items_produced': 'Sub-Items Produced',
+            'enter_produced_quantity': 'Enter Produced Quantity',
             'confirm_extraction': 'Confirm Extraction',
             'main_item_total': 'Main Item Total',
             'extraction_in': 'Extraction In',
             'extraction_out': 'Extraction Out',
             'movement_details_extraction_out': 'Extracted at: {branch}',
             'movement_details_extraction_in': 'Produced at: {branch}',
+            'enter_sub_item_quantities': 'Enter Sub-Item Quantities',
+            'add_to_transaction': 'Add to Transaction',
+            'total_sub_item_weight': 'Total Sub-Item Weight',
         },
         'ar': {
             'packing_stock': 'مخزون التعبئة',
@@ -406,20 +406,21 @@ document.addEventListener('DOMContentLoaded', () => {
             'is_sub_item': 'هذا صنف فرعي',
             'parent_item': 'الصنف الرئيسي',
             'select_parent_item': 'اختر الصنف الرئيسي',
-            'conversion_factor': 'معامل التحويل (الفرعي لكل رئيسي)',
             'table_h_parent_item': 'الصنف الرئيسي',
-            'extraction_title': 'استخلاص أصناف فرعية من صنف رئيسي',
-            'select_main_item_to_extract': 'اختر الصنف الرئيسي للاستخلاص',
-            'quantity_to_extract': 'الكمية المراد استخلاصها',
-            'extraction_results_preview': 'معاينة نتائج الاستخلاص',
-            'main_item_consumed': 'الصنف الرئيسي المستهلك',
-            'sub_item_produced': 'الصنف الفرعي المنتج',
+            'extraction_title': 'تنفيذ إنتاج / استخلاص',
+            'main_item_to_consume': 'الصنف الرئيسي المستهلك',
+            'quantity_to_consume': 'الكمية المستهلكة',
+            'sub_items_produced': 'الأصناف الفرعية المنتجة',
+            'enter_produced_quantity': 'أدخل الكمية المنتجة',
             'confirm_extraction': 'تأكيد الاستخلاص',
             'main_item_total': 'إجمالي الصنف الرئيسي',
             'extraction_in': 'إدخال استخلاص',
             'extraction_out': 'إخراج استخلاص',
             'movement_details_extraction_out': 'تم الاستخلاص في: {branch}',
             'movement_details_extraction_in': 'تم الإنتاج في: {branch}',
+            'enter_sub_item_quantities': 'أدخل كميات الأصناف الفرعية',
+            'add_to_transaction': 'إضافة إلى الحركة',
+            'total_sub_item_weight': 'إجمالي وزن الأصناف الفرعية',
         }
     };
 
@@ -470,6 +471,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const editModal = document.getElementById('edit-modal');
     const historyModal = document.getElementById('history-modal');
     const editPOModal = document.getElementById('edit-po-modal');
+    const subItemEntryModal = document.getElementById('sub-item-entry-modal');
     
     const modalItemList = document.getElementById('modal-item-list');
     const modalSearchInput = document.getElementById('modal-search-items');
@@ -567,7 +569,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setButtonLoading(false, buttonEl);
         }
     }
-  // PART 2 OF 4: MODAL & UI LOGIC
+    // PART 2 OF 4: MODAL & UI LOGIC
     function showView(viewId, subViewId = null) {
         Logger.info(`Switching view to: ${viewId}` + (subViewId ? `/${subViewId}` : ''));
         
@@ -767,7 +769,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="form-group-checkbox span-full"><input type="checkbox" id="edit-is-sub-item-toggle" ${isSubItem ? 'checked' : ''}><label for="edit-is-sub-item-toggle">${_t('is_sub_item')}</label></div>
                     <div id="edit-sub-item-fields" class="form-grid span-full" style="display: ${isSubItem ? 'grid' : 'none'};">
                         <div class="form-group"><label for="edit-parent-item-code">${_t('parent_item')}</label><select id="edit-parent-item-code" name="ParentItemCode"></select></div>
-                        <div class="form-group"><label for="edit-conversion-factor">${_t('conversion_factor')}</label><input type="number" id="edit-conversion-factor" name="ConversionFactor" step="0.01" min="0.01" value="${record.ConversionFactor || ''}"></div>
                     </div>
                 </div>`;
                 editModalBody.innerHTML = formHtml;
@@ -787,7 +788,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('edit-sub-item-fields').style.display = e.target.checked ? 'grid' : 'none';
                     if (!e.target.checked) {
                         parentSelect.value = '';
-                        document.getElementById('edit-conversion-factor').value = '';
                     }
                 });
                 break;
@@ -900,7 +900,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (!document.getElementById('edit-is-sub-item-toggle').checked) {
                 updates.ParentItemCode = '';
-                updates.ConversionFactor = '';
             }
             payload = { type, id, updates };
         } else if (type === 'user') {
@@ -1041,39 +1040,58 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function confirmModalSelection() {
-        const selectedCodes = state.modalSelections;
-        const addToList = (currentList, newList, item) => {
-            const existing = (currentList || []).find(i => i.itemCode === item.code);
-            if (existing) {
-                newList.push(existing);
-            } else {
-                const newItem = { itemCode: item.code, itemName: item.name, quantity: '', cost: item.cost }; // Default quantity is now empty
-                if (modalContext === 'adjustment') {
-                    newItem.physicalCount = '';
-                }
-                newList.push(newItem);
-            }
-        };
-
-        const createNewList = (currentList) => {
-            const newList = [];
-            selectedCodes.forEach(code => {
-                const item = findByKey(state.items, 'code', code);
-                if (item) addToList(currentList, newList, item);
-            });
-            return newList;
-        };
-
-        switch (modalContext) {
-            case 'invoices': renderPaymentList(); break;
-            case 'receive': state.currentReceiveList = createNewList(state.currentReceiveList); renderReceiveListTable(); break;
-            case 'transfer': state.currentTransferList = createNewList(state.currentTransferList); renderTransferListTable(); break;
-            case 'po': state.currentPOList = createNewList(state.currentPOList); renderPOListTable(); break;
-            case 'return': state.currentReturnList = createNewList(state.currentReturnList); renderReturnListTable(); break;
-            case 'edit-po': state.currentEditingPOList = createNewList(state.currentEditingPOList); renderPOEditListTable(); break;
-            case 'adjustment': state.currentAdjustmentList = createNewList(state.currentAdjustmentList); renderAdjustmentListTable(); break;
+        const selectedCodes = Array.from(state.modalSelections);
+        if (selectedCodes.length === 0) {
+            closeModal();
+            return;
         }
-        closeModal();
+
+        const mainItemsWithSubItems = selectedCodes.filter(code => {
+            const item = findByKey(state.items, 'code', code);
+            const hasSubItems = state.items.some(sub => sub.ParentItemCode === item.code);
+            return item && !item.ParentItemCode && hasSubItems;
+        });
+
+        const regularItems = selectedCodes.filter(code => !mainItemsWithSubItems.includes(code));
+
+        // Add regular items first
+        addRegularItemsToList(regularItems);
+
+        // Then handle main items one by one
+        if (mainItemsWithSubItems.length > 0) {
+            openSubItemEntryModal(mainItemsWithSubItems[0], mainItemsWithSubItems.slice(1));
+        } else {
+            closeModal();
+        }
+    }
+
+    function addRegularItemsToList(itemCodes) {
+        const addToList = (currentList, newList, item) => {
+            if (currentList && currentList.some(i => i.itemCode === item.code)) return; // Don't add if already in list
+            const newItem = { itemCode: item.code, itemName: item.name, quantity: '', cost: item.cost };
+            if (modalContext === 'adjustment') {
+                newItem.physicalCount = '';
+            }
+            newList.push(newItem);
+        };
+    
+        let list, renderer;
+        switch (modalContext) {
+            case 'receive': [list, renderer] = [state.currentReceiveList, renderReceiveListTable]; break;
+            case 'transfer': [list, renderer] = [state.currentTransferList, renderTransferListTable]; break;
+            case 'po': [list, renderer] = [state.currentPOList, renderPOListTable]; break;
+            case 'return': [list, renderer] = [state.currentReturnList, renderReturnListTable]; break;
+            case 'edit-po': [list, renderer] = [state.currentEditingPOList, renderPOEditListTable]; break;
+            case 'adjustment': [list, renderer] = [state.currentAdjustmentList, renderAdjustmentListTable]; break;
+            default: return;
+        }
+    
+        itemCodes.forEach(code => {
+            const item = findByKey(state.items, 'code', code);
+            if (item) addToList(list, list, item);
+        });
+    
+        renderer();
     }
     
     function showToast(message, type = 'success') {
@@ -1103,34 +1121,119 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
-   // PART 3 OF 4: VIEW RENDERING & DOCUMENT GENERATION
-    function renderItemsTable(data = state.items) {
-        const tbody = document.getElementById('table-items').querySelector('tbody');
-        tbody.innerHTML = '';
-        if (!data || data.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">${_t('no_items_found')}</td></tr>`;
-            return;
-        }
-        const canEdit = userCan('editItem');
-        data.forEach(item => {
-            const parentItem = item.ParentItemCode ? findByKey(state.items, 'code', item.ParentItemCode) : null;
-            const parentName = parentItem ? parentItem.name : 'N/A';
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${item.code}</td>
-                <td>${item.name}</td>
-                <td>${parentName}</td>
-                <td>${_t(item.category?.toLowerCase()) || item.category || 'N/A'}</td>
-                <td>${item.unit}</td>
-                <td>${(parseFloat(item.cost) || 0).toFixed(2)} EGP</td>
-                <td>
-                    <div class="action-buttons">
-                        <button class="secondary small btn-edit" data-type="item" data-id="${item.code}" ${!canEdit ? 'disabled' : ''}>${_t('edit')}</button>
-                        <button class="secondary small btn-history" data-type="item" data-id="${item.code}">${_t('history')}</button>
-                    </div>
-                </td>`;
-            tbody.appendChild(tr);
+ // PART 3 OF 4: VIEW RENDERING & DOCUMENT GENERATION
+    function openSubItemEntryModal(mainItemCode, remainingMainItems) {
+        const mainItem = findByKey(state.items, 'code', mainItemCode);
+        const subItems = state.items.filter(i => i.ParentItemCode === mainItemCode);
+        
+        const modalTitle = document.getElementById('sub-item-entry-modal-title');
+        modalTitle.textContent = `${_t('enter_sub_item_quantities')} for ${mainItem.name}`;
+    
+        const modalBody = document.getElementById('sub-item-entry-modal-body');
+        let tableHtml = `
+            <table id="sub-item-entry-table">
+                <thead>
+                    <tr>
+                        <th>${_t('table_h_name')}</th>
+                        <th>${_t('table_h_quantity')}</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        subItems.forEach(sub => {
+            tableHtml += `
+                <tr>
+                    <td>${sub.name} (${sub.code})</td>
+                    <td><input type="number" class="table-input sub-item-qty-input" data-item-code="${sub.code}" step="0.01" min="0"></td>
+                </tr>
+            `;
         });
+        tableHtml += `</tbody>
+            <tfoot>
+                <tr>
+                    <td style="text-align: right;"><strong>${_t('total_sub_item_weight')}:</strong></td>
+                    <td id="total-sub-item-weight">0.00</td>
+                </tr>
+            </tfoot>
+        </table>`;
+        modalBody.innerHTML = tableHtml;
+    
+        const table = modalBody.querySelector('#sub-item-entry-table');
+        table.addEventListener('input', () => {
+            let total = 0;
+            table.querySelectorAll('.sub-item-qty-input').forEach(input => {
+                total += parseFloat(input.value) || 0;
+            });
+            document.getElementById('total-sub-item-weight').textContent = total.toFixed(2);
+        });
+    
+        const confirmBtn = document.getElementById('btn-confirm-sub-item-entry');
+        
+        // Clone and replace to remove old event listeners
+        const newConfirmBtn = confirmBtn.cloneNode(true);
+        confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+
+        newConfirmBtn.onclick = () => {
+            confirmSubItemEntry(mainItem, remainingMainItems);
+        };
+    
+        itemSelectorModal.classList.remove('active');
+        subItemEntryModal.classList.add('active');
+    }
+    
+    function confirmSubItemEntry(mainItem, remainingMainItems) {
+        let list, renderer;
+        switch (modalContext) {
+            case 'receive': [list, renderer] = [state.currentReceiveList, renderReceiveListTable]; break;
+            case 'transfer': [list, renderer] = [state.currentTransferList, renderTransferListTable]; break;
+            case 'po': [list, renderer] = [state.currentPOList, renderPOListTable]; break;
+            case 'return': [list, renderer] = [state.currentReturnList, renderReturnListTable]; break;
+            case 'edit-po': [list, renderer] = [state.currentEditingPOList, renderPOEditListTable]; break;
+            case 'adjustment': [list, renderer] = [state.currentAdjustmentList, renderAdjustmentListTable]; break;
+            default: return;
+        }
+
+        const subItemInputs = document.querySelectorAll('#sub-item-entry-table .sub-item-qty-input');
+        let totalSubQty = 0;
+        const subItemsToAdd = [];
+
+        subItemInputs.forEach(input => {
+            const qty = parseFloat(input.value) || 0;
+            if (qty > 0) {
+                const itemCode = input.dataset.itemCode;
+                const subItem = findByKey(state.items, 'code', itemCode);
+                totalSubQty += qty;
+                subItemsToAdd.push({
+                    itemCode: subItem.code,
+                    itemName: subItem.name,
+                    quantity: qty,
+                    cost: 0 // Sub-items have no cost
+                });
+            }
+        });
+
+        if (totalSubQty > 0) {
+            // Add the main item with the calculated total quantity
+            list.push({
+                itemCode: mainItem.code,
+                itemName: mainItem.name,
+                quantity: totalSubQty,
+                cost: mainItem.cost,
+                isMainItemPlaceholder: true // Custom flag
+            });
+            // Add the sub-items
+            list.push(...subItemsToAdd);
+            renderer();
+        }
+
+        subItemEntryModal.classList.remove('active');
+
+        if (remainingMainItems.length > 0) {
+            // Open modal for the next main item in the queue
+            openSubItemEntryModal(remainingMainItems[0], remainingMainItems.slice(1));
+        } else {
+            closeModal(); // All items processed
+        }
     }
 
     function renderSuppliersTable(data = state.suppliers) {
@@ -1176,6 +1279,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const stock = calculateStockLevels();
         list.forEach((item, index) => {
             const tr = document.createElement('tr');
+            const itemDetails = findByKey(state.items, 'code', item.itemCode);
+            if (item.isMainItemPlaceholder) tr.classList.add('main-item-group-header');
+            if (itemDetails && itemDetails.ParentItemCode) tr.classList.add('sub-item-row');
+
             let cellsHtml = '';
             columnsConfig.forEach(col => {
                 let content = '';
@@ -1183,8 +1290,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const availableStock = (stock[fromBranch]?.[item.itemCode]?.quantity || 0);
                 switch (col.type) {
                     case 'text': content = item[col.key]; break;
-                    case 'number_input': content = `<input type="number" class="table-input" value="${item[col.key] || ''}" min="${col.min || 0.01}" ${col.maxKey ? `max="${availableStock}"` : ''} step="${col.step || 0.01}" data-index="${index}" data-field="${col.key}">`; break;
-                    case 'cost_input': content = `<input type="number" class="table-input" value="${(item.cost || 0).toFixed(2)}" min="0" step="0.01" data-index="${index}" data-field="cost">`; break;
+                    case 'number_input': content = `<input type="number" class="table-input" value="${item[col.key] || ''}" min="${col.min || 0.01}" ${col.maxKey ? `max="${availableStock}"` : ''} step="${col.step || 0.01}" data-index="${index}" data-field="${col.key}" ${item.isMainItemPlaceholder ? 'readonly' : ''}>`; break;
+                    case 'cost_input': content = `<input type="number" class="table-input" value="${(item.cost || 0).toFixed(2)}" min="0" step="0.01" data-index="${index}" data-field="cost" ${itemDetails?.ParentItemCode ? 'readonly' : ''}>`; break;
                     case 'calculated': content = `<span>${col.calculator(item)}</span>`; break;
                     case 'available_stock': content = availableStock.toFixed(2); break;
                 }
@@ -2370,7 +2477,7 @@ document.addEventListener('DOMContentLoaded', () => {
         modalItemList.addEventListener('change', handleModalCheckboxChange);
         modalSearchInput.addEventListener('input', e => renderItemsInModal(e.target.value)); 
         formEditRecord.addEventListener('submit', handleUpdateSubmit);
-        document.getElementById('form-add-item').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const isSub = document.getElementById('is-sub-item-toggle').checked; const data = { code: document.getElementById('item-code').value, barcode: document.getElementById('item-barcode').value, name: document.getElementById('item-name').value, unit: document.getElementById('item-unit').value, category: document.getElementById('item-category').value, supplierCode: document.getElementById('item-supplier').value, cost: parseFloat(document.getElementById('item-cost').value), ParentItemCode: isSub ? document.getElementById('parent-item-code').value : '', ConversionFactor: isSub ? parseFloat(document.getElementById('conversion-factor').value) : '' }; if(isSub && (!data.ParentItemCode || !data.ConversionFactor)) { showToast('Parent item and conversion factor are required for sub-items.', 'error'); return; } const result = await postData('addItem', data, btn); if (result) { showToast(_t('add_success_toast', {type: _t('item')}), 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
+        document.getElementById('form-add-item').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const isSub = document.getElementById('is-sub-item-toggle').checked; const data = { code: document.getElementById('item-code').value, barcode: document.getElementById('item-barcode').value, name: document.getElementById('item-name').value, unit: document.getElementById('item-unit').value, category: document.getElementById('item-category').value, supplierCode: document.getElementById('item-supplier').value, cost: parseFloat(document.getElementById('item-cost').value), ParentItemCode: isSub ? document.getElementById('parent-item-code').value : '' }; if(isSub && !data.ParentItemCode) { showToast('Parent item is required for sub-items.', 'error'); return; } const result = await postData('addItem', data, btn); if (result) { showToast(_t('add_success_toast', {type: _t('item')}), 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
         document.getElementById('form-add-supplier').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { supplierCode: document.getElementById('supplier-code').value, name: document.getElementById('supplier-name').value, contact: document.getElementById('supplier-contact').value }; const result = await postData('addSupplier', data, btn); if (result) { showToast(_t('add_success_toast', {type: _t('supplier')}), 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
         document.getElementById('form-add-branch').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { branchCode: document.getElementById('branch-code').value, branchName: document.getElementById('branch-name').value }; const result = await postData('addBranch', data, btn); if (result) { showToast(_t('add_success_toast', {type: _t('branch')}), 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
         document.getElementById('form-record-payment').addEventListener('submit', async e => {
@@ -2788,14 +2895,11 @@ document.addEventListener('DOMContentLoaded', () => {
     async function requestAdminContext(config) {
         const modal = document.getElementById('context-selector-modal');
         
-        // Hide all first
         modal.querySelectorAll('.form-group').forEach(el => el.style.display = 'none');
         
-        // Populate and show required dropdowns
         if(config.fromBranch) populateOptions(document.getElementById('context-from-branch-select'), state.branches, 'Select From Branch', 'branchCode', 'branchName');
         if(config.toBranch) populateOptions(document.getElementById('context-to-branch-select'), state.branches, 'Select To Branch', 'branchCode', 'branchName');
         if(config.branch) populateOptions(document.getElementById('context-branch-select'), state.branches, 'Select Branch', 'branchCode', 'branchName');
-
 
         Object.keys(config).forEach(key => {
             const group = document.getElementById(`context-modal-${key}-group`);
@@ -2827,24 +2931,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const mainItemCost = stock[branchCode]?.[mainItemCode]?.avgCost || mainItem.cost;
 
         if (quantity > availableQty) {
-            previewContainer.innerHTML = `<p class="login-error">Error: Quantity to extract (${quantity}) exceeds available stock (${availableQty}).</p>`;
+            previewContainer.innerHTML = `<p class="login-error">Error: Quantity to consume (${quantity}) exceeds available stock (${availableQty}).</p>`;
             return;
         }
 
-        let html = `<h4>${_t('extraction_results_preview')}</h4><table id="table-extraction-preview">
-            <thead><tr><th>${_t('table_h_name')}</th><th>${_t('table_h_quantity')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th></tr></thead>
-            <tbody>
-                <tr style="background-color: #FDEDE9;"><td data-translate-key="main_item_consumed">${_t('main_item_consumed')}</td><td></td><td></td><td></td></tr>
-                <tr><td>${mainItem.name} (${mainItem.code})</td><td>-${quantity.toFixed(2)}</td><td>${mainItemCost.toFixed(2)}</td><td>-${(quantity * mainItemCost).toFixed(2)}</td></tr>
-                <tr style="background-color: #E6F8F3;"><td data-translate-key="sub_item_produced">${_t('sub_item_produced')}</td><td></td><td></td><td></td></tr>`;
+        let html = `<h4>${_t('sub_items_produced')}</h4>
+            <table id="table-extraction-preview">
+            <thead><tr><th>${_t('table_h_name')}</th><th>${_t('enter_produced_quantity')}</th></tr></thead>
+            <tbody>`;
 
         if (subItems.length === 0) {
-            html += `<tr><td colspan="4" style="text-align:center;">This main item has no sub-items defined.</td></tr>`;
+            html += `<tr><td colspan="2" style="text-align:center;">This main item has no sub-items defined.</td></tr>`;
         } else {
             subItems.forEach(sub => {
-                const producedQty = quantity * (parseFloat(sub.ConversionFactor) || 0);
-                const subItemCost = mainItemCost / (parseFloat(sub.ConversionFactor) || 1);
-                html += `<tr><td>${sub.name} (${sub.code})</td><td>+${producedQty.toFixed(2)}</td><td>${subItemCost.toFixed(2)}</td><td>+${(producedQty * subItemCost).toFixed(2)}</td></tr>`;
+                html += `<tr><td>${sub.name} (${sub.code})</td><td><input type="number" class="table-input" data-item-code="${sub.code}" step="0.01" min="0"></td></tr>`;
             });
         }
 
@@ -2860,21 +2960,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const notes = document.getElementById('extraction-notes').value;
 
         if (!mainItemCode || !branchCode || quantity <= 0) {
-            showToast('Please select a branch, a main item, and enter a valid quantity.', 'error');
+            showToast('Please select a branch, a main item, and enter a valid quantity to consume.', 'error');
             return;
         }
 
         const mainItem = findByKey(state.items, 'code', mainItemCode);
-        const subItems = state.items.filter(i => i.ParentItemCode === mainItemCode);
-        if (subItems.length === 0) {
-            showToast('Cannot extract: This main item has no sub-items defined.', 'error');
-            return;
-        }
-
         const stock = calculateStockLevels();
         const availableQty = stock[branchCode]?.[mainItemCode]?.quantity || 0;
         if (quantity > availableQty) {
-            showToast(`Error: Quantity to extract (${quantity}) exceeds available stock (${availableQty}).`, 'error');
+            showToast(`Error: Quantity to consume (${quantity}) exceeds available stock (${availableQty}).`, 'error');
             return;
         }
         
@@ -2889,15 +2983,25 @@ document.addEventListener('DOMContentLoaded', () => {
             quantity: quantity,
             cost: mainItemCost
         });
-        // Sub-items in
-        subItems.forEach(sub => {
-            itemsPayload.push({
-                type: 'extraction_in',
-                itemCode: sub.code,
-                quantity: quantity * (parseFloat(sub.ConversionFactor) || 0),
-                cost: mainItemCost / (parseFloat(sub.ConversionFactor) || 1)
-            });
+        
+        let hasSubItems = false;
+        document.querySelectorAll('#table-extraction-preview input').forEach(input => {
+            const subQty = parseFloat(input.value) || 0;
+            if (subQty > 0) {
+                hasSubItems = true;
+                itemsPayload.push({
+                    type: 'extraction_in',
+                    itemCode: input.dataset.itemCode,
+                    quantity: subQty,
+                    cost: 0 // Sub-items have no cost
+                });
+            }
         });
+
+        if (!hasSubItems) {
+            showToast('Please enter the quantity produced for at least one sub-item.', 'error');
+            return;
+        }
 
         const payload = {
             type: 'extraction',
