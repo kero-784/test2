@@ -560,9 +560,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setButtonLoading(false, buttonEl);
         }
     }
-
-
-// PART 2 OF 4: MODAL & UI LOGIC
+    // PART 2 OF 4: MODAL & UI LOGIC
     function showView(viewId, subViewId = null) {
         Logger.info(`Switching view to: ${viewId}` + (subViewId ? `/${subViewId}` : ''));
         
@@ -960,7 +958,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!itemTree[item.ParentItemCode]) {
                     itemTree[item.ParentItemCode] = { parent: findByKey(state.items, 'code', item.ParentItemCode), children: [] };
                 }
-                itemTree[item.ParentItemCode].children.push(item);
+                if(itemTree[item.ParentItemCode]) { // Ensure parent exists in the tree
+                    itemTree[item.ParentItemCode].children.push(item);
+                }
             } else if (!item.ParentItemCode) {
                  if (!itemTree[item.code]) {
                     itemTree[item.code] = { parent: item, children: [] };
@@ -1116,6 +1116,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function confirmModalSelection() {
+        if (modalContext === 'invoices') {
+            renderPaymentList();
+            closeModal();
+            return;
+        }
+
         const selectedCodes = Array.from(state.modalSelections);
         if (selectedCodes.length === 0) {
             closeModal();
@@ -1130,10 +1136,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const regularItems = selectedCodes.filter(code => !mainItemsWithSubItems.includes(code));
 
-        // Add regular items first
         addRegularItemsToList(regularItems);
 
-        // Then handle main items one by one
         if (mainItemsWithSubItems.length > 0 && modalContext !== 'po') {
             openSubItemEntryModal(mainItemsWithSubItems[0], mainItemsWithSubItems.slice(1));
         } else {
@@ -1143,7 +1147,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function addRegularItemsToList(itemCodes) {
         const addToList = (currentList, newList, item) => {
-            if (currentList && currentList.some(i => i.itemCode === item.code)) return; // Don't add if already in list
+            if (currentList && currentList.some(i => i.itemCode === item.code)) return;
             const newItem = { itemCode: item.code, itemName: item.name, quantity: '', cost: item.cost };
             if (modalContext === 'adjustment') {
                 newItem.physicalCount = '';
@@ -1198,6 +1202,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
+    
 // PART 3 OF 4: VIEW RENDERING & DOCUMENT GENERATION
     function openSubItemEntryModal(mainItemCode, remainingMainItems) {
         const mainItem = findByKey(state.items, 'code', mainItemCode);
