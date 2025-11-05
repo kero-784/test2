@@ -12,7 +12,7 @@ window.printReport = function(elementId) {
 
 document.addEventListener('DOMContentLoaded', () => {
     // !!! IMPORTANT: PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw5wDWNs-LVeK9yCABQU3DcqYYGrruZQR5YYEhfoPJw3VBs_z805eDoOTh-pcJzqdwn/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby7Gpjp1zJtjwDnDM5vuaQg_tJKmKejDAZoi-kimOSCMVlVBnCyT6CZmYrVU80y-Jv9/exec';
 
     const Logger = {
         info: (message, ...args) => console.log(`[StockWise INFO] ${message}`, ...args),
@@ -2370,6 +2370,7 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'reports':
                 populateOptions(document.getElementById('supplier-statement-select'), state.suppliers, _t('select_a_supplier'), 'supplierCode', 'name');
                 populateOptions(document.getElementById('sales-report-branch'), getVisibleBranchesForCurrentUser(), _t('select_a_branch'), 'branchCode', 'branchName');
+                renderSettlementHistory();
                 break;
             case 'stock-levels':
                 document.getElementById('stock-levels-title').textContent = userCan('viewAllBranches') ? _t('stock_by_item_all_branches') : _t('stock_by_item_your_branch');
@@ -2986,6 +2987,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('btn-export-branches').addEventListener('click', () => exportToExcel('table-branches', 'BranchList.xlsx'));
         document.getElementById('btn-export-stock').addEventListener('click', () => exportToExcel('table-stock-levels-by-item', 'StockLevels.xlsx'));
         document.getElementById('btn-export-supplier-statement').addEventListener('click', () => exportToExcel('table-supplier-statement-report', 'SupplierStatement.xlsx'));
+        document.getElementById('btn-export-sales-report').addEventListener('click', () => exportToExcel('table-sales-discrepancy', 'SalesDiscrepancyReport.xlsx'));
 
         updateUserBranchDisplay();
         const firstVisibleView = document.querySelector('#main-nav .nav-item:not([style*="display: none"]) a')?.dataset.view || 'dashboard';
@@ -3281,6 +3283,174 @@ document.addEventListener('DOMContentLoaded', () => {
             renderExtractionPreview();
             reloadDataAndRefreshUI();
         }
+    }
+    
+    // --- NEW SALES RECONCILIATION & SETTLEMENT LOGIC ---
+    function downloadSalesTemplate() {
+        const templateData = state.items.map(item => ({
+            itemCode: item.code,
+            itemName: item.name,
+            soldQty: ''
+        }));
+        const ws = XLSX.utils.json_to_sheet(templateData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "SalesData");
+        XLSX.writeFile(wb, "SalesUploadTemplate.xlsx");
+    }
+
+    function handleSalesFileUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                
+                if (!jsonData[0] || !jsonData[0].hasOwnProperty('itemCode') || !jsonData[0].hasOwnProperty('soldQty')) {
+                    throw new Error("Invalid format");
+                }
+                
+                state.uploadedSalesData = jsonData.filter(row => row.itemCode && typeof row.soldQty === 'number');
+                showToast(_t('file_upload_success', {rows: state.uploadedSalesData.length }), 'success');
+            } catch (err) {
+                showToast(_t('file_upload_error'), 'error');
+                Logger.error(err);
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    function renderSalesDiscrepancyReport() {
+        const branchCode = document.getElementById('sales-report-branch').value;
+        const resultsContainer = document.getElementById('sales-report-results');
+        const exportBtn = document.getElementById('btn-export-sales-report');
+
+        if (!branchCode) {
+            showToast('Please select a branch to generate the report.', 'error');
+            return;
+        }
+        if (state.uploadedSalesData.length === 0) {
+            showToast(_t('no_sales_data_uploaded'), 'error');
+            return;
+        }
+        
+        const stock = calculateStockLevels();
+        const branchStock = stock[branchCode] || {};
+
+        const reportData = state.items.map(item => {
+            const systemStock = branchStock[item.code]?.quantity || 0;
+            const soldEntry = state.uploadedSalesData.find(s => String(s.itemCode) === String(item.code));
+            const soldQty = soldEntry ? (parseFloat(soldEntry.soldQty) || 0) : 0;
+            const expectedStock = systemStock - soldQty;
+            return {
+                code: item.code,
+                name: item.name,
+                systemStock: systemStock,
+                soldQty: soldQty,
+                expectedStock: expectedStock,
+                discrepancy: 0 // This will be calculated against a physical count if needed, for now it's a placeholder
+            };
+        });
+        
+        let tableHtml = `<table id="table-sales-discrepancy">
+            <thead>
+                <tr>
+                    <th>${_t('item_code')}</th><th>${_t('item_name')}</th><th>${_t('table_h_system_stock')}</th>
+                    <th>${_t('table_h_sold_qty')}</th><th>${_t('table_h_expected_stock')}</th><th>${_t('table_h_discrepancy')}</th>
+                </tr>
+            </thead><tbody>`;
+
+        reportData.forEach(row => {
+            tableHtml += `<tr>
+                <td>${row.code}</td><td>${row.name}</td><td>${row.systemStock.toFixed(2)}</td>
+                <td>${row.soldQty.toFixed(2)}</td><td>${row.expectedStock.toFixed(2)}</td>
+                <td style="font-weight:bold; color: ${row.discrepancy > 0 ? 'var(--secondary-color)' : (row.discrepancy < 0 ? 'var(--danger-color)' : 'inherit')}">
+                    ${row.discrepancy.toFixed(2)}
+                </td>
+            </tr>`;
+        });
+        tableHtml += `</tbody></table>`;
+        
+        const branch = findByKey(state.branches, 'branchCode', branchCode);
+        resultsContainer.innerHTML = `<div class="printable-document">
+                <div class="printable-header">
+                    <h2>${_t('sales_discrepancy_report')} - ${branch.branchName}</h2>
+                    <p>${_t('date_generated')} ${new Date().toLocaleString()}</p>
+                </div>
+                ${tableHtml}
+            </div>
+            <div style="margin-top:24px;">
+                <button id="btn-settle-stock" class="danger">${_t('settle_stock')}</button>
+            </div>`;
+        
+        document.getElementById('btn-settle-stock').addEventListener('click', () => openSettlementModal(reportData));
+        
+        resultsContainer.style.display = 'block';
+        exportBtn.disabled = false;
+    }
+
+    function openSettlementModal(reportData) {
+        document.getElementById('settlement-notes').value = '';
+        settlementConfirmModal.classList.add('active');
+        const confirmBtn = document.getElementById('btn-confirm-settlement');
+        
+        const newConfirmBtn = confirmBtn.cloneNode(true);
+        confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+
+        newConfirmBtn.onclick = () => {
+            handleConfirmSettlement(reportData);
+        };
+    }
+
+    async function handleConfirmSettlement(reportData) {
+        const btn = document.getElementById('btn-confirm-settlement');
+        const branchCode = document.getElementById('sales-report-branch').value;
+        const notes = document.getElementById('settlement-notes').value;
+
+        // Add item cost to reportData for transaction creation
+        const reportDataWithCost = reportData.map(item => {
+            const masterItem = findByKey(state.items, 'code', item.code);
+            return { ...item, cost: masterItem?.cost || 0 };
+        });
+
+        const payload = {
+            branchCode,
+            notes,
+            reportData: reportDataWithCost
+        };
+
+        const result = await postData('performSettlement', payload, btn);
+        if (result) {
+            showToast(_t('settlement_complete'), 'success');
+            closeModal();
+            reloadDataAndRefreshUI();
+        }
+    }
+
+    function renderSettlementHistory() {
+        const tbody = document.getElementById('table-settlement-history').querySelector('tbody');
+        tbody.innerHTML = '';
+        if (!state.settlements || state.settlements.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">No settlement history found.</td></tr>`;
+            return;
+        }
+
+        state.settlements.slice().reverse().forEach(settlement => {
+            const branch = findByKey(state.branches, 'branchCode', settlement.branchCode);
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${settlement.settlementId}</td>
+                <td>${new Date(settlement.date).toLocaleString()}</td>
+                <td>${branch?.branchName || settlement.branchCode}</td>
+                <td>${settlement.settledBy}</td>
+                <td><button class="secondary small btn-view-settlement" data-id="${settlement.settlementId}">${_t('view_settlement')}</button></td>
+            `;
+            tbody.appendChild(tr);
+        });
     }
 
     function init() {
