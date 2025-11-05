@@ -406,353 +406,6 @@ document.addEventListener('DOMContentLoaded', () => {
             'settlement_complete': 'Stock settlement completed successfully!',
             'settlement_history': 'Settlement History',
             'view_settlement': 'View Details',
-        },
-        'ar': {
-            'packing_stock': 'مخزون التعبئة',
-            'login_prompt': 'الرجاء إدخال بيانات الاعتماد الخاصة بك للمتابعة.',
-            'username': 'اسم المستخدم',
-            'password_code': 'كلمة المرور / رمز الدخول',
-            'login': 'تسجيل الدخول',
-            'signing_in': 'جاري تسجيل الدخول...',
-            'loading': 'جاري التحميل...',
-            'hi_user': 'مرحباً، {userFirstName}',
-            'refresh_all_data': 'تحديث كل البيانات',
-            'dashboard': 'لوحة التحكم',
-            'stock_operations': 'عمليات المخزون',
-            'purchasing': 'المشتريات',
-            'payments': 'المدفوعات',
-            'reports': 'التقارير',
-            'stock_levels': 'مستويات المخزون',
-            'transaction_history': 'سجل الحركات',
-            'master_data': 'البيانات الرئيسية',
-            'user_management': 'إدارة المستخدمين',
-            'backup_restore': 'النسخ الاحتياطي',
-            'activity_log': 'سجل النشاط',
-            'logout': 'تسجيل الخروج',
-            'branch': 'الفرع',
-            'total_items': 'إجمالي الأصناف',
-            'total_stock_value': 'إجمالي قيمة المخزون',
-            'total_suppliers': 'إجمالي الموردين',
-            'total_branches': 'إجمالي الفروع',
-            'add_new_item': 'إضافة صنف جديد',
-            'item_code': 'رمز الصنف (ID فريد)',
-            'item_name': 'اسم الصنف',
-            'default_cost': 'التكلفة الافتراضية',
-            'add_item_btn': 'إضافة صنف',
-            'add_new_supplier': 'إضافة مورد جديد',
-            'supplier_code': 'رمز المورد (ID فريد)',
-            'supplier_name': 'اسم المورد',
-            'add_supplier_btn': 'إضافة مورد',
-            'add_new_branch': 'إضافة فرع جديد',
-            'branch_code': 'رمز الفرع (ID فريد)',
-            'branch_name': 'اسم الفرع',
-            'add_branch_btn': 'إضافة فرع',
-            'auto_backup_settings': 'إعدادات النسخ الاحتياطي التلقائي',
-            'auto_backup_desc': 'تمكين النسخ الاحتياطي التلقائي لحفظ نسخة من بياناتك بشكل دوري. يتم تخزين النسخ الاحتياطية في "StockApp Backups" في Google Drive.',
-            'enable_auto_backups': 'تمكين النسخ الاحتياطي التلقائي',
-            'backup_frequency': 'تكرار النسخ الاحتياطي',
-            'daily_backup': 'يومي (الساعة 2 صباحاً)',
-            'weekly_backup': 'أسبوعي (الأحد الساعة 2 صباحاً)',
-            'manual_backup_restore': 'نسخ احتياطي واستعادة يدوي',
-            'manual_backup_desc': 'إنشاء نسخة احتياطية فورية أو الاستعادة من ملف تم إنشاؤه مسبقاً.',
-            'create_new_manual_backup': 'إنشاء نسخة احتياطية يدوية جديدة',
-            'available_backups': 'النسخ الاحتياطية المتاحة',
-            'loading_backups': 'جاري تحميل قائمة النسخ الاحتياطية...',
-            'no_backups_found': 'لم يتم العثور على نسخ احتياطية.',
-            'backup_name': 'اسم النسخة الاحتياطية',
-            'date_created': 'تاريخ الإنشاء',
-            'actions': 'الإجراءات',
-            'open': 'فتح',
-            'restore': 'استعادة',
-            'items': 'الأصناف',
-            'suppliers': 'الموردون',
-            'branches': 'الفروع',
-            'view_items': 'عرض الأصناف',
-            'add_item': 'إضافة صنف',
-            'view_suppliers': 'عرض الموردين',
-            'add_supplier': 'إضافة مورد',
-            'view_branches': 'عرض الفروع',
-            'add_branch': 'إضافة فرع',
-            'item_list': 'قائمة الأصناف',
-            'search_items_placeholder': 'البحث بالاسم أو الرمز...',
-            'export_to_excel': 'تصدير إلى إكسل',
-            'table_h_code': 'الرمز',
-            'table_h_name': 'الاسم',
-            'table_h_cost': 'التكلفة الافتراضية',
-            'table_h_actions': 'الإجراءات',
-            'no_items_found': 'لم يتم العثور على أصناف.',
-            'edit': 'تعديل',
-            'history': 'السجل',
-            'supplier_list': 'قائمة الموردين',
-            'search_suppliers_placeholder': 'البحث بالاسم أو الرمز...',
-            'table_h_balance': 'الرصيد (المستحق)',
-            'no_suppliers_found': 'لم يتم العثور على موردين.',
-            'branch_list': 'قائمة الفروع',
-            'search_branches_placeholder': 'البحث بالاسم أو الرمز...',
-            'no_branches_found': 'لم يتم العثور على فروع.',
-            'record_payment': 'تسجيل دفعة',
-            'step1_select_supplier': '1. اختر المورد',
-            'step2_select_invoices': '2. اختر فواتير للدفع',
-            'select_invoices_btn': 'اختر الفواتير...',
-            'step3_payment_method': '3. أدخل طريقة الدفع',
-            'payment_method_placeholder': 'مثل: نقد، تحويل بنكي',
-            'step4_confirm_amounts': '4. تأكيد المبالغ',
-            'table_h_invoice_no': 'رقم الفاتورة',
-            'table_h_balance_due': 'الرصيد المستحق',
-            'table_h_amount_to_pay': 'المبلغ للدفع',
-            'total_payment': 'إجمالي الدفعة:',
-            'submit_payment_btn': 'إرسال الدفعة',
-            'supplier_statement': 'كشف حساب مورد',
-            'select_a_supplier': 'اختر مورداً',
-            'generate': 'إنشاء',
-            'select_a_branch': 'اختر فرعاً',
-            'all_items': 'كل الأصناف',
-            'all_branches': 'كل الفروع',
-            'receive_stock': 'استلام مخزون',
-            'internal_transfer': 'تحويل داخلي',
-            'return_to_supplier': 'إرجاع للمورد',
-            'in_transit_report': 'تقرير الشحنات العابرة',
-            'adjustments': 'التسويات',
-            'pending_incoming_transfers': 'الشحنات الواردة المعلقة',
-            'table_h_date_sent': 'تاريخ الإرسال',
-            'table_h_from_branch': 'من الفرع',
-            'table_h_ref_no': 'رقم الإشارة',
-            'view_confirm': 'عرض/تأكيد',
-            'receive_stock_from_supplier': 'استلام مخزون من مورد',
-            'receive_against_po': 'استلام مقابل طلب شراء',
-            'optional': '(اختياري)',
-            'select_a_po': 'اختر طلب شراء',
-            'to_branch': 'إلى الفرع',
-            'notes_optional': 'ملاحظات (اختياري)',
-            'items_to_be_received': 'الأصناف المراد استلامها',
-            'table_h_quantity': 'الكمية',
-            'table_h_cost_per_unit': 'التكلفة/الوحدة',
-            'table_h_total': 'الإجمالي',
-            'grand_total': 'الإجمالي الكلي:',
-            'select_items': 'اختيار الأصناف',
-            'submit_for_approval': 'إرسال للموافقة',
-            'from_branch': 'من الفرع',
-            'send_stock_to_branch': 'إرسال مخزون لفرع آخر',
-            'transfer_ref_no': 'رقم إشارة التحويل',
-            'items_to_be_transferred': 'الأصناف المراد تحويلها',
-            'table_h_qty_to_transfer': 'الكمية للتحويل',
-            'total_items_to_transfer': 'إجمالي الأصناف للتحويل:',
-            'confirm_transfer_all': 'تأكيد وتحويل جميع الأصناف',
-            'credit_note_ref': 'رقم إشارة الإشعار الدائن',
-            'reason_for_return': 'سبب الإرجاع (اختياري)',
-            'items_to_return': 'الأصناف المراد إرجاعها',
-            'table_h_qty_to_return': 'كمية الإرجاع',
-            'total_return_value': 'إجمالي قيمة الإرجاع:',
-            'confirm_return_all': 'تأكيد وإرجاع جميع الأصناف',
-            'goods_in_transit_report': 'تقرير البضائع العابرة',
-            'table_h_to_branch': 'إلى الفرع',
-            'table_h_status': 'الحالة',
-            'stock_count_adjustment': 'تسوية جرد المخزون',
-            'reference': 'الإشارة',
-            'stocktake_example': 'مثال: جرد أبريل 2024',
-            'notes_reason': 'ملاحظات / السبب',
-            'items_to_adjust': 'الأصناف المراد تسويتها',
-            'table_h_system_qty': 'كمية النظام',
-            'table_h_physical_count': 'العد الفعلي',
-            'table_h_adjustment': 'التسوية',
-            'process_stock_adjustment': 'تنفيذ تسوية المخزون',
-            'supplier_opening_balance': 'تسوية الرصيد الافتتاحي للمورد',
-            'supplier_opening_balance_desc': 'استخدم هذا لتحديد المبلغ الأولي المستحق للمورد. يجب أن يتم ذلك مرة واحدة فقط لكل مورد عند الإعداد.',
-            'opening_balance_amount': 'الرصيد الافتتاحي (المبلغ المستحق)',
-            'set_opening_balance': 'تعيين الرصيد الافتتاحي',
-            'create_po': 'إنشاء طلب شراء',
-            'view_pos': 'عرض طلبات الشراء',
-            'pending_approval': 'قيد الموافقة',
-            'po_details': 'تفاصيل طلب الشراء',
-            'po_ref_no': 'رقم إشارة طلب الشراء',
-            'items_to_order': 'الأصناف المراد طلبها',
-            'po_list': 'قائمة طلبات الشراء',
-            'table_h_po_no': 'رقم طلب الشراء',
-            'table_h_date': 'التاريخ',
-            'table_h_total_value': 'القيمة الإجمالية',
-            'tx_pending_financial_approval': 'الحركات بانتظار الموافقة المالية',
-            'table_h_type': 'النوع',
-            'table_h_details': 'التفاصيل',
-            'table_h_amount': 'المبلغ',
-            'stock_by_item': 'المخزون حسب الصنف',
-            'stock_by_item_your_branch': 'المخزون حسب الصنف (فرعك)',
-            'stock_by_item_all_branches': 'المخزون حسب الصنف (جميع الفروع)',
-            'search_items_stock_placeholder': 'البحث باسم الصنف أو رمزه...',
-            'item_stock_inquiry': 'استعلام مخزون الصنف (التفصيلي)',
-            'item_stock_inquiry_placeholder': 'ابدأ بكتابة اسم الصنف أو رمزه...',
-            'no_stock_for_item': 'لا يوجد مخزون لهذا الصنف.',
-            'table_h_qty': 'الكمية',
-            'table_h_value': 'القيمة',
-            'transaction_log': 'سجل الحركات',
-            'all_types': 'كل الأنواع',
-            'search_tx_placeholder': 'البحث برقم الإشارة، رمز/اسم الصنف...',
-            'table_h_batch_ref': 'الدفعة/إشارة #',
-            'view_print': 'عرض/طباعة',
-            'users': 'المستخدمون',
-            'add_new_user': 'إضافة مستخدم جديد',
-            'table_h_fullname': 'الاسم الكامل',
-            'table_h_role': 'الدور',
-            'table_h_assigned_branch_section': 'الفرع المخصص',
-            'roles': 'الأدوار',
-            'add_new_role': 'إضافة دور جديد',
-            'table_h_rolename': 'اسم الدور',
-            'system_activity_log': 'سجل نشاط النظام',
-            'table_h_timestamp': 'الطابع الزمني',
-            'table_h_user': 'المستخدم',
-            'table_h_action': 'الإجراء',
-            'table_h_description': 'الوصف',
-            'select_items_modal_title': 'اختيار الأصناف',
-            'search_items_placeholder_modal': 'البحث في الأصناف...',
-            'confirm_selection': 'تأكيد الاختيار',
-            'cancel': 'إلغاء',
-            'select_invoices_modal_title': 'اختيار الفواتير للدفع',
-            'edit_modal_title': 'تعديل',
-            'save_changes': 'حفظ التغييرات',
-            'confirm_transfer_receipt_modal_title': 'تأكيد استلام التحويل',
-            'reject': 'رفض',
-            'confirm_receipt': 'تأكيد الاستلام',
-            'item_history_modal_title': 'سجل الصنف',
-            'price_history': 'سجل الأسعار',
-            'movement_history': 'سجل الحركة',
-            'close': 'إغلاق',
-            'edit_po_modal_title': 'تعديل طلب الشراء',
-            'restore_from_backup_modal_title': 'الاستعادة من النسخة الاحتياطية',
-            'restore_from_backup_desc': 'أنت على وشك استعادة البيانات من ملف النسخ الاحتياطي:',
-            'restore_step1': '1. اختر أوراق البيانات المراد استعادتها.',
-            'restore_step2': '2. تأكيد هذا الإجراء الذي لا رجعة فيه.',
-            'restore_danger_warning': 'خطر شديد:',
-            'restore_danger_text': 'سيؤدي هذا إلى حذف البيانات الحالية بشكل دائم في الأوراق الحية المحددة واستبدالها بالبيانات من النسخة الاحتياطية. لا يمكن التراجع عن هذا الإجراء.',
-            'restore_prompt': 'الرجاء كتابة RESTORE في المربع أدناه للمتابعة.',
-            'confirm_and_restore': 'تأكيد واستعادة البيانات',
-            'session_error_toast': 'خطأ في الجلسة. الرجاء تسجيل الخروج وتسجيل الدخول مرة أخرى.',
-            'action_failed_toast': 'فشل الإجراء: {errorMessage}',
-            'data_refreshed_toast': 'تم تحديث البيانات!',
-            'data_refresh_fail_toast': 'تعذر تحديث البيانات. الرجاء المحاولة مرة أخرى.',
-            'backup_created_toast': 'تم إنشاء النسخة الاحتياطية: {fileName}',
-            'backup_confirm_prompt': 'سيؤدي هذا إلى إنشاء نسخة احتياطية يدوية كاملة لجدول البيانات الحالي. هل تريد المتابعة؟',
-            'auto_backup_updated_toast': 'تم تحديث إعدادات النسخ الاحتياطي التلقائي!',
-            'auto_backup_failed_toast': 'فشل تحديث الإعدادات. الرجاء المحاولة مرة أخرى.',
-            'restore_select_sheet_toast': 'يجب تحديد ورقة واحدة على الأقل للاستعادة.',
-            'restore_completed_toast': 'اكتملت الاستعادة بنجاح!',
-            'restore_find_id_fail_toast': 'تعذر العثور على معرّف ملف النسخ الاحتياطي.',
-            'tx_processed_toast': 'تمت معالجة {txType}!',
-            'tx_processed_approval_toast': 'تمت معالجة {txType}! تم الإرسال للموافقة.',
-            'select_po_first_toast': 'يجب عليك اختيار طلب شراء لاستلام المخزون.',
-            'fill_required_fields_toast': 'الرجاء ملء جميع الحقول المطلوبة وإضافة الأصناف.',
-            'status_approved': 'موافق عليه',
-            'status_pending': 'قيد الانتظار',
-            'status_rejected': 'مرفوض',
-            'status_completed': 'مكتمل',
-            'status_in_transit': 'في العبور',
-            'status_cancelled': 'ملغي',
-            'po': 'طلب شراء',
-            'receive': 'استلام',
-            'transfer': 'تحويل',
-            'issue': 'صرف',
-            'return': 'إرجاع',
-            'stock_adjustment': 'تسوية مخزون',
-            'history_for': 'سجل: {itemName} ({itemCode})',
-            'edit_item': 'تعديل الصنف',
-            'edit_supplier': 'تعديل المورد',
-            'edit_branch': 'تعديل الفرع',
-            'edit_user': 'تعديل المستخدم',
-            'add_new_user_title': 'إضافة مستخدم جديد',
-            'edit_user_password_label': 'كلمة المرور / رمز الدخول (اتركه فارغاً للإبقاء على الحالي)',
-            'edit_user_password_label_new': 'كلمة المرور / رمز الدخول',
-            'toggle_user_enable': 'تفعيل المستخدم',
-            'toggle_user_disable': 'تعطيل المستخدم',
-            'toggle_user_enable_confirm': 'هل أنت متأكد من تفعيل هذا المستخدم؟ سيتمكن من تسجيل الدخول مرة أخرى.',
-            'toggle_user_disable_confirm': 'هل أنت متأكد من تعطيل هذا المستخدم؟ لن يتمكن من تسجيل الدخول.',
-            'user_enabled_toast': 'تم تفعيل المستخدم بنجاح!',
-            'user_disabled_toast': 'تم تعطيل المستخدم بنجاح!',
-            'edit_permissions_for': 'تعديل صلاحيات {roleName}',
-            'delete_role': 'حذف الدور',
-            'add_role_prompt': 'أدخل اسم الدور الجديد:',
-            'update_success_toast': 'تم تحديث {type} بنجاح!',
-            'add_success_toast': 'تم إضافة {type} بنجاح!',
-            'no_invoices_for_supplier': 'لم يتم العثور على فواتير لهذا المورد.',
-            'no_unpaid_invoices': 'لا توجد فواتير غير مدفوعة لهذا المورد.',
-            'invoice_modal_details': 'التاريخ: {date} | المبلغ المستحق: {balance} جنيه',
-            'no_items_selected_toast': 'لم يتم اختيار أصناف. انقر "اختيار الأصناف".',
-            'no_items_for_adjustment': 'لم يتم اختيار أصناف للتسوية.',
-            'report_period_all_time': 'لجميع الأوقات',
-            'report_period_from_to': 'من {startDate} إلى {endDate}',
-            'report_period_from': 'من {startDate}',
-            'report_period_until': 'حتى {endDate}',
-            'supplier_statement_title': 'كشف حساب المورد: {supplierName}',
-            'date_generated': 'تاريخ الإنشاء:',
-            'table_h_debit': 'مدين',
-            'table_h_credit': 'دائن',
-            'opening_balance_as_of': 'الرصيد الافتتاحي اعتباراً من {date}',
-            'closing_balance': 'الرصيد الختامي:',
-            'price_change_log': 'سجل تغيير الأسعار',
-            'table_h_old_cost': 'التكلفة القديمة',
-            'table_h_new_cost': 'التكلفة الجديدة',
-            'table_h_change': 'التغيير',
-            'table_h_source': 'المصدر',
-            'table_h_updated_by': 'تم التحديث بواسطة',
-            'no_price_history': 'لم يتم العثور على سجل للأسعار لهذا الصنف.',
-            'no_movements_found': 'لم يتم العثور على حركات للفلاتر المختارة.',
-            'table_h_qty_in': 'كمية داخلة',
-            'table_h_qty_out': 'كمية خارجة',
-            'movement_details_receive': 'من: {supplier} إلى: {branch}',
-            'movement_details_transfer_out': 'أرسلت من: {fromBranch} إلى: {toBranch}',
-            'movement_details_transfer_in': 'تم الاستلام في: {toBranch} من: {fromBranch}',
-            'movement_details_return': 'تم الإرجاع من: {branch} إلى: {supplier}',
-            'movement_details_adjustment': 'جرد مخزون في: {branch}',
-            'no_pending_financial_approval': 'لا توجد عناصر بانتظار الموافقة المالية.',
-            'approve': 'موافقة',
-            'approve_confirm_prompt': 'هل أنت متأكد من الموافقة على {type}؟',
-            'reject_confirm_prompt': 'هل أنت متأكد من رفض {type}؟ لا يمكن التراجع عن هذا الإجراء.',
-            'approved_toast': 'تمت الموافقة على {type} بنجاح!',
-            'rejected_toast': 'تم رفض {type} بنجاح!',
-            'extraction': 'استخلاص / تصنيع',
-            'is_sub_item': 'هذا صنف فرعي',
-            'parent_item': 'الصنف الرئيسي',
-            'select_parent_item': 'اختر الصنف الرئيسي',
-            'table_h_parent_item': 'الصنف الرئيسي',
-            'extraction_title': 'تنفيذ إنتاج / استخلاص',
-            'main_item_to_consume': 'الصنف الرئيسي المستهلك',
-            'quantity_to_consume': 'الكمية المستهلكة',
-            'sub_items_produced': 'الأصناف الفرعية المنتجة',
-            'enter_produced_quantity': 'أدخل الكمية المنتجة',
-            'confirm_extraction': 'تأكيد الاستخلاص',
-            'main_item_total': 'إجمالي الصنف الرئيسي',
-            'extraction_in': 'إدخال استخلاص',
-            'extraction_out': 'إخراج استخلاص',
-            'movement_details_extraction_out': 'تم الاستخلاص في: {branch}',
-            'movement_details_extraction_in': 'تم الإنتاج في: {branch}',
-            'enter_sub_item_quantities': 'أدخل كميات الأصناف الفرعية',
-            'add_to_transaction': 'إضافة إلى الحركة',
-            'total_sub_item_weight': 'إجمالي وزن الأصناف الفرعية',
-            'show_cuts': 'عرض الأجزاء',
-            'sales_data': 'بيانات المبيعات',
-            'sales_reconciliation': 'مطابقة المبيعات',
-            'sales_data_desc': 'قم برفع بيانات المبيعات اليومية لإنشاء تقرير بفروقات المخزون.',
-            'step1_download_template': '1. تحميل النموذج',
-            'download_template_desc': 'قم بتنزيل نموذج Excel الذي يحتوي على قائمة بجميع الأصناف. النموذج سيحتوي على عمود `branch`.',
-            'download_template_btn': 'تنزيل نموذج المبيعات',
-            'step2_upload_file': '2. رفع الملف المكتمل',
-            'upload_file_desc': 'قم برفع ملف Excel بعد تعبئته. يجب أن يحتوي على `itemCode` و `soldQty` ورموز الفروع كرؤوس أعمدة.',
-            'upload_btn': 'اختر ملف Excel',
-            'step3_generate_report': '3. إنشاء تقرير الفروقات',
-            'select_branch_for_report': 'اختر الفرع للتقرير',
-            'generate_discrepancy_report_btn': 'إنشاء التقرير',
-            'sales_discrepancy_report': 'تقرير فروقات المبيعات',
-            'table_h_system_stock': 'رصيد النظام',
-            'table_h_sold_qty': 'الكمية المباعة',
-            'table_h_expected_stock': 'الرصيد المتوقع',
-            'table_h_discrepancy': 'الفرق',
-            'file_upload_success': 'تم رفع الملف بنجاح! تم تحميل {rows} سطور من بيانات المبيعات.',
-            'file_upload_error': 'خطأ في قراءة الملف. تأكد من أنه ملف .xlsx صالح ويحتوي على itemCode ورموز الفروع كرؤوس أعمدة.',
-            'no_sales_data_uploaded': 'لم يتم رفع بيانات مبيعات بعد.',
-            'settle_stock': 'تسوية المخزون',
-            'settlement_confirm_title': 'تأكيد تسوية المخزون',
-            'settlement_confirm_text': 'أنت على وشك إجراء تسوية للمخزون بناءً على بيانات المبيعات التي تم تحميلها. سيؤدي هذا إلى إنشاء حركات تسوية لجميع الأصناف التي بها فروقات.',
-            'settlement_confirm_warning': 'لا يمكن التراجع عن هذا الإجراء.',
-            'settlement_complete': 'اكتملت تسوية المخزون بنجاح!',
-            'settlement_history': 'سجل التسويات',
-            'view_settlement': 'عرض التفاصيل',
         }
     };
 
@@ -1640,13 +1293,25 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (totalSubQty > 0) {
-            list.push({
-                itemCode: mainItem.code,
-                itemName: mainItem.name,
-                quantity: totalSubQty,
-                cost: mainItem.cost,
-                isMainItemPlaceholder: true 
-            });
+            // Check if the main item already exists as a placeholder (during editing maybe?)
+            const existingIndex = list.findIndex(i => i.itemCode === mainItem.code && i.isMainItemPlaceholder);
+            
+            if (existingIndex !== -1) {
+                 // Remove existing sub-items and update main placeholder (clean slate)
+                 list.splice(existingIndex + 1, list.length - existingIndex - 1);
+                 list[existingIndex].quantity = totalSubQty;
+            } else {
+                // Add new main placeholder
+                list.push({
+                    itemCode: mainItem.code,
+                    itemName: mainItem.name,
+                    quantity: totalSubQty,
+                    cost: mainItem.cost,
+                    isMainItemPlaceholder: true 
+                });
+            }
+            
+            // Add new sub-items
             list.push(...subItemsToAdd);
             renderer();
         }
@@ -1734,33 +1399,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 1. Preprocess: Create grouped structure for rendering order
         const groupedList = {};
+        
+        // Use a standard array iterator for direct list iteration
         list.forEach((item, index) => {
             const itemDetails = findByKey(state.items, 'code', item.itemCode);
+            
             if (itemDetails && itemDetails.ParentItemCode) {
+                // This is a sub-item. Find its main placeholder.
                 const parentCode = itemDetails.ParentItemCode;
                 if (!groupedList[parentCode]) {
-                    // Find or create a group for the parent
                     const parentPlaceholder = list.find(p => p.itemCode === parentCode && p.isMainItemPlaceholder);
                     if (parentPlaceholder) {
-                        groupedList[parentCode] = { parent: parentPlaceholder, children: [] };
+                        groupedList[parentCode] = { 
+                            parent: parentPlaceholder, 
+                            parentIndex: list.indexOf(parentPlaceholder),
+                            children: [] 
+                        };
                     } else {
-                        // Handle standalone sub-items if they somehow bypass the grouping process
-                        groupedList[item.itemCode] = { parent: item, children: [] };
+                        // Treat as a standalone item if parent placeholder doesn't exist (e.g., POs don't group sub items)
+                        if (!groupedList[item.itemCode]) groupedList[item.itemCode] = { parent: item, parentIndex: index, children: [] };
                     }
                 }
                 if (groupedList[parentCode] && groupedList[parentCode].parent !== item) {
                     groupedList[parentCode].children.push({ item, index });
                 }
             } else {
+                // This is a Main Item or Standalone Item (or the placeholder)
                 if (!groupedList[item.itemCode]) {
-                    groupedList[item.itemCode] = { parent: item, children: [] };
+                    groupedList[item.itemCode] = { parent: item, parentIndex: index, children: [] };
                 }
             }
         });
+        
+        // Ensure consistent order by original index if possible (crucial for accurate index mapping)
+        const sortedGroups = Object.values(groupedList).sort((a, b) => a.parentIndex - b.parentIndex);
 
         // 2. Render rows
-        Object.values(groupedList).forEach(group => {
+        sortedGroups.forEach(group => {
             const parentItem = group.parent;
+            const parentIndex = group.parentIndex;
             const isMainPlaceholder = parentItem.isMainItemPlaceholder;
             
             let totalSubItemWeight = 0;
@@ -1776,9 +1453,11 @@ document.addEventListener('DOMContentLoaded', () => {
             let cellsHtml = '';
             let currentItem = parentItem;
             
-            // If it's a placeholder, update its quantity for displaying the aggregate total
+            // If it's a placeholder, update its quantity (in the transient DOM object) 
+            // This is vital for the calculated cost column in this render pass.
             if (isMainPlaceholder) {
-                // Ensure the quantity field of the parent placeholder reflects the sum of children
+                // NOTE: We only update the quantity for display here. The actual state update happens
+                // in handleTableInputUpdate when a sub-item changes, triggering this re-render.
                 currentItem.quantity = totalSubItemWeight;
             }
 
@@ -1790,30 +1469,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     case 'text': content = currentItem[col.key]; break;
                     case 'number_input':
                         const readOnlyAttr = isMainPlaceholder ? 'readonly' : '';
-                        const valueDisplay = isMainPlaceholder ? currentItem[col.key].toFixed(2) : (currentItem[col.key] || '');
+                        const valueDisplay = isMainPlaceholder ? totalSubItemWeight.toFixed(2) : (currentItem[col.key] || '');
 
-                        content = `<input type="number" class="table-input" value="${valueDisplay}" min="${col.min || 0.01}" ${col.maxKey ? `max="${(stock[branchCode]?.[currentItem.itemCode]?.quantity || 0)}"` : ''} step="0.01" data-index="${list.indexOf(currentItem)}" data-field="${col.key}" ${readOnlyAttr}>`;
+                        // IMPORTANT: For main item placeholders, the input box MUST use the aggregated weight for display
+                        content = `<input type="number" class="table-input" value="${valueDisplay}" min="${col.min || 0.01}" ${col.maxKey ? `max="${(stock[branchCode]?.[currentItem.itemCode]?.quantity || 0)}"` : ''} step="0.01" data-index="${parentIndex}" data-field="${col.key}" ${readOnlyAttr}>`;
                         break;
                     case 'cost_input':
-                        if (isMainPlaceholder && totalSubItemWeight > 0) {
-                            // Only allow cost input on the main item placeholder if it holds the aggregated value
-                            content = `<input type="number" class="table-input" value="${(parseFloat(finalCost) || 0).toFixed(2)}" min="0" step="0.01" data-index="${list.indexOf(currentItem)}" data-field="cost">`;
-                        } else if (isMainPlaceholder) {
-                             content = (parseFloat(finalCost) || 0).toFixed(2); // If no sub items, just show the cost
+                        if (isMainPlaceholder) {
+                            // Only allow cost input on the main item placeholder
+                            content = `<input type="number" class="table-input" value="${(parseFloat(finalCost) || 0).toFixed(2)}" min="0" step="0.01" data-index="${parentIndex}" data-field="cost">`;
                         } else {
                             // Standard standalone item cost input
-                            content = `<input type="number" class="table-input" value="${(parseFloat(finalCost) || 0).toFixed(2)}" min="0" step="0.01" data-index="${list.indexOf(currentItem)}" data-field="cost">`;
+                            content = `<input type="number" class="table-input" value="${(parseFloat(finalCost) || 0).toFixed(2)}" min="0" step="0.01" data-index="${parentIndex}" data-field="cost">`;
                         }
                         break;
                     case 'calculated': 
-                        content = `<span>${((parseFloat(currentItem.quantity) || 0) * (parseFloat(finalCost) || 0)).toFixed(2)} EGP</span>`;
+                        // Cost calculation MUST use the aggregated/current quantity and the input cost
+                        const calculatedValue = ((parseFloat(currentItem.quantity) || 0) * (parseFloat(finalCost) || 0));
+                        content = `<span>${calculatedValue.toFixed(2)} EGP</span>`;
                         break;
                     case 'available_stock': content = (stock[branchCode]?.[currentItem.itemCode]?.quantity || 0).toFixed(2); break;
                 }
                 cellsHtml += `<td>${content}</td>`;
             });
             
-            cellsHtml += `<td>${!isMainPlaceholder ? `<button class="danger small" data-index="${list.indexOf(parentItem)}">X</button>` : '---'}</td>`;
+            // Action column: Remove button should not be present on main item placeholders
+            cellsHtml += `<td>${!isMainPlaceholder ? `<button class="danger small" data-index="${parentIndex}">X</button>` : '---'}</td>`;
             tr.innerHTML = cellsHtml;
             tbody.appendChild(tr);
 
@@ -1833,7 +1514,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         case 'number_input': 
                             const subAvailableStock = (branchCode && stock[branchCode]?.[subItem.itemCode]?.quantity || 0);
                             
-                            // Sub item inputs are read/write, but constraints apply
+                            // Input quantity reflects the sub-item's individual quantity
                             subContent = `<input type="number" class="table-input" value="${subItem[col.key] || ''}" min="${col.min || 0}" step="0.01" data-index="${subIndex}" data-field="${col.key}" ${col.maxKey ? `max="${subAvailableStock}"` : ''}>`;
                             break;
                         case 'cost_input': 
@@ -2247,7 +1928,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // Helper for document generation to group items
-   // Helper for document generation to group items
     function generateGroupedItemsHtml(data, headers) {
         let itemsHtml = '';
         const groupedItems = {};
@@ -3818,6 +3498,12 @@ setupInputTableListeners('table-adjustment-list', 'currentAdjustmentList', rende
 
                 state.uploadedSalesData = jsonData;
                 showToast(_t('file_upload_success', { rows: jsonData.length }), 'success');
+                
+                // CRITICAL FIX FOR SALES REPORT BRANCH DATA: 
+                // We need to trigger the report logic to detect branches based on the uploaded keys
+                // If the report generation relies on detecting 'BR-' prefixes, ensure the user input matches.
+                // Since our system uses BR-XX codes, we warn if the file headers don't look right.
+
             } catch (err) {
                 showToast(_t('file_upload_error'), 'error');
                 Logger.error(err);
@@ -3836,26 +3522,36 @@ setupInputTableListeners('table-adjustment-list', 'currentAdjustmentList', rende
         }
         
         const stock = calculateStockLevels();
-        const branchCodesInFile = Object.keys(state.uploadedSalesData[0]).filter(key => key.startsWith('BR-'));
         
+        // CRITICAL FIX: Identify branch columns in the uploaded file using known branch codes
+        const headers = Object.keys(state.uploadedSalesData[0]);
+        const systemBranchCodes = state.branches.map(b => b.branchCode);
+        
+        // Find which uploaded headers match actual branch codes
+        const branchCodesInFile = headers.filter(key => systemBranchCodes.includes(key));
+        
+        if (branchCodesInFile.length === 0) {
+             resultsContainer.innerHTML = `<p class="login-error">Error: Sales file headers (columns) must match system Branch Codes (e.g., BR-001). No valid branch columns found in the uploaded file.</p>`;
+             exportBtn.disabled = true;
+             return;
+        }
+
         let finalHtml = '';
         state.salesReportDataByBranch = {};
 
         branchCodesInFile.forEach(branchCode => {
             const branch = findByKey(state.branches, 'branchCode', branchCode);
-            if (!branch) {
-                Logger.warn(`Skipping sales report for unknown branch code in file: ${branchCode}`);
-                return;
-            }
+            if (!branch) return; // Should be handled by the filter above, but safety check
 
             const branchStock = stock[branchCode] || {};
             
             const reportData = state.items.map(item => {
                 const systemStock = branchStock[item.code]?.quantity || 0;
                 const salesRow = state.uploadedSalesData.find(s => String(s.itemCode) === String(item.code));
+                // Extract soldQty using the precise header key (which is the branchCode)
                 const soldQty = salesRow && salesRow[branchCode] ? (parseFloat(salesRow[branchCode]) || 0) : 0;
                 const expectedStock = systemStock - soldQty;
-                return { code: item.code, name: item.name, systemStock, soldQty, expectedStock, discrepancy: 0 };
+                return { code: item.code, name: item.name, systemStock, soldQty, expectedStock, discrepancy: expectedStock };
             });
 
             state.salesReportDataByBranch[branchCode] = reportData;
@@ -3863,14 +3559,16 @@ setupInputTableListeners('table-adjustment-list', 'currentAdjustmentList', rende
             let tableHtml = `<table id="table-sales-discrepancy-${branchCode}">
                 <thead><tr>
                     <th>${_t('item_code')}</th><th>${_t('item_name')}</th><th>${_t('table_h_system_stock')}</th>
-                    <th>${_t('table_h_sold_qty')}</th><th>${_t('table_h_expected_stock')}</th>
+                    <th>${_t('table_h_sold_qty')}</th><th>${_t('table_h_expected_stock')}</th><th>${_t('table_h_discrepancy')}</th>
                 </tr></thead><tbody>`;
 
             reportData.forEach(row => {
-                 if (row.systemStock > 0 || row.soldQty > 0) {
-                    tableHtml += `<tr>
+                 // Only show rows with stock or sales activity
+                 if (row.systemStock > 0 || row.soldQty > 0 || row.discrepancy !== 0) {
+                    const discrepancyClass = row.discrepancy !== 0 ? 'status-rejected' : '';
+                    tableHtml += `<tr class="${discrepancyClass}">
                         <td>${row.code}</td><td>${row.name}</td><td>${row.systemStock.toFixed(2)}</td>
-                        <td>${row.soldQty.toFixed(2)}</td><td>${row.expectedStock.toFixed(2)}</td>
+                        <td>${row.soldQty.toFixed(2)}</td><td>${row.expectedStock.toFixed(2)}</td><td>${row.discrepancy.toFixed(2)}</td>
                     </tr>`;
                  }
             });
