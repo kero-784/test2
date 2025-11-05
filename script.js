@@ -386,7 +386,7 @@ document.addEventListener('DOMContentLoaded', () => {
             'download_template_desc': 'Download the Excel template with a list of all your items. The template will include a `branch` column.',
             'download_template_btn': 'Download Sales Template',
             'step2_upload_file': '2. Upload Completed File',
-            'upload_file_desc': 'Upload the filled-out Excel file. It must contain `itemCode`, `soldQty`, and `branch` columns.',
+            'upload_file_desc': 'Upload the filled-out Excel file. It must contain `itemCode`, `soldQty`, and branch codes as headers.',
             'upload_btn': 'Choose Excel File',
             'step3_generate_report': '3. Generate Discrepancy Report',
             'select_branch_for_report': 'Select Branch for Report',
@@ -397,7 +397,7 @@ document.addEventListener('DOMContentLoaded', () => {
             'table_h_expected_stock': 'Expected Stock',
             'table_h_discrepancy': 'Discrepancy',
             'file_upload_success': 'File uploaded successfully! {rows} rows of sales data loaded.',
-            'file_upload_error': 'Error reading file. Make sure it is a valid .xlsx file with itemCode, soldQty, and branch columns.',
+            'file_upload_error': 'Error reading file. Make sure it is a valid .xlsx file with itemCode and branch codes as headers.',
             'no_sales_data_uploaded': 'No sales data has been uploaded yet.',
             'settle_stock': 'Settle Stock',
             'settlement_confirm_title': 'Confirm Stock Settlement',
@@ -454,7 +454,7 @@ document.addEventListener('DOMContentLoaded', () => {
             'download_template_desc': 'قم بتنزيل نموذج Excel الذي يحتوي على قائمة بجميع الأصناف. النموذج سيحتوي على عمود `branch`.',
             'download_template_btn': 'تنزيل نموذج المبيعات',
             'step2_upload_file': '2. رفع الملف المكتمل',
-            'upload_file_desc': 'قم برفع ملف Excel بعد تعبئته. يجب أن يحتوي على أعمدة `itemCode` و `soldQty` و `branch`.',
+            'upload_file_desc': 'قم برفع ملف Excel بعد تعبئته. يجب أن يحتوي على `itemCode` و `soldQty` ورموز الفروع كرؤوس أعمدة.',
             'upload_btn': 'اختر ملف Excel',
             'step3_generate_report': '3. إنشاء تقرير الفروقات',
             'select_branch_for_report': 'اختر الفرع للتقرير',
@@ -465,7 +465,7 @@ document.addEventListener('DOMContentLoaded', () => {
             'table_h_expected_stock': 'الرصيد المتوقع',
             'table_h_discrepancy': 'الفرق',
             'file_upload_success': 'تم رفع الملف بنجاح! تم تحميل {rows} سطور من بيانات المبيعات.',
-            'file_upload_error': 'خطأ في قراءة الملف. تأكد من أنه ملف .xlsx صالح ويحتوي على أعمدة itemCode و soldQty و branch.',
+            'file_upload_error': 'خطأ في قراءة الملف. تأكد من أنه ملف .xlsx صالح ويحتوي على itemCode ورموز الفروع كرؤوس أعمدة.',
             'no_sales_data_uploaded': 'لم يتم رفع بيانات مبيعات بعد.',
             'settle_stock': 'تسوية المخزون',
             'settlement_confirm_title': 'تأكيد تسوية المخزون',
@@ -1525,11 +1525,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function renderItemCentricStockView(itemsToRender = state.items) {
+    function renderItemCentricStockView(itemsToRender = state.items, selectedBranches = []) {
         const container = document.getElementById('item-centric-stock-container');
         if (!container) return;
         const stockByBranch = calculateStockLevels();
-        const branchesToDisplay = getVisibleBranchesForCurrentUser();
+        
+        let branchesToDisplay = getVisibleBranchesForCurrentUser();
+        if (selectedBranches.length > 0 && userCan('viewAllBranches')) {
+            branchesToDisplay = state.branches.filter(b => selectedBranches.includes(b.branchCode));
+        }
     
         const itemsWithChildren = {};
         itemsToRender.forEach(item => {
@@ -1541,7 +1545,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     
-        let tableHTML = `<table id="table-stock-levels-by-item"><thead><tr><th>${_t('table_h_name')}</th>`;
+        let tableHTML = `<table id="table-stock-levels-by-item"><thead><tr><th>${_t('table_h_code')}</th><th>${_t('table_h_name')}</th>`;
         branchesToDisplay.forEach(b => { tableHTML += `<th>${b.branchName}</th>` });
         tableHTML += `<th>${_t('table_h_total')}</th></tr></thead><tbody>`;
     
@@ -1549,13 +1553,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
         itemsToRender.forEach(item => {
             if (renderedItems.has(item.code)) return;
-    
             if (!item.ParentItemCode) {
-                // This is a main item or a standalone item
                 tableHTML += renderStockRow(item, false);
                 renderedItems.add(item.code);
-    
-                // If it has children, render them now
                 if (itemsWithChildren[item.code]) {
                     itemsWithChildren[item.code].forEach(child => {
                         tableHTML += renderStockRow(child, true);
@@ -1566,7 +1566,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     
         function renderStockRow(item, isSubItem) {
-            let rowHtml = `<tr class="${isSubItem ? 'sub-item-row' : ''}"><td>${item.name} (${item.code})</td>`;
+            let rowHtml = `<tr class="${isSubItem ? 'sub-item-row' : ''}"><td>${item.code}</td><td>${item.name}</td>`;
             let total = 0;
             branchesToDisplay.forEach(branch => {
                 const qty = stockByBranch[branch.branchCode]?.[item.code]?.quantity || 0;
@@ -1580,6 +1580,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tableHTML += `</tbody></table>`;
         container.innerHTML = tableHTML;
     }
+
 
     function renderItemInquiry(searchTerm) {
         const resultsContainer = document.getElementById('item-inquiry-results');
@@ -2378,6 +2379,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 break;
             case 'stock-levels':
                 document.getElementById('stock-levels-title').textContent = userCan('viewAllBranches') ? _t('stock_by_item_all_branches') : _t('stock_by_item_your_branch');
+                 const branchFilterContainer = document.getElementById('stock-levels-branch-filter-container');
+                if (userCan('viewAllBranches') && !state.currentUser.AssignedBranchCode) {
+                    branchFilterContainer.style.display = 'block';
+                    const select = document.getElementById('stock-levels-branch-filter');
+                    select.innerHTML = '';
+                    state.branches.forEach(branch => {
+                        select.innerHTML += `<option value="${branch.branchCode}">${branch.branchName}</option>`;
+                    });
+                } else {
+                    branchFilterContainer.style.display = 'none';
+                }
                 renderItemCentricStockView();
                 document.getElementById('item-inquiry-search').value = ''; renderItemInquiry('');
                 document.getElementById('stock-levels-search').value = '';
@@ -2581,7 +2593,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    function setupSearch(inputId, renderFn, dataKey, searchKeys) { const searchInput = document.getElementById(inputId); if (!searchInput) return; searchInput.addEventListener('input', e => { const searchTerm = e.target.value.toLowerCase(); const dataToFilter = state[dataKey] || []; renderFn(searchTerm ? dataToFilter.filter(item => searchKeys.some(key => item[key] && String(item[key]).toLowerCase().includes(searchTerm))) : dataToFilter); }); }
+    function setupSearch(inputId, renderFn, dataKey, searchKeys) {
+        const searchInput = document.getElementById(inputId);
+        if (!searchInput) return;
+        searchInput.addEventListener('input', e => {
+            const searchTerm = e.target.value.toLowerCase();
+            const dataToFilter = state[dataKey] || [];
+            if (inputId === 'stock-levels-search') {
+                const selectedBranches = Array.from(document.getElementById('stock-levels-branch-filter').selectedOptions).map(opt => opt.value);
+                renderFn(searchTerm ? dataToFilter.filter(item => searchKeys.some(key => item[key] && String(item[key]).toLowerCase().includes(searchTerm))) : dataToFilter, selectedBranches);
+            } else {
+                 renderFn(searchTerm ? dataToFilter.filter(item => searchKeys.some(key => item[key] && String(item[key]).toLowerCase().includes(searchTerm))) : dataToFilter);
+            }
+        });
+    }
     
     function attachSubNavListeners() { document.querySelectorAll('.sub-nav').forEach(nav => { if(nav.closest('#history-modal')) return; nav.addEventListener('click', e => { if (!e.target.classList.contains('sub-nav-item')) return; const subviewId = e.target.dataset.subview; const parentView = e.target.closest('.view'); if (!parentView) return; const currentActive = parentView.querySelector('.sub-nav-item.active'); if(currentActive) currentActive.classList.remove('active'); e.target.classList.add('active'); parentView.querySelectorAll('.sub-view').forEach(view => view.classList.remove('active')); const subViewToShow = parentView.querySelector(`#subview-${subviewId}`); if (subViewToShow) subViewToShow.classList.add('active'); refreshViewData(parentView.id.replace('view-','')); }); }); }
     
@@ -2820,8 +2845,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const setupInputTableListeners = (tableId, listName, rendererFn) => {
             const table = document.getElementById(tableId);
             if (!table) return;
-            table.addEventListener('change', e => handleTableInputUpdate(e, listName, rendererFn));
-            table.addEventListener('click', e => handleTableRemove(e, listName, rendererFn));
+            table.addEventListener('input', e => handleTableInputUpdate(e, listName, rendererFn));
+            table.addEventListener('click', e => {
+                 if (e.target.classList.contains('table-input')) {
+                    e.target.select();
+                }
+                handleTableRemove(e, listName, rendererFn)
+            });
         };
 
         setupInputTableListeners('table-receive-list', 'currentReceiveList', renderReceiveListTable);
@@ -2951,6 +2981,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         document.getElementById('btn-submit-extraction').addEventListener('click', handleExtractionSubmit);
+        document.getElementById('stock-levels-branch-filter').addEventListener('change', () => {
+             const searchTerm = document.getElementById('stock-levels-search').value.toLowerCase();
+             const selectedBranches = Array.from(document.getElementById('stock-levels-branch-filter').selectedOptions).map(opt => opt.value);
+             const dataToFilter = state.items || [];
+             renderItemCentricStockView(searchTerm ? dataToFilter.filter(item => ['name', 'code'].some(key => item[key] && String(item[key]).toLowerCase().includes(searchTerm))) : dataToFilter, selectedBranches);
+        });
 
         // Sales Reconciliation Listeners
         document.getElementById('btn-download-sales-template').addEventListener('click', downloadSalesTemplate);
@@ -3300,12 +3336,22 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- NEW SALES RECONCILIATION & SETTLEMENT LOGIC ---
     function downloadSalesTemplate() {
-        const templateData = state.items.map(item => ({
-            itemCode: item.code,
-            itemName: item.name,
-            branch: '',
-            soldQty: ''
-        }));
+        const header = { itemCode: "itemCode", itemName: "itemName" };
+        state.branches.forEach(b => {
+            header[b.branchCode] = ''; // Using branch code as header key, value is empty for template
+        });
+    
+        const templateData = state.items.map(item => {
+            const row = {
+                itemCode: item.code,
+                itemName: item.name
+            };
+            state.branches.forEach(b => {
+                row[b.branchCode] = ''; // Initialize with empty string
+            });
+            return row;
+        });
+    
         const ws = XLSX.utils.json_to_sheet(templateData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "SalesData");
@@ -3315,7 +3361,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleSalesFileUpload(event) {
         const file = event.target.files[0];
         if (!file) return;
-
         const reader = new FileReader();
         reader.onload = function(e) {
             try {
@@ -3323,13 +3368,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const workbook = XLSX.read(data, { type: 'array' });
                 const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
                 const jsonData = XLSX.utils.sheet_to_json(firstSheet);
-                
-                if (!jsonData[0] || !jsonData[0].hasOwnProperty('itemCode') || !jsonData[0].hasOwnProperty('soldQty') || !jsonData[0].hasOwnProperty('branch')) {
-                    throw new Error("Invalid format");
+
+                if (!jsonData[0] || !jsonData[0].hasOwnProperty('itemCode')) {
+                    throw new Error("Invalid format: 'itemCode' column missing.");
                 }
-                
-                state.uploadedSalesData = jsonData.filter(row => row.itemCode && typeof row.soldQty === 'number' && row.branch);
-                showToast(_t('file_upload_success', {rows: state.uploadedSalesData.length }), 'success');
+
+                state.uploadedSalesData = jsonData;
+                showToast(_t('file_upload_success', { rows: jsonData.length }), 'success');
             } catch (err) {
                 showToast(_t('file_upload_error'), 'error');
                 Logger.error(err);
@@ -3346,32 +3391,26 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast(_t('no_sales_data_uploaded'), 'error');
             return;
         }
-        
+
         const stock = calculateStockLevels();
-        const salesByBranch = state.uploadedSalesData.reduce((acc, row) => {
-            const branchCode = String(row.branch).trim();
-            if (!acc[branchCode]) acc[branchCode] = [];
-            acc[branchCode].push(row);
-            return acc;
-        }, {});
-
+        const branchCodesInFile = Object.keys(state.uploadedSalesData[0]).filter(key => key.startsWith('BR-'));
+        
         let finalHtml = '';
-        state.salesReportDataByBranch = {}; // Clear previous report data
+        state.salesReportDataByBranch = {};
 
-        for (const branchCode in salesByBranch) {
+        branchCodesInFile.forEach(branchCode => {
             const branch = findByKey(state.branches, 'branchCode', branchCode);
             if (!branch) {
-                Logger.warn(`Skipping sales report for unknown branch code: ${branchCode}`);
-                continue;
+                Logger.warn(`Skipping sales report for unknown branch code in file: ${branchCode}`);
+                return;
             }
 
             const branchStock = stock[branchCode] || {};
-            const branchSales = salesByBranch[branchCode];
-
+            
             const reportData = state.items.map(item => {
                 const systemStock = branchStock[item.code]?.quantity || 0;
-                const soldEntry = branchSales.find(s => String(s.itemCode) === String(item.code));
-                const soldQty = soldEntry ? (parseFloat(soldEntry.soldQty) || 0) : 0;
+                const salesRow = state.uploadedSalesData.find(s => String(s.itemCode) === String(item.code));
+                const soldQty = salesRow && salesRow[branchCode] ? (parseFloat(salesRow[branchCode]) || 0) : 0;
                 const expectedStock = systemStock - soldQty;
                 return { code: item.code, name: item.name, systemStock, soldQty, expectedStock, discrepancy: 0 };
             });
@@ -3385,7 +3424,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </tr></thead><tbody>`;
 
             reportData.forEach(row => {
-                 if (row.systemStock > 0 || row.soldQty > 0) { // Only show relevant items
+                 if (row.systemStock > 0 || row.soldQty > 0) {
                     tableHtml += `<tr>
                         <td>${row.code}</td><td>${row.name}</td><td>${row.systemStock.toFixed(2)}</td>
                         <td>${row.soldQty.toFixed(2)}</td><td>${row.expectedStock.toFixed(2)}</td>
@@ -3404,20 +3443,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button class="danger btn-settle-stock" data-branch-code="${branchCode}">${_t('settle_stock')} for ${branch.branchName}</button>
                 </div>
             </div>`;
-        }
+        });
         
         resultsContainer.innerHTML = finalHtml || `<p>No valid branch data found in the uploaded file.</p>`;
         resultsContainer.style.display = 'block';
         exportBtn.disabled = finalHtml === '';
     }
 
-
     function openSettlementModal(reportData, branchCode) {
         document.getElementById('settlement-notes').value = '';
         settlementConfirmModal.classList.add('active');
         const confirmBtn = document.getElementById('btn-confirm-settlement');
         
-        const newConfirmBtn = confirmBtn.cloneNode(true); // Clone to remove old event listeners
+        const newConfirmBtn = confirmBtn.cloneNode(true);
         confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
 
         newConfirmBtn.onclick = () => {
@@ -3428,6 +3466,8 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleConfirmSettlement(reportData, branchCode) {
         const btn = document.getElementById('btn-confirm-settlement');
         const notes = document.getElementById('settlement-notes').value;
+        const settlementId = `SET-${Date.now()}`;
+        const today = new Date().toISOString();
 
         const reportDataWithCost = reportData.map(item => {
             const masterItem = findByKey(state.items, 'code', item.code);
@@ -3437,14 +3477,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const payload = {
             branchCode,
             notes,
+            settlementId,
             reportData: reportDataWithCost
         };
 
         const result = await postData('performSettlement', payload, btn);
-        if (result) {
+        if (result && result.data.newTransactions) {
+            // CRITICAL FIX: Add new transactions to local state for immediate recalculation
+            state.transactions.push(...result.data.newTransactions);
+            state.settlements.push(result.data.settlementRecord);
+            result.data.settlementItems.forEach(si => state.settlementItems.push(si));
+            
             showToast(_t('settlement_complete'), 'success');
             closeModal();
-            reloadDataAndRefreshUI();
+            // Refresh the current view to show updated stock
+            const currentView = document.querySelector('.nav-item a.active')?.dataset.view || 'dashboard';
+            refreshViewData(currentView); 
         }
     }
 
