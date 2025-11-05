@@ -12,7 +12,7 @@ window.printReport = function(elementId) {
 
 document.addEventListener('DOMContentLoaded', () => {
     // !!! IMPORTANT: PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwofWXwVlKhHJodcCdJXiX7NE990LevSmSIDb8hZrha3d1BvPRpH1ial6aiLnrzaXIa/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw5wDWNs-LVeK9yCABQU3DcqYYGrruZQR5YYEhfoPJw3VBs_z805eDoOTh-pcJzqdwn/exec';
 
     const Logger = {
         info: (message, ...args) => console.log(`[StockWise INFO] ${message}`, ...args),
@@ -39,6 +39,8 @@ document.addEventListener('DOMContentLoaded', () => {
         purchaseOrders: [],
         purchaseOrderItems: [],
         activityLog: [],
+        settlements: [],
+        settlementItems: [],
         currentReceiveList: [],
         currentTransferList: [],
         currentPOList: [],
@@ -396,6 +398,13 @@ document.addEventListener('DOMContentLoaded', () => {
             'file_upload_success': 'File uploaded successfully! {rows} rows of sales data loaded.',
             'file_upload_error': 'Error reading file. Make sure it is a valid .xlsx file with itemCode and soldQty columns.',
             'no_sales_data_uploaded': 'No sales data has been uploaded yet.',
+            'settle_stock': 'Settle Stock',
+            'settlement_confirm_title': 'Confirm Stock Settlement',
+            'settlement_confirm_text': 'You are about to perform a stock settlement based on the uploaded sales data. This will create adjustment transactions for all items with a discrepancy.',
+            'settlement_confirm_warning': 'This action cannot be undone.',
+            'settlement_complete': 'Stock settlement completed successfully!',
+            'settlement_history': 'Settlement History',
+            'view_settlement': 'View Details',
         },
         'ar': {
             'packing_stock': 'مخزون التعبئة',
@@ -457,6 +466,13 @@ document.addEventListener('DOMContentLoaded', () => {
             'file_upload_success': 'تم رفع الملف بنجاح! تم تحميل {rows} سطور من بيانات المبيعات.',
             'file_upload_error': 'خطأ في قراءة الملف. تأكد من أنه ملف .xlsx صالح ويحتوي على أعمدة itemCode و soldQty.',
             'no_sales_data_uploaded': 'لم يتم رفع بيانات مبيعات بعد.',
+            'settle_stock': 'تسوية المخزون',
+            'settlement_confirm_title': 'تأكيد تسوية المخزون',
+            'settlement_confirm_text': 'أنت على وشك إجراء تسوية للمخزون بناءً على بيانات المبيعات التي تم تحميلها. سيؤدي هذا إلى إنشاء حركات تسوية لجميع الأصناف التي بها فروقات.',
+            'settlement_confirm_warning': 'لا يمكن التراجع عن هذا الإجراء.',
+            'settlement_complete': 'اكتملت تسوية المخزون بنجاح!',
+            'settlement_history': 'سجل التسويات',
+            'view_settlement': 'عرض التفاصيل',
         }
     };
 
@@ -508,6 +524,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const historyModal = document.getElementById('history-modal');
     const editPOModal = document.getElementById('edit-po-modal');
     const subItemEntryModal = document.getElementById('sub-item-entry-modal');
+    const settlementConfirmModal = document.getElementById('settlement-confirm-modal');
     
     const modalItemList = document.getElementById('modal-item-list');
     const modalSearchInput = document.getElementById('modal-search-items');
@@ -605,8 +622,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setButtonLoading(false, buttonEl);
         }
     }
-
-// PART 2 OF 4: MODAL & UI LOGIC
+    // PART 2 OF 4: MODAL & UI LOGIC
     function showView(viewId, subViewId = null) {
         Logger.info(`Switching view to: ${viewId}` + (subViewId ? `/${subViewId}` : ''));
         
@@ -1180,7 +1196,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const hasSubItems = state.items.some(sub => sub.ParentItemCode === item.code);
             return item && !item.ParentItemCode && hasSubItems;
         });
-
+        
         // For POs, all selected items (which are only main items) are treated as regular items.
         if (modalContext === 'po') {
             addRegularItemsToList(selectedCodes);
@@ -1448,7 +1464,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const fromBranch = document.getElementById(col.branchSelectId)?.value;
                 const availableStock = (stock[fromBranch]?.[item.itemCode]?.quantity || 0);
                 
-                // *** FIX: Hide cost and total for sub-items ***
                 const isSub = itemDetails?.ParentItemCode;
                 let finalCost = item.cost;
                 if (isSub) {
@@ -1909,6 +1924,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             case 'code': itemsHtml += `<td>${item.itemCode}</td>`; break;
                             case 'name': itemsHtml += `<td>${item.itemName || fullItem.name}</td>`; break;
                             case 'qty': itemsHtml += `<td>${(item.quantity || 0).toFixed(2)}</td>`; break;
+                            case 'unit': itemsHtml += `<td>KG</td>`; break;
                             case 'cost': itemsHtml += `<td>---</td>`; break;
                             case 'total': itemsHtml += `<td>---</td>`; break;
                         }
@@ -1941,12 +1957,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const generatePaymentVoucher = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; let invoicesHtml = ''; data.payments.forEach(p => { invoicesHtml += `<tr><td>${p.invoiceNumber}</td><td>${p.amount.toFixed(2)} EGP</td></tr>`; }); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>Payment Voucher</h2><p><strong>Voucher ID:</strong> ${data.payments[0].paymentId}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><hr><p><strong>Paid To:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><p><strong>${_t('table_h_amount')}:</strong> ${data.totalAmount.toFixed(2)} EGP</p><p><strong>Method:</strong> ${data.method}</p><hr><h3>Payment Allocation</h3><table><thead><tr><th>${_t('table_h_invoice_no')}</th><th>${_t('table_h_amount_to_pay')}</th></tr></thead><tbody>${invoicesHtml}</tbody></table><br><p><strong>Signature:</strong> _________________</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
     const generatePODocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; let totalValue = 0; data.items.forEach(item => { totalValue += (item.quantity || 0) * (item.cost || 0); }); const headers = ['code', 'name', 'qty', 'cost', 'total']; const itemsHtml = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>${_t('po')}</h2><p><strong>${_t('table_h_po_no')}:</strong> ${data.poId || data.batchId}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>${_t('supplier')}:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><hr><h3>${_t('items_to_order')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">${_t('total_value')}</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>${_t('notes_optional')}:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Authorized By:</strong> ${data.createdBy || state.currentUser.Name}</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
     const generateReturnDocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; const branch = findByKey(state.branches, 'branchCode', data.fromBranchCode) || { branchName: 'DELETED' }; let totalValue = 0; data.items.forEach(item => { totalValue += (item.quantity || 0) * (item.cost || 0); }); const headers = ['code', 'name', 'qty', 'cost', 'total']; const itemsHtml = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>${_t('return_to_supplier')} Note</h2><p><strong>${_t('credit_note_ref')}:</strong> ${data.ref}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>Returned To:</strong> ${supplier.name}</p><p><strong>Returned From:</strong> ${branch.branchName}</p><hr><h3>${_t('items_to_return')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">${_t('total_value')}</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>Reason:</strong> ${data.notes || 'N/A'}</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
+
 // PART 4 OF 4: CALCULATION ENGINES, EVENT LISTENERS & INITIALIZATION
-    function updateReceiveGrandTotal() { let grandTotal = 0; (state.currentReceiveList || []).forEach(item => { grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); }); document.getElementById('receive-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; }
+    function updateReceiveGrandTotal() { let grandTotal = 0; (state.currentReceiveList || []).forEach(item => { const itemDetails = findByKey(state.items, 'code', item.itemCode); if(itemDetails && !itemDetails.ParentItemCode) { grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); } }); document.getElementById('receive-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; }
     function updateTransferGrandTotal() { let grandTotalQty = 0; (state.currentTransferList || []).forEach(item => { grandTotalQty += (parseFloat(item.quantity) || 0); }); document.getElementById('transfer-grand-total').textContent = grandTotalQty.toFixed(2); }
     function updatePOGrandTotal() { let grandTotal = 0; (state.currentPOList || []).forEach(item => { grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); }); document.getElementById('po-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; }
     function updatePOEditGrandTotal() { let grandTotal = 0; (state.currentEditingPOList || []).forEach(item => { grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); }); document.getElementById('edit-po-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; }
-    function updateReturnGrandTotal() { let grandTotal = 0; (state.currentReturnList || []).forEach(item => { grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); }); document.getElementById('return-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; }
+    function updateReturnGrandTotal() { let grandTotal = 0; (state.currentReturnList || []).forEach(item => { const itemDetails = findByKey(state.items, 'code', item.itemCode); if(itemDetails && !itemDetails.ParentItemCode) { grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); } }); document.getElementById('return-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; }
 
     async function loadAndRenderBackups() {
         const container = document.getElementById('backup-list-container');
@@ -2036,7 +2053,7 @@ document.addEventListener('DOMContentLoaded', () => {
         confirmInput.value = '';
         confirmBtn.disabled = true;
     
-        const coreSheets = [ 'Items', 'Suppliers', 'Branches', 'Transactions', 'Payments', 'PurchaseOrders', 'PurchaseOrderItems', 'Users', 'Permissions' ];
+        const coreSheets = [ 'Items', 'Suppliers', 'Branches', 'Transactions', 'Payments', 'PurchaseOrders', 'PurchaseOrderItems', 'Users', 'Permissions', 'Settlements', 'SettlementItems' ];
         
         sheetListContainer.innerHTML = '';
         coreSheets.forEach(sheetName => {
@@ -2717,6 +2734,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
+        document.getElementById('is-sub-item-toggle').addEventListener('change', e => {
+            document.getElementById('sub-item-fields').style.display = e.target.checked ? 'grid' : 'none';
+            document.getElementById('item-cost-group').style.display = e.target.checked ? 'none' : 'block';
+        });
+
         document.getElementById('form-add-supplier').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { name: document.getElementById('supplier-name').value }; const result = await postData('addSupplier', data, btn); if (result) { showToast(_t('add_success_toast', {type: _t('supplier')}), 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
         document.getElementById('form-add-branch').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { branchName: document.getElementById('branch-name').value }; const result = await postData('addBranch', data, btn); if (result) { showToast(_t('add_success_toast', {type: _t('branch')}), 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
         document.getElementById('form-record-payment').addEventListener('submit', async e => {
@@ -3264,128 +3286,6 @@ document.addEventListener('DOMContentLoaded', () => {
             reloadDataAndRefreshUI();
         }
     }
-
-    // --- SALES RECONCILIATION ---
-    function downloadSalesTemplate() {
-        const workbook = XLSX.utils.book_new();
-        const templateData = state.items.map(item => ({ 
-            itemCode: item.code, 
-            itemName: item.name, 
-            soldQty: '' 
-        }));
-
-        state.branches.forEach(branch => {
-            const sheetName = branch.branchName.replace(/[\*\[\]\:\/\\\?]/g, "").substring(0, 31);
-            const worksheet = XLSX.utils.json_to_sheet(templateData);
-            XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-        });
-
-        XLSX.writeFile(workbook, "SalesUploadTemplate.xlsx");
-    }
-
-    function handleSalesFileUpload(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-                
-                let allSalesData = [];
-                workbook.SheetNames.forEach(sheetName => {
-                    const branch = state.branches.find(b => b.branchName.replace(/[\*\[\]\:\/\\\?]/g, "").substring(0, 31) === sheetName);
-                    if(branch){
-                         const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
-                         jsonData.forEach(row => {
-                             if(row.itemCode && row.soldQty && parseFloat(row.soldQty) > 0) {
-                                allSalesData.push({
-                                    branchCode: branch.branchCode,
-                                    itemCode: row.itemCode,
-                                    soldQty: parseFloat(row.soldQty)
-                                });
-                             }
-                         });
-                    }
-                });
-                
-                if (allSalesData.length === 0) {
-                    throw new Error('No valid sales data found in file.');
-                }
-
-                state.uploadedSalesData = allSalesData;
-                showToast(_t('file_upload_success', { rows: allSalesData.length }), 'success');
-                document.getElementById('sales-file-upload-label').textContent = file.name;
-            } catch (err) {
-                showToast(_t('file_upload_error'), 'error');
-                console.error(err);
-            }
-        };
-        reader.readAsArrayBuffer(file);
-    }
-
-    function renderSalesDiscrepancyReport() {
-        const branchCode = document.getElementById('sales-report-branch').value;
-        const resultsContainer = document.getElementById('sales-report-results');
-        const exportBtn = document.getElementById('btn-export-sales-report');
-
-        if (!branchCode) {
-            showToast('Please select a branch.', 'error');
-            return;
-        }
-        if (state.uploadedSalesData.length === 0) {
-            showToast(_t('no_sales_data_uploaded'), 'error');
-            return;
-        }
-
-        const stock = calculateStockLevels()[branchCode] || {};
-        const salesForBranch = state.uploadedSalesData.filter(s => s.branchCode === branchCode);
-
-        const reportData = state.items.map(item => {
-            const systemStock = stock[item.code]?.quantity || 0;
-            const sale = salesForBranch.find(s => String(s.itemCode) === String(item.code));
-            const soldQty = sale ? sale.soldQty : 0;
-            const expectedStock = systemStock - soldQty;
-            
-            return {
-                ...item,
-                systemStock,
-                soldQty,
-                expectedStock,
-            };
-        });
-
-        let tableHtml = `<table id="table-sales-discrepancy">
-            <thead>
-                <tr>
-                    <th>${_t('table_h_code')}</th>
-                    <th>${_t('table_h_name')}</th>
-                    <th>${_t('table_h_system_stock')}</th>
-                    <th>${_t('table_h_sold_qty')}</th>
-                    <th>${_t('table_h_expected_stock')}</th>
-                </tr>
-            </thead>
-            <tbody>`;
-        
-        reportData.forEach(row => {
-            tableHtml += `
-                <tr>
-                    <td>${row.code}</td>
-                    <td>${row.name}</td>
-                    <td>${row.systemStock.toFixed(2)}</td>
-                    <td>${row.soldQty.toFixed(2)}</td>
-                    <td>${row.expectedStock.toFixed(2)}</td>
-                </tr>
-            `;
-        });
-
-        tableHtml += `</tbody></table>`;
-        resultsContainer.innerHTML = `<div class="printable-document"><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div>${tableHtml}</div>`;
-        resultsContainer.style.display = 'block';
-        exportBtn.disabled = false;
-    }
-
 
     function init() {
         const langSwitcher = document.getElementById('lang-switcher');
