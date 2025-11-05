@@ -357,3 +357,6 @@ html[dir="rtl"] @keyframes slideIn { to { transform: translateX(0); } }
 }
 @media (max-width: 1200px) { .report-generator-controls { flex-direction: column; align-items: stretch; } }
 @media (max-width: 768px) { :root { --sidebar-width: 0px; } .sidebar { width: 100%; height: auto; bottom: 0; top: auto; flex-direction: row; justify-content: space-around; padding: 5px; background-color: var(--sidebar-bg); border-top: 1px solid var(--border-color); box-shadow: 0 -2px 10px rgba(0,0,0,0.05); } .sidebar-header { display: none; } .sidebar-nav { display: flex; width: 100%; padding: 0; overflow-x: auto; flex-direction: row; } .nav-item { flex-shrink: 0; text-align: center; } .nav-item a { flex-direction: column; gap: 4px; padding: 8px 5px; font-size: 11px; font-weight: 500; border-radius: 8px; } .nav-item a .icon { width: 24px; height: 24px; } .nav-item a.active { color: var(--primary-color); background-color: var(--primary-light); } .nav-item-logout { margin-top: 0; padding-top: 0; border-top: none; } .main-content { margin-left: 0; margin-right:0; padding: 20px 20px 100px 20px; } #view-title { font-size: 24px; } .modal-content { max-width: 95vw; } .main-header { flex-wrap: wrap; } }
+
+
+
