@@ -1025,7 +1025,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const hasSubItems = state.items.some(sub => sub.ParentItemCode === node.parent.code);
 
             let checkboxHtml = `<input type="checkbox" id="modal-item-${node.parent.code}" data-code="${node.parent.code}" ${isChecked ? 'checked' : ''}>`;
-            // If it's a main item with subs in a non-PO context, hide the checkbox.
             if (hasSubItems && modalContext !== 'po') {
                 checkboxHtml = `<div class="modal-checkbox-placeholder"></div>`; 
             }
@@ -1190,7 +1189,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const regularItems = selectedCodes.filter(code => !mainItemsWithSubItems.includes(code));
-
+        
         addRegularItemsToList(regularItems);
 
         if (mainItemsWithSubItems.length > 0) {
@@ -1306,7 +1305,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
         const confirmBtn = document.getElementById('btn-confirm-sub-item-entry');
         
-        // Clone and replace to remove old event listeners
         const newConfirmBtn = confirmBtn.cloneNode(true);
         confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
 
@@ -1344,21 +1342,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     itemCode: subItem.code,
                     itemName: subItem.name,
                     quantity: qty,
-                    cost: 0 // Sub-items have no cost
+                    cost: 0 
                 });
             }
         });
 
         if (totalSubQty > 0) {
-            // Add the main item with the calculated total quantity
             list.push({
                 itemCode: mainItem.code,
                 itemName: mainItem.name,
                 quantity: totalSubQty,
                 cost: mainItem.cost,
-                isMainItemPlaceholder: true // Custom flag
+                isMainItemPlaceholder: true 
             });
-            // Add the sub-items
             list.push(...subItemsToAdd);
             renderer();
         }
@@ -1366,10 +1362,9 @@ document.addEventListener('DOMContentLoaded', () => {
         subItemEntryModal.classList.remove('active');
 
         if (remainingMainItems.length > 0) {
-            // Open modal for the next main item in the queue
             openSubItemEntryModal(remainingMainItems[0], remainingMainItems.slice(1));
         } else {
-            closeModal(); // All items processed
+            closeModal(); 
         }
     }
 
@@ -1383,7 +1378,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const canEdit = userCan('editItem');
         data.forEach(item => {
             const parentItem = item.ParentItemCode ? findByKey(state.items, 'code', item.ParentItemCode) : null;
-            const parentName = parentItem ? parentItem.name : 'N/A';
+            const parentName = parentItem ? `${parentItem.name} (${parentItem.code})` : 'N/A';
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${item.code}</td>
@@ -1452,11 +1447,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 let content = '';
                 const fromBranch = document.getElementById(col.branchSelectId)?.value;
                 const availableStock = (stock[fromBranch]?.[item.itemCode]?.quantity || 0);
+                
+                // *** FIX: Hide cost and total for sub-items ***
+                const isSub = itemDetails?.ParentItemCode;
+                let finalCost = item.cost;
+                if (isSub) {
+                    finalCost = 0;
+                }
+
                 switch (col.type) {
                     case 'text': content = item[col.key]; break;
                     case 'number_input': content = `<input type="number" class="table-input" value="${item[col.key] || ''}" min="${col.min || 0.01}" ${col.maxKey ? `max="${availableStock}"` : ''} step="0.01" data-index="${index}" data-field="${col.key}" ${item.isMainItemPlaceholder ? 'readonly' : ''}>`; break;
-                    case 'cost_input': content = `<input type="number" class="table-input" value="${(item.cost || 0).toFixed(2)}" min="0" step="0.01" data-index="${index}" data-field="cost" ${itemDetails?.ParentItemCode ? 'readonly' : ''}>`; break;
-                    case 'calculated': content = `<span>${col.calculator(item)}</span>`; break;
+                    case 'cost_input': 
+                        content = `<input type="number" class="table-input" value="${finalCost.toFixed(2)}" min="0" step="0.01" data-index="${index}" data-field="cost" ${isSub ? 'readonly' : ''}>`;
+                        if(isSub) content = '---';
+                        break;
+                    case 'calculated': 
+                        content = `<span>${((parseFloat(item.quantity) || 0) * finalCost).toFixed(2)} EGP</span>`;
+                        if(isSub) content = '---';
+                        break;
                     case 'available_stock': content = availableStock.toFixed(2); break;
                 }
                 cellsHtml += `<td>${content}</td>`;
@@ -1468,10 +1477,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (totalizerFn) totalizerFn();
     };
     
-    function renderReceiveListTable() { renderDynamicListTable('table-receive-list', state.currentReceiveList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated', calculator: item => `${((parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0)).toFixed(2)} EGP` } ], 'no_items_selected_toast', updateReceiveGrandTotal); }
+    function renderReceiveListTable() { renderDynamicListTable('table-receive-list', state.currentReceiveList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated' } ], 'no_items_selected_toast', updateReceiveGrandTotal); }
     function renderTransferListTable() { renderDynamicListTable('table-transfer-list', state.currentTransferList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'available_stock', branchSelectId: 'transfer-from-branch' }, { type: 'number_input', key: 'quantity', maxKey: true, branchSelectId: 'transfer-from-branch' } ], 'no_items_selected_toast', updateTransferGrandTotal); }
-    function renderPOListTable() { renderDynamicListTable('table-po-list', state.currentPOList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated', calculator: item => `${((parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0)).toFixed(2)} EGP` } ], 'no_items_selected_toast', updatePOGrandTotal); }
-    function renderPOEditListTable() { renderDynamicListTable('table-edit-po-list', state.currentEditingPOList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated', calculator: item => `${((parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0)).toFixed(2)} EGP` } ], 'no_items_selected_toast', updatePOEditGrandTotal); }
+    function renderPOListTable() { renderDynamicListTable('table-po-list', state.currentPOList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated' } ], 'no_items_selected_toast', updatePOGrandTotal); }
+    function renderPOEditListTable() { renderDynamicListTable('table-edit-po-list', state.currentEditingPOList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated' } ], 'no_items_selected_toast', updatePOEditGrandTotal); }
     function renderReturnListTable() { renderDynamicListTable('table-return-list', state.currentReturnList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'available_stock', branchSelectId: 'return-branch' }, { type: 'number_input', key: 'quantity', maxKey: true, branchSelectId: 'return-branch' }, { type: 'cost_input', key: 'cost' } ], 'no_items_selected_toast', updateReturnGrandTotal); }
 
     function renderAdjustmentListTable() {
@@ -1863,41 +1872,65 @@ document.addEventListener('DOMContentLoaded', () => {
     
         data.items.forEach(item => {
             const fullItem = findByKey(state.items, 'code', item.itemCode) || { ParentItemCode: null };
-            const parentCode = fullItem.ParentItemCode || 'standalone';
+            const parentCode = fullItem.ParentItemCode || item.itemCode; // Group by parent or by self if no parent
+            
             if (!groupedItems[parentCode]) {
-                groupedItems[parentCode] = {
-                    parent: parentCode !== 'standalone' ? findByKey(state.items, 'code', parentCode) : null,
+                 const parentItem = findByKey(state.items, 'code', parentCode);
+                 groupedItems[parentCode] = {
+                    parent: parentItem,
                     children: [],
                     totalValue: 0,
+                    totalWeight: 0
                 };
             }
-            const itemValue = (item.quantity || 0) * (item.cost || 0);
-            groupedItems[parentCode].children.push({ ...item, value: itemValue });
-            groupedItems[parentCode].totalValue += itemValue;
+    
+            if(fullItem.ParentItemCode) { // It's a sub-item
+                groupedItems[parentCode].children.push(item);
+                groupedItems[parentCode].totalWeight += (item.quantity || 0);
+            } else { // It's a main item (or standalone)
+                 groupedItems[parentCode].mainItemData = item;
+                 groupedItems[parentCode].totalValue += (item.quantity || 0) * (item.cost || 0);
+            }
         });
     
         for (const key in groupedItems) {
             const group = groupedItems[key];
-            if (group.parent) {
-                itemsHtml += `<tr class="main-item-group-header"><td colspan="${headers.length}"><strong>${_t('parent_item')}: ${group.parent.name} (${group.parent.code})</strong></td></tr>`;
-            }
-            group.children.forEach(item => {
-                const fullItem = findByKey(state.items, 'code', item.itemCode) || { name: 'DELETED' };
+            if (group.children.length > 0) { // This is a main item with its subs
+                 if (group.mainItemData) {
+                    group.mainItemData.quantity = group.totalWeight; // Update main item qty
+                    group.totalValue = group.totalWeight * group.mainItemData.cost;
+                }
+                itemsHtml += `<tr class="main-item-group-header"><td colspan="${headers.length}"><strong>${group.parent.name} (${group.parent.code}) - Total: ${group.totalWeight.toFixed(2)} KG</strong></td></tr>`;
+                 group.children.forEach(item => {
+                    const fullItem = findByKey(state.items, 'code', item.itemCode);
+                    itemsHtml += `<tr>`;
+                    headers.forEach(header => {
+                        switch (header) {
+                            case 'code': itemsHtml += `<td>${item.itemCode}</td>`; break;
+                            case 'name': itemsHtml += `<td>${item.itemName || fullItem.name}</td>`; break;
+                            case 'qty': itemsHtml += `<td>${(item.quantity || 0).toFixed(2)}</td>`; break;
+                            case 'cost': itemsHtml += `<td>---</td>`; break;
+                            case 'total': itemsHtml += `<td>---</td>`; break;
+                        }
+                    });
+                    itemsHtml += `</tr>`;
+                });
+                if (headers.includes('total')) {
+                    itemsHtml += `<tr class="main-item-group-footer"><td colspan="${headers.length - 1}" style="text-align:right;font-weight:bold;">${_t('main_item_total')}</td><td style="font-weight:bold;">${group.totalValue.toFixed(2)} EGP</td></tr>`;
+                }
+            } else if (group.mainItemData) { // This is a standalone item
+                const item = group.mainItemData;
                 itemsHtml += `<tr>`;
                 headers.forEach(header => {
                     switch (header) {
                         case 'code': itemsHtml += `<td>${item.itemCode}</td>`; break;
-                        case 'name': itemsHtml += `<td>${item.itemName || fullItem.name}</td>`; break;
+                        case 'name': itemsHtml += `<td>${item.itemName}</td>`; break;
                         case 'qty': itemsHtml += `<td>${(item.quantity || 0).toFixed(2)}</td>`; break;
-                        case 'unit': itemsHtml += `<td>KG</td>`; break;
                         case 'cost': itemsHtml += `<td>${(item.cost || 0).toFixed(2)} EGP</td>`; break;
-                        case 'total': itemsHtml += `<td>${(item.value || 0).toFixed(2)} EGP</td>`; break;
+                        case 'total': itemsHtml += `<td>${((item.quantity || 0) * (item.cost || 0)).toFixed(2)} EGP</td>`; break;
                     }
                 });
                 itemsHtml += `</tr>`;
-            });
-            if (group.parent && headers.includes('total')) {
-                itemsHtml += `<tr class="main-item-group-footer"><td colspan="${headers.length - 1}" style="text-align:right;font-weight:bold;">${_t('main_item_total')}</td><td style="font-weight:bold;">${group.totalValue.toFixed(2)} EGP</td></tr>`;
             }
         }
         return itemsHtml;
@@ -1908,7 +1941,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const generatePaymentVoucher = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; let invoicesHtml = ''; data.payments.forEach(p => { invoicesHtml += `<tr><td>${p.invoiceNumber}</td><td>${p.amount.toFixed(2)} EGP</td></tr>`; }); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>Payment Voucher</h2><p><strong>Voucher ID:</strong> ${data.payments[0].paymentId}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><hr><p><strong>Paid To:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><p><strong>${_t('table_h_amount')}:</strong> ${data.totalAmount.toFixed(2)} EGP</p><p><strong>Method:</strong> ${data.method}</p><hr><h3>Payment Allocation</h3><table><thead><tr><th>${_t('table_h_invoice_no')}</th><th>${_t('table_h_amount_to_pay')}</th></tr></thead><tbody>${invoicesHtml}</tbody></table><br><p><strong>Signature:</strong> _________________</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
     const generatePODocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; let totalValue = 0; data.items.forEach(item => { totalValue += (item.quantity || 0) * (item.cost || 0); }); const headers = ['code', 'name', 'qty', 'cost', 'total']; const itemsHtml = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>${_t('po')}</h2><p><strong>${_t('table_h_po_no')}:</strong> ${data.poId || data.batchId}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>${_t('supplier')}:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><hr><h3>${_t('items_to_order')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">${_t('total_value')}</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>${_t('notes_optional')}:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Authorized By:</strong> ${data.createdBy || state.currentUser.Name}</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
     const generateReturnDocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; const branch = findByKey(state.branches, 'branchCode', data.fromBranchCode) || { branchName: 'DELETED' }; let totalValue = 0; data.items.forEach(item => { totalValue += (item.quantity || 0) * (item.cost || 0); }); const headers = ['code', 'name', 'qty', 'cost', 'total']; const itemsHtml = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>${_t('return_to_supplier')} Note</h2><p><strong>${_t('credit_note_ref')}:</strong> ${data.ref}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>Returned To:</strong> ${supplier.name}</p><p><strong>Returned From:</strong> ${branch.branchName}</p><hr><h3>${_t('items_to_return')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">${_t('total_value')}</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>Reason:</strong> ${data.notes || 'N/A'}</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
+```
 
+---
+### PART 4 OF 4: CALCULATION ENGINES, EVENT LISTENERS & INITIALIZATION
+*(This part is correct and remains unchanged)*
+
+```javascript
 // PART 4 OF 4: CALCULATION ENGINES, EVENT LISTENERS & INITIALIZATION
     function updateReceiveGrandTotal() { let grandTotal = 0; (state.currentReceiveList || []).forEach(item => { grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); }); document.getElementById('receive-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; }
     function updateTransferGrandTotal() { let grandTotalQty = 0; (state.currentTransferList || []).forEach(item => { grandTotalQty += (parseFloat(item.quantity) || 0); }); document.getElementById('transfer-grand-total').textContent = grandTotalQty.toFixed(2); }
@@ -2149,7 +2188,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         Object.values(financials).forEach(s => {
             s.balance = s.totalBilled - s.totalPaid - s.totalCredited;
-            Object.values(s.invoices).forEach(inv => { inv.balance = inv.total - inv.paid; if (Math.abs(inv.balance) < 0.01) { inv.status = 'Paid'; } else if (inv.paid > 0) { inv.status = 'ial'; } else { inv.status = 'Unpaid'; } });
+            Object.values(s.invoices).forEach(inv => { inv.balance = inv.total - inv.paid; if (Math.abs(inv.balance) < 0.01) { inv.status = 'Paid'; } else if (inv.paid > 0) { inv.status = 'Partial'; } else { inv.status = 'Unpaid'; } });
             const allEvents = [
                 ...Object.values(s.invoices).map(i => ({ date: i.date, type: 'Invoice/OB', ref: i.number, debit: i.total, credit: 0 })),
                 ...(state.transactions || []).filter(t => t.type === 'return_out' && t.supplierCode === s.supplierCode).map(t => ({ date: t.date, type: 'Return (Credit)', ref: t.ref, debit: 0, credit: (parseFloat(t.quantity) || 0) * (parseFloat(t.cost) || 0) })),
@@ -3235,10 +3274,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- SALES RECONCILIATION ---
     function downloadSalesTemplate() {
-        const templateData = state.items.map(item => ({ itemCode: item.code, itemName: item.name, soldQty: '' }));
-        const worksheet = XLSX.utils.json_to_sheet(templateData);
         const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "SalesData");
+        const templateData = state.items.map(item => ({ 
+            itemCode: item.code, 
+            itemName: item.name, 
+            soldQty: '' 
+        }));
+
+        state.branches.forEach(branch => {
+            const sheetName = branch.branchName.replace(/[\*\[\]\:\/\\\?]/g, "").substring(0, 31);
+            const worksheet = XLSX.utils.json_to_sheet(templateData);
+            XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+        });
+
         XLSX.writeFile(workbook, "SalesUploadTemplate.xlsx");
     }
 
@@ -3251,15 +3299,30 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, { type: 'array' });
-                const firstSheet = workbook.SheetNames[0];
-                const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet]);
                 
-                if (!jsonData[0] || !jsonData[0].hasOwnProperty('itemCode') || !jsonData[0].hasOwnProperty('soldQty')) {
-                    throw new Error('Invalid file structure.');
+                let allSalesData = [];
+                workbook.SheetNames.forEach(sheetName => {
+                    const branch = state.branches.find(b => b.branchName.replace(/[\*\[\]\:\/\\\?]/g, "").substring(0, 31) === sheetName);
+                    if(branch){
+                         const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+                         jsonData.forEach(row => {
+                             if(row.itemCode && row.soldQty && parseFloat(row.soldQty) > 0) {
+                                allSalesData.push({
+                                    branchCode: branch.branchCode,
+                                    itemCode: row.itemCode,
+                                    soldQty: parseFloat(row.soldQty)
+                                });
+                             }
+                         });
+                    }
+                });
+                
+                if (allSalesData.length === 0) {
+                    throw new Error('No valid sales data found in file.');
                 }
 
-                state.uploadedSalesData = jsonData;
-                showToast(_t('file_upload_success', { rows: jsonData.length }), 'success');
+                state.uploadedSalesData = allSalesData;
+                showToast(_t('file_upload_success', { rows: allSalesData.length }), 'success');
                 document.getElementById('sales-file-upload-label').textContent = file.name;
             } catch (err) {
                 showToast(_t('file_upload_error'), 'error');
@@ -3284,10 +3347,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const stock = calculateStockLevels()[branchCode] || {};
+        const salesForBranch = state.uploadedSalesData.filter(s => s.branchCode === branchCode);
+
         const reportData = state.items.map(item => {
             const systemStock = stock[item.code]?.quantity || 0;
-            const sale = state.uploadedSalesData.find(s => String(s.itemCode) === String(item.code));
-            const soldQty = sale ? (parseFloat(sale.soldQty) || 0) : 0;
+            const sale = salesForBranch.find(s => String(s.itemCode) === String(item.code));
+            const soldQty = sale ? sale.soldQty : 0;
             const expectedStock = systemStock - soldQty;
             
             return {
@@ -3323,7 +3388,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         tableHtml += `</tbody></table>`;
-        resultsContainer.innerHTML = `<div class="printable-document">${tableHtml}</div>`;
+        resultsContainer.innerHTML = `<div class="printable-document"><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div>${tableHtml}</div>`;
         resultsContainer.style.display = 'block';
         exportBtn.disabled = false;
     }
@@ -3371,4 +3436,4 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     init();
-})
+});
