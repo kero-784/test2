@@ -111,6 +111,7 @@
                 <div class="sub-nav">
                     <button class="sub-nav-item active" data-subview="supplier-statement" data-translate-key="supplier_statement">Supplier Statement</button>
                     <button class="sub-nav-item" data-subview="sales-data" data-translate-key="sales_data">Sales Data</button>
+                    <button class="sub-nav-item" data-subview="settlement-history" data-translate-key="settlement_history">Settlement History</button>
                 </div>
                 <div id="subview-supplier-statement" class="sub-view active">
                     <div class="card">
@@ -149,6 +150,25 @@
                                 <button id="btn-export-sales-report" class="secondary small" disabled data-translate-key="export_to_excel">Export to Excel</button>
                             </div>
                             <div id="sales-report-results" class="printable-area" style="display: none; margin-top:20px;"></div>
+                        </div>
+                    </div>
+                </div>
+                <div id="subview-settlement-history" class="sub-view">
+                    <div class="card">
+                        <h2 data-translate-key="settlement_history">Settlement History</h2>
+                        <div class="report-area">
+                            <table id="table-settlement-history">
+                                <thead>
+                                    <tr>
+                                        <th>Settlement ID</th>
+                                        <th data-translate-key="table_h_date">Date</th>
+                                        <th data-translate-key="branch">Branch</th>
+                                        <th>Settled By</th>
+                                        <th data-translate-key="actions">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
