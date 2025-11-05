@@ -248,7 +248,29 @@
                     </div>
                 </div>
             </div>
-            <div id="view-stock-levels" class="view"><div class="card"><div class="toolbar"><h2 id="stock-levels-title" data-translate-key="stock_by_item">Stock by Item</h2><div class="search-bar"><input type="search" id="stock-levels-search" class="search-bar-input" data-translate-placeholder="search_items_stock_placeholder"></div><button id="btn-export-stock" class="secondary" data-translate-key="export_to_excel">Export to Excel</button></div><div id="item-centric-stock-container" class="report-area"></div></div><div class="card"><h2 data-translate-key="item_stock_inquiry">Item Stock Inquiry (Drill-down)</h2><input type="search" id="item-inquiry-search" class="search-bar-input" data-translate-placeholder="item_stock_inquiry_placeholder"><div id="item-inquiry-results" class="report-area"></div></div></div>
+            <div id="view-stock-levels" class="view">
+                <div class="card">
+                    <div class="toolbar">
+                        <h2 id="stock-levels-title" data-translate-key="stock_by_item">Stock by Item</h2>
+                        <div class="filters-container">
+                             <div id="stock-levels-branch-filter-container" style="display: none;">
+                                <label for="stock-levels-branch-filter">Filter by Branch:</label>
+                                <select id="stock-levels-branch-filter" multiple></select>
+                            </div>
+                            <div class="search-bar">
+                                <input type="search" id="stock-levels-search" class="search-bar-input" data-translate-placeholder="search_items_stock_placeholder">
+                            </div>
+                        </div>
+                        <button id="btn-export-stock" class="secondary" data-translate-key="export_to_excel">Export to Excel</button>
+                    </div>
+                    <div id="item-centric-stock-container" class="report-area"></div>
+                </div>
+                <div class="card">
+                    <h2 data-translate-key="item_stock_inquiry">Item Stock Inquiry (Drill-down)</h2>
+                    <input type="search" id="item-inquiry-search" class="search-bar-input" data-translate-placeholder="item_stock_inquiry_placeholder">
+                    <div id="item-inquiry-results" class="report-area"></div>
+                </div>
+            </div>
             <div id="view-transaction-history" class="view">
                 <div class="card">
                     <div class="toolbar">
