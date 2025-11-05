@@ -48,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentEditingPOList: [],
         currentAdjustmentList: [],
         uploadedSalesData: [],
+        salesReportDataByBranch: {},
         modalSelections: new Set(),
         invoiceModalSelections: new Set(),
         allUsers: [],
@@ -382,10 +383,10 @@ document.addEventListener('DOMContentLoaded', () => {
             'sales_reconciliation': 'Sales Reconciliation',
             'sales_data_desc': 'Upload daily sales data to generate a stock discrepancy report.',
             'step1_download_template': '1. Download Template',
-            'download_template_desc': 'Download the Excel template with a list of all your items.',
+            'download_template_desc': 'Download the Excel template with a list of all your items. The template will include a `branch` column.',
             'download_template_btn': 'Download Sales Template',
             'step2_upload_file': '2. Upload Completed File',
-            'upload_file_desc': 'Upload the filled-out Excel file. It must contain \'itemCode\' and \'soldQty\' columns.',
+            'upload_file_desc': 'Upload the filled-out Excel file. It must contain `itemCode`, `soldQty`, and `branch` columns.',
             'upload_btn': 'Choose Excel File',
             'step3_generate_report': '3. Generate Discrepancy Report',
             'select_branch_for_report': 'Select Branch for Report',
@@ -396,7 +397,7 @@ document.addEventListener('DOMContentLoaded', () => {
             'table_h_expected_stock': 'Expected Stock',
             'table_h_discrepancy': 'Discrepancy',
             'file_upload_success': 'File uploaded successfully! {rows} rows of sales data loaded.',
-            'file_upload_error': 'Error reading file. Make sure it is a valid .xlsx file with itemCode and soldQty columns.',
+            'file_upload_error': 'Error reading file. Make sure it is a valid .xlsx file with itemCode, soldQty, and branch columns.',
             'no_sales_data_uploaded': 'No sales data has been uploaded yet.',
             'settle_stock': 'Settle Stock',
             'settlement_confirm_title': 'Confirm Stock Settlement',
@@ -450,10 +451,10 @@ document.addEventListener('DOMContentLoaded', () => {
             'sales_reconciliation': 'مطابقة المبيعات',
             'sales_data_desc': 'قم برفع بيانات المبيعات اليومية لإنشاء تقرير بفروقات المخزون.',
             'step1_download_template': '1. تحميل النموذج',
-            'download_template_desc': 'قم بتنزيل نموذج Excel الذي يحتوي على قائمة بجميع الأصناف.',
+            'download_template_desc': 'قم بتنزيل نموذج Excel الذي يحتوي على قائمة بجميع الأصناف. النموذج سيحتوي على عمود `branch`.',
             'download_template_btn': 'تنزيل نموذج المبيعات',
             'step2_upload_file': '2. رفع الملف المكتمل',
-            'upload_file_desc': 'قم برفع ملف Excel بعد تعبئته. يجب أن يحتوي على أعمدة \'itemCode\' و \'soldQty\'.',
+            'upload_file_desc': 'قم برفع ملف Excel بعد تعبئته. يجب أن يحتوي على أعمدة `itemCode` و `soldQty` و `branch`.',
             'upload_btn': 'اختر ملف Excel',
             'step3_generate_report': '3. إنشاء تقرير الفروقات',
             'select_branch_for_report': 'اختر الفرع للتقرير',
@@ -464,7 +465,7 @@ document.addEventListener('DOMContentLoaded', () => {
             'table_h_expected_stock': 'الرصيد المتوقع',
             'table_h_discrepancy': 'الفرق',
             'file_upload_success': 'تم رفع الملف بنجاح! تم تحميل {rows} سطور من بيانات المبيعات.',
-            'file_upload_error': 'خطأ في قراءة الملف. تأكد من أنه ملف .xlsx صالح ويحتوي على أعمدة itemCode و soldQty.',
+            'file_upload_error': 'خطأ في قراءة الملف. تأكد من أنه ملف .xlsx صالح ويحتوي على أعمدة itemCode و soldQty و branch.',
             'no_sales_data_uploaded': 'لم يتم رفع بيانات مبيعات بعد.',
             'settle_stock': 'تسوية المخزون',
             'settlement_confirm_title': 'تأكيد تسوية المخزون',
@@ -1470,7 +1471,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     case 'text': content = item[col.key]; break;
                     case 'number_input': content = `<input type="number" class="table-input" value="${item[col.key] || ''}" min="${col.min || 0.01}" ${col.maxKey ? `max="${availableStock}"` : ''} step="0.01" data-index="${index}" data-field="${col.key}" ${item.isMainItemPlaceholder ? 'readonly' : ''}>`; break;
                     case 'cost_input': 
-                        content = `<input type="number" class="table-input" value="${finalCost.toFixed(2)}" min="0" step="0.01" data-index="${index}" data-field="cost" ${isSub ? 'readonly' : ''}>`;
+                        content = `<input type="number" class="table-input" value="${finalCost.toFixed(2)}" min="0" step="0.01" data-index="${index}" data-field="cost" ${isSub || item.isMainItemPlaceholder ? 'readonly' : ''}>`;
                         if(isSub) content = '---';
                         break;
                     case 'calculated': 
@@ -1880,6 +1881,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function generateGroupedItemsHtml(data, headers) {
         let itemsHtml = '';
         const groupedItems = {};
+        let grandTotal = 0;
     
         data.items.forEach(item => {
             const fullItem = findByKey(state.items, 'code', item.itemCode) || { ParentItemCode: null };
@@ -1897,10 +1899,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
             if(fullItem.ParentItemCode) { // It's a sub-item
                 groupedItems[parentCode].children.push(item);
-                groupedItems[parentCode].totalWeight += (item.quantity || 0);
+                groupedItems[parentCode].totalWeight += (parseFloat(item.quantity) || 0);
             } else { // It's a main item (or standalone)
                  groupedItems[parentCode].mainItemData = item;
-                 groupedItems[parentCode].totalValue += (item.quantity || 0) * (item.cost || 0);
+                 groupedItems[parentCode].totalValue += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0);
             }
         });
     
@@ -1909,7 +1911,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (group.children.length > 0) { // This is a main item with its subs
                  if (group.mainItemData) {
                     group.mainItemData.quantity = group.totalWeight; // Update main item qty
-                    group.totalValue = group.totalWeight * group.mainItemData.cost;
+                    group.totalValue = group.totalWeight * (parseFloat(group.mainItemData.cost) || 0);
                 }
                 itemsHtml += `<tr class="main-item-group-header"><td colspan="${headers.length}"><strong>${group.parent.name} (${group.parent.code}) - Total: ${group.totalWeight.toFixed(2)} KG</strong></td></tr>`;
                  group.children.forEach(item => {
@@ -1919,7 +1921,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         switch (header) {
                             case 'code': itemsHtml += `<td>${item.itemCode}</td>`; break;
                             case 'name': itemsHtml += `<td>${item.itemName || fullItem.name}</td>`; break;
-                            case 'qty': itemsHtml += `<td>${(item.quantity || 0).toFixed(2)}</td>`; break;
+                            case 'qty': itemsHtml += `<td>${(parseFloat(item.quantity) || 0).toFixed(2)}</td>`; break;
                             case 'unit': itemsHtml += `<td>KG</td>`; break;
                             case 'cost': itemsHtml += `<td>---</td>`; break;
                             case 'total': itemsHtml += `<td>---</td>`; break;
@@ -1930,29 +1932,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (headers.includes('total')) {
                     itemsHtml += `<tr class="main-item-group-footer"><td colspan="${headers.length - 1}" style="text-align:right;font-weight:bold;">${_t('main_item_total')}</td><td style="font-weight:bold;">${group.totalValue.toFixed(2)} EGP</td></tr>`;
                 }
+                grandTotal += group.totalValue;
             } else if (group.mainItemData) { // This is a standalone item
                 const item = group.mainItemData;
+                const itemTotal = (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0);
                 itemsHtml += `<tr>`;
                 headers.forEach(header => {
                     switch (header) {
                         case 'code': itemsHtml += `<td>${item.itemCode}</td>`; break;
                         case 'name': itemsHtml += `<td>${item.itemName}</td>`; break;
-                        case 'qty': itemsHtml += `<td>${(item.quantity || 0).toFixed(2)}</td>`; break;
-                        case 'cost': itemsHtml += `<td>${(item.cost || 0).toFixed(2)} EGP</td>`; break;
-                        case 'total': itemsHtml += `<td>${((item.quantity || 0) * (item.cost || 0)).toFixed(2)} EGP</td>`; break;
+                        case 'qty': itemsHtml += `<td>${(parseFloat(item.quantity) || 0).toFixed(2)}</td>`; break;
+                        case 'cost': itemsHtml += `<td>${(parseFloat(item.cost) || 0).toFixed(2)} EGP</td>`; break;
+                        case 'total': itemsHtml += `<td>${itemTotal.toFixed(2)} EGP</td>`; break;
                     }
                 });
                 itemsHtml += `</tr>`;
+                grandTotal += itemTotal;
             }
         }
-        return itemsHtml;
+        return { html: itemsHtml, totalValue: grandTotal };
     }
 
-    const generateReceiveDocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; const branch = findByKey(state.branches, 'branchCode', data.branchCode) || { branchName: 'DELETED' }; let totalValue = 0; data.items.forEach(item => { const itemDetails = findByKey(state.items, 'code', item.itemCode); if(itemDetails && !itemDetails.ParentItemCode) {totalValue += (item.quantity || 0) * (item.cost || 0);} }); const headers = ['code', 'name', 'qty', 'cost', 'total']; const itemsHtml = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>Goods Received Note</h2><p><strong>GRN No:</strong> ${data.batchId}</p><p><strong>${_t('table_h_invoice_no')}:</strong> ${data.invoiceNumber}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>${_t('supplier')}:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><p><strong>${_t('receive_stock')} at:</strong> ${branch.branchName} (${branch.branchCode || ''})</p><hr><h3>${_t('items_to_be_received')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">${_t('total_value')}</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>${_t('notes_optional')}:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Signature:</strong> _________________________</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
-    const generateTransferDocument = (data) => { const fromBranch = findByKey(state.branches, 'branchCode', data.fromBranchCode) || { branchName: 'DELETED' }; const toBranch = findByKey(state.branches, 'branchCode', data.toBranchCode) || { branchName: 'DELETED' }; const headers = ['code', 'name', 'qty']; const itemsHtml = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>${_t('internal_transfer')} Order</h2><p><strong>Order ID:</strong> ${data.batchId}</p><p><strong>${_t('reference')}:</strong> ${data.ref}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><hr><p><strong>${_t('from_branch')}:</strong> ${fromBranch.branchName} (${fromBranch.branchCode || ''})</p><p><strong>${_t('to_branch')}:</strong> ${toBranch.branchName} (${toBranch.branchCode || ''})</p><hr><h3>${_t('items_to_be_transferred')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item')}</th><th>${_t('table_h_qty')}</th></tr></thead><tbody>${itemsHtml}</tbody></table><hr><p><strong>${_t('notes_optional')}:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Sender:</strong> _________________</p><p><strong>Receiver:</strong> _________________</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
+    const generateReceiveDocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; const branch = findByKey(state.branches, 'branchCode', data.branchCode) || { branchName: 'DELETED' }; const headers = ['code', 'name', 'qty', 'cost', 'total']; const { html: itemsHtml, totalValue } = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>Goods Received Note</h2><p><strong>GRN No:</strong> ${data.batchId}</p><p><strong>${_t('table_h_invoice_no')}:</strong> ${data.invoiceNumber}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>${_t('supplier')}:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><p><strong>${_t('receive_stock')} at:</strong> ${branch.branchName} (${branch.branchCode || ''})</p><hr><h3>${_t('items_to_be_received')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">${_t('total_value')}</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>${_t('notes_optional')}:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Signature:</strong> _________________________</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
+    const generateTransferDocument = (data) => { const fromBranch = findByKey(state.branches, 'branchCode', data.fromBranchCode) || { branchName: 'DELETED' }; const toBranch = findByKey(state.branches, 'branchCode', data.toBranchCode) || { branchName: 'DELETED' }; const headers = ['code', 'name', 'qty']; const { html: itemsHtml } = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>${_t('internal_transfer')} Order</h2><p><strong>Order ID:</strong> ${data.batchId}</p><p><strong>${_t('reference')}:</strong> ${data.ref}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><hr><p><strong>${_t('from_branch')}:</strong> ${fromBranch.branchName} (${fromBranch.branchCode || ''})</p><p><strong>${_t('to_branch')}:</strong> ${toBranch.branchName} (${toBranch.branchCode || ''})</p><hr><h3>${_t('items_to_be_transferred')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item')}</th><th>${_t('table_h_qty')}</th></tr></thead><tbody>${itemsHtml}</tbody></table><hr><p><strong>${_t('notes_optional')}:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Sender:</strong> _________________</p><p><strong>Receiver:</strong> _________________</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
     const generatePaymentVoucher = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; let invoicesHtml = ''; data.payments.forEach(p => { invoicesHtml += `<tr><td>${p.invoiceNumber}</td><td>${p.amount.toFixed(2)} EGP</td></tr>`; }); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>Payment Voucher</h2><p><strong>Voucher ID:</strong> ${data.payments[0].paymentId}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><hr><p><strong>Paid To:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><p><strong>${_t('table_h_amount')}:</strong> ${data.totalAmount.toFixed(2)} EGP</p><p><strong>Method:</strong> ${data.method}</p><hr><h3>Payment Allocation</h3><table><thead><tr><th>${_t('table_h_invoice_no')}</th><th>${_t('table_h_amount_to_pay')}</th></tr></thead><tbody>${invoicesHtml}</tbody></table><br><p><strong>Signature:</strong> _________________</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
-    const generatePODocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; let totalValue = 0; data.items.forEach(item => { totalValue += (item.quantity || 0) * (item.cost || 0); }); const headers = ['code', 'name', 'qty', 'cost', 'total']; const itemsHtml = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>${_t('po')}</h2><p><strong>${_t('table_h_po_no')}:</strong> ${data.poId || data.batchId}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>${_t('supplier')}:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><hr><h3>${_t('items_to_order')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">${_t('total_value')}</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>${_t('notes_optional')}:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Authorized By:</strong> ${data.createdBy || state.currentUser.Name}</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
-    const generateReturnDocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; const branch = findByKey(state.branches, 'branchCode', data.fromBranchCode) || { branchName: 'DELETED' }; let totalValue = 0; data.items.forEach(item => { totalValue += (item.quantity || 0) * (item.cost || 0); }); const headers = ['code', 'name', 'qty', 'cost', 'total']; const itemsHtml = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>${_t('return_to_supplier')} Note</h2><p><strong>${_t('credit_note_ref')}:</strong> ${data.ref}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>Returned To:</strong> ${supplier.name}</p><p><strong>Returned From:</strong> ${branch.branchName}</p><hr><h3>${_t('items_to_return')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">${_t('total_value')}</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>Reason:</strong> ${data.notes || 'N/A'}</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
+    const generatePODocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; const headers = ['code', 'name', 'qty', 'cost', 'total']; const { html: itemsHtml, totalValue } = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>${_t('po')}</h2><p><strong>${_t('table_h_po_no')}:</strong> ${data.poId || data.batchId}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>${_t('supplier')}:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><hr><h3>${_t('items_to_order')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">${_t('total_value')}</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>${_t('notes_optional')}:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Authorized By:</strong> ${data.createdBy || state.currentUser.Name}</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
+    const generateReturnDocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; const branch = findByKey(state.branches, 'branchCode', data.fromBranchCode) || { branchName: 'DELETED' }; const headers = ['code', 'name', 'qty', 'cost', 'total']; const { html: itemsHtml, totalValue } = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>${_t('return_to_supplier')} Note</h2><p><strong>${_t('credit_note_ref')}:</strong> ${data.ref}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>Returned To:</strong> ${supplier.name}</p><p><strong>Returned From:</strong> ${branch.branchName}</p><hr><h3>${_t('items_to_return')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">${_t('total_value')}</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>Reason:</strong> ${data.notes || 'N/A'}</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
 
 // PART 4 OF 4: CALCULATION ENGINES, EVENT LISTENERS & INITIALIZATION
     function updateReceiveGrandTotal() { let grandTotal = 0; (state.currentReceiveList || []).forEach(item => { const itemDetails = findByKey(state.items, 'code', item.itemCode); if(itemDetails && !itemDetails.ParentItemCode) { grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); } }); document.getElementById('receive-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; }
@@ -2284,7 +2289,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!state.currentUser) return;
         const branchCode = state.currentUser.AssignedBranchCode;
         if (branchCode && !userCan('viewAllBranches')) {
-            ['receive-branch', 'transfer-from-branch', 'return-branch', 'adjustment-branch', 'extraction-branch', 'tx-filter-branch', 'sales-report-branch'].forEach(id => {
+            ['receive-branch', 'transfer-from-branch', 'return-branch', 'adjustment-branch', 'extraction-branch', 'tx-filter-branch'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) {
                     el.value = branchCode;
@@ -2369,7 +2374,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 break;
             case 'reports':
                 populateOptions(document.getElementById('supplier-statement-select'), state.suppliers, _t('select_a_supplier'), 'supplierCode', 'name');
-                populateOptions(document.getElementById('sales-report-branch'), getVisibleBranchesForCurrentUser(), _t('select_a_branch'), 'branchCode', 'branchName');
                 renderSettlementHistory();
                 break;
             case 'stock-levels':
@@ -2952,6 +2956,15 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('btn-download-sales-template').addEventListener('click', downloadSalesTemplate);
         document.getElementById('sales-file-upload').addEventListener('change', handleSalesFileUpload);
         document.getElementById('btn-generate-sales-report').addEventListener('click', renderSalesDiscrepancyReport);
+        document.getElementById('sales-report-results').addEventListener('click', (e) => {
+             if (e.target.classList.contains('btn-settle-stock')) {
+                const branchCode = e.target.dataset.branchCode;
+                const reportData = state.salesReportDataByBranch[branchCode];
+                if (reportData) {
+                    openSettlementModal(reportData, branchCode);
+                }
+            }
+        });
     }
     
     function setupRoleBasedNav() {
@@ -3290,6 +3303,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const templateData = state.items.map(item => ({
             itemCode: item.code,
             itemName: item.name,
+            branch: '',
             soldQty: ''
         }));
         const ws = XLSX.utils.json_to_sheet(templateData);
@@ -3310,11 +3324,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
                 const jsonData = XLSX.utils.sheet_to_json(firstSheet);
                 
-                if (!jsonData[0] || !jsonData[0].hasOwnProperty('itemCode') || !jsonData[0].hasOwnProperty('soldQty')) {
+                if (!jsonData[0] || !jsonData[0].hasOwnProperty('itemCode') || !jsonData[0].hasOwnProperty('soldQty') || !jsonData[0].hasOwnProperty('branch')) {
                     throw new Error("Invalid format");
                 }
                 
-                state.uploadedSalesData = jsonData.filter(row => row.itemCode && typeof row.soldQty === 'number');
+                state.uploadedSalesData = jsonData.filter(row => row.itemCode && typeof row.soldQty === 'number' && row.branch);
                 showToast(_t('file_upload_success', {rows: state.uploadedSalesData.length }), 'success');
             } catch (err) {
                 showToast(_t('file_upload_error'), 'error');
@@ -3325,93 +3339,96 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderSalesDiscrepancyReport() {
-        const branchCode = document.getElementById('sales-report-branch').value;
         const resultsContainer = document.getElementById('sales-report-results');
         const exportBtn = document.getElementById('btn-export-sales-report');
-
-        if (!branchCode) {
-            showToast('Please select a branch to generate the report.', 'error');
-            return;
-        }
+        
         if (state.uploadedSalesData.length === 0) {
             showToast(_t('no_sales_data_uploaded'), 'error');
             return;
         }
         
         const stock = calculateStockLevels();
-        const branchStock = stock[branchCode] || {};
+        const salesByBranch = state.uploadedSalesData.reduce((acc, row) => {
+            const branchCode = String(row.branch).trim();
+            if (!acc[branchCode]) acc[branchCode] = [];
+            acc[branchCode].push(row);
+            return acc;
+        }, {});
 
-        const reportData = state.items.map(item => {
-            const systemStock = branchStock[item.code]?.quantity || 0;
-            const soldEntry = state.uploadedSalesData.find(s => String(s.itemCode) === String(item.code));
-            const soldQty = soldEntry ? (parseFloat(soldEntry.soldQty) || 0) : 0;
-            const expectedStock = systemStock - soldQty;
-            return {
-                code: item.code,
-                name: item.name,
-                systemStock: systemStock,
-                soldQty: soldQty,
-                expectedStock: expectedStock,
-                discrepancy: 0 // This will be calculated against a physical count if needed, for now it's a placeholder
-            };
-        });
-        
-        let tableHtml = `<table id="table-sales-discrepancy">
-            <thead>
-                <tr>
+        let finalHtml = '';
+        state.salesReportDataByBranch = {}; // Clear previous report data
+
+        for (const branchCode in salesByBranch) {
+            const branch = findByKey(state.branches, 'branchCode', branchCode);
+            if (!branch) {
+                Logger.warn(`Skipping sales report for unknown branch code: ${branchCode}`);
+                continue;
+            }
+
+            const branchStock = stock[branchCode] || {};
+            const branchSales = salesByBranch[branchCode];
+
+            const reportData = state.items.map(item => {
+                const systemStock = branchStock[item.code]?.quantity || 0;
+                const soldEntry = branchSales.find(s => String(s.itemCode) === String(item.code));
+                const soldQty = soldEntry ? (parseFloat(soldEntry.soldQty) || 0) : 0;
+                const expectedStock = systemStock - soldQty;
+                return { code: item.code, name: item.name, systemStock, soldQty, expectedStock, discrepancy: 0 };
+            });
+
+            state.salesReportDataByBranch[branchCode] = reportData;
+
+            let tableHtml = `<table id="table-sales-discrepancy-${branchCode}">
+                <thead><tr>
                     <th>${_t('item_code')}</th><th>${_t('item_name')}</th><th>${_t('table_h_system_stock')}</th>
-                    <th>${_t('table_h_sold_qty')}</th><th>${_t('table_h_expected_stock')}</th><th>${_t('table_h_discrepancy')}</th>
-                </tr>
-            </thead><tbody>`;
+                    <th>${_t('table_h_sold_qty')}</th><th>${_t('table_h_expected_stock')}</th>
+                </tr></thead><tbody>`;
 
-        reportData.forEach(row => {
-            tableHtml += `<tr>
-                <td>${row.code}</td><td>${row.name}</td><td>${row.systemStock.toFixed(2)}</td>
-                <td>${row.soldQty.toFixed(2)}</td><td>${row.expectedStock.toFixed(2)}</td>
-                <td style="font-weight:bold; color: ${row.discrepancy > 0 ? 'var(--secondary-color)' : (row.discrepancy < 0 ? 'var(--danger-color)' : 'inherit')}">
-                    ${row.discrepancy.toFixed(2)}
-                </td>
-            </tr>`;
-        });
-        tableHtml += `</tbody></table>`;
-        
-        const branch = findByKey(state.branches, 'branchCode', branchCode);
-        resultsContainer.innerHTML = `<div class="printable-document">
+            reportData.forEach(row => {
+                 if (row.systemStock > 0 || row.soldQty > 0) { // Only show relevant items
+                    tableHtml += `<tr>
+                        <td>${row.code}</td><td>${row.name}</td><td>${row.systemStock.toFixed(2)}</td>
+                        <td>${row.soldQty.toFixed(2)}</td><td>${row.expectedStock.toFixed(2)}</td>
+                    </tr>`;
+                 }
+            });
+            tableHtml += `</tbody></table>`;
+            
+            finalHtml += `<div class="printable-document card">
                 <div class="printable-header">
                     <h2>${_t('sales_discrepancy_report')} - ${branch.branchName}</h2>
                     <p>${_t('date_generated')} ${new Date().toLocaleString()}</p>
                 </div>
                 ${tableHtml}
-            </div>
-            <div style="margin-top:24px;">
-                <button id="btn-settle-stock" class="danger">${_t('settle_stock')}</button>
+                <div style="margin-top:24px;">
+                    <button class="danger btn-settle-stock" data-branch-code="${branchCode}">${_t('settle_stock')} for ${branch.branchName}</button>
+                </div>
             </div>`;
+        }
         
-        document.getElementById('btn-settle-stock').addEventListener('click', () => openSettlementModal(reportData));
-        
+        resultsContainer.innerHTML = finalHtml || `<p>No valid branch data found in the uploaded file.</p>`;
         resultsContainer.style.display = 'block';
-        exportBtn.disabled = false;
+        exportBtn.disabled = finalHtml === '';
     }
 
-    function openSettlementModal(reportData) {
+
+    function openSettlementModal(reportData, branchCode) {
         document.getElementById('settlement-notes').value = '';
         settlementConfirmModal.classList.add('active');
         const confirmBtn = document.getElementById('btn-confirm-settlement');
         
-        const newConfirmBtn = confirmBtn.cloneNode(true);
+        const newConfirmBtn = confirmBtn.cloneNode(true); // Clone to remove old event listeners
         confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
 
         newConfirmBtn.onclick = () => {
-            handleConfirmSettlement(reportData);
+            handleConfirmSettlement(reportData, branchCode);
         };
     }
 
-    async function handleConfirmSettlement(reportData) {
+    async function handleConfirmSettlement(reportData, branchCode) {
         const btn = document.getElementById('btn-confirm-settlement');
-        const branchCode = document.getElementById('sales-report-branch').value;
         const notes = document.getElementById('settlement-notes').value;
 
-        // Add item cost to reportData for transaction creation
         const reportDataWithCost = reportData.map(item => {
             const masterItem = findByKey(state.items, 'code', item.code);
             return { ...item, cost: masterItem?.cost || 0 };
