@@ -2845,7 +2845,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const setupInputTableListeners = (tableId, listName, rendererFn) => {
             const table = document.getElementById(tableId);
             if (!table) return;
-            table.addEventListener('input', e => handleTableInputUpdate(e, listName, rendererFn));
+            table.addEventListener('change', e => handleTableInputUpdate(e, listName, rendererFn));
             table.addEventListener('click', e => {
                  if (e.target.classList.contains('table-input')) {
                     e.target.select();
@@ -3391,7 +3391,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast(_t('no_sales_data_uploaded'), 'error');
             return;
         }
-
+        
         const stock = calculateStockLevels();
         const branchCodesInFile = Object.keys(state.uploadedSalesData[0]).filter(key => key.startsWith('BR-'));
         
@@ -3450,12 +3450,13 @@ document.addEventListener('DOMContentLoaded', () => {
         exportBtn.disabled = finalHtml === '';
     }
 
+
     function openSettlementModal(reportData, branchCode) {
         document.getElementById('settlement-notes').value = '';
         settlementConfirmModal.classList.add('active');
         const confirmBtn = document.getElementById('btn-confirm-settlement');
         
-        const newConfirmBtn = confirmBtn.cloneNode(true);
+        const newConfirmBtn = confirmBtn.cloneNode(true); // Clone to remove old event listeners
         confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
 
         newConfirmBtn.onclick = () => {
