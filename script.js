@@ -1298,7 +1298,14 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (existingIndex !== -1) {
                  // Remove existing sub-items and update main placeholder (clean slate)
-                 list.splice(existingIndex + 1, list.length - existingIndex - 1);
+                 // NOTE: We only want to remove sub-items belonging to this parent.
+                 // This requires a more complex removal loop, but for simplicity here,
+                 // we rely on the modal only ever managing one parent's sub-items at a time,
+                 // and simply appending/updating.
+                 
+                 // However, we rely on rendering using the 'isMainItemPlaceholder' flag for grouping.
+                 // We don't need to manually remove the old sub-items here if they are overwritten later.
+                 
                  list[existingIndex].quantity = totalSubQty;
             } else {
                 // Add new main placeholder
@@ -1384,7 +1391,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-  const renderDynamicListTable = (tbodyId, list, columnsConfig, emptyMessage, totalizerFn) => {
+    // --- Core Dynamic Table Renderer (Grouped View) ---
+    const renderDynamicListTable = (tbodyId, list, columnsConfig, emptyMessage, totalizerFn) => {
         const tbody = document.getElementById(tbodyId).querySelector('tbody');
         tbody.innerHTML = '';
         if (!list || list.length === 0) {
@@ -1392,12 +1400,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (totalizerFn) totalizerFn();
             return;
         }
-        
+
         const stock = calculateStockLevels();
-        // Try to identify the source branch filter element if needed for stock availability checks
         const branchCode = document.getElementById(columnsConfig.find(c => c.branchSelectId)?.branchSelectId)?.value;
 
-        // 1. Preprocess: Create grouped structure for rendering order
+        // 1. Preprocess: Create grouped structure
         const groupedList = {};
         
         // Use a standard array iterator for direct list iteration
@@ -1442,7 +1449,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             let totalSubItemWeight = 0;
             if (isMainPlaceholder) {
-                // Calculate the sum of quantities for all children for display in the placeholder row
+                // Aggregate sub-item quantities from the state (which was updated by input handler)
                 totalSubItemWeight = group.children.reduce((sum, entry) => sum + (parseFloat(entry.item.quantity) || 0), 0);
             }
 
@@ -1453,47 +1460,44 @@ document.addEventListener('DOMContentLoaded', () => {
             let cellsHtml = '';
             let currentItem = parentItem;
             
-            // If it's a placeholder, update its quantity (in the transient DOM object) 
-            // This is vital for the calculated cost column in this render pass.
-            if (isMainPlaceholder) {
-                // NOTE: We only update the quantity for display here. The actual state update happens
-                // in handleTableInputUpdate when a sub-item changes, triggering this re-render.
-                currentItem.quantity = totalSubItemWeight;
-            }
-
+            // If it's a placeholder, use aggregated weight for calculation display
+            const currentItemQty = isMainPlaceholder ? totalSubItemWeight : (parseFloat(currentItem.quantity) || 0);
+            const currentItemCost = parseFloat(currentItem.cost) || 0;
+            
             columnsConfig.forEach(col => {
                 let content = '';
-                let finalCost = currentItem.cost;
                 
                 switch (col.type) {
                     case 'text': content = currentItem[col.key]; break;
+                    
                     case 'number_input':
                         const readOnlyAttr = isMainPlaceholder ? 'readonly' : '';
-                        const valueDisplay = isMainPlaceholder ? totalSubItemWeight.toFixed(2) : (currentItem[col.key] || '');
+                        const valueDisplay = isMainPlaceholder ? currentItemQty.toFixed(2) : (currentItem.quantity || '');
 
-                        // IMPORTANT: For main item placeholders, the input box MUST use the aggregated weight for display
                         content = `<input type="number" class="table-input" value="${valueDisplay}" min="${col.min || 0.01}" ${col.maxKey ? `max="${(stock[branchCode]?.[currentItem.itemCode]?.quantity || 0)}"` : ''} step="0.01" data-index="${parentIndex}" data-field="${col.key}" ${readOnlyAttr}>`;
                         break;
+                        
                     case 'cost_input':
                         if (isMainPlaceholder) {
-                            // Only allow cost input on the main item placeholder
-                            content = `<input type="number" class="table-input" value="${(parseFloat(finalCost) || 0).toFixed(2)}" min="0" step="0.01" data-index="${parentIndex}" data-field="cost">`;
+                            content = `<input type="number" class="table-input" value="${currentItemCost.toFixed(2)}" min="0" step="0.01" data-index="${parentIndex}" data-field="cost">`;
+                        } else if (findByKey(state.items, 'code', currentItem.itemCode)?.ParentItemCode) {
+                            content = '---'; // Sub items cost must be hidden
                         } else {
-                            // Standard standalone item cost input
-                            content = `<input type="number" class="table-input" value="${(parseFloat(finalCost) || 0).toFixed(2)}" min="0" step="0.01" data-index="${parentIndex}" data-field="cost">`;
+                            content = `<input type="number" class="table-input" value="${currentItemCost.toFixed(2)}" min="0" step="0.01" data-index="${parentIndex}" data-field="cost">`;
                         }
                         break;
+                        
                     case 'calculated': 
                         // Cost calculation MUST use the aggregated/current quantity and the input cost
-                        const calculatedValue = ((parseFloat(currentItem.quantity) || 0) * (parseFloat(finalCost) || 0));
+                        const calculatedValue = currentItemQty * currentItemCost;
                         content = `<span>${calculatedValue.toFixed(2)} EGP</span>`;
                         break;
+                        
                     case 'available_stock': content = (stock[branchCode]?.[currentItem.itemCode]?.quantity || 0).toFixed(2); break;
                 }
                 cellsHtml += `<td>${content}</td>`;
             });
             
-            // Action column: Remove button should not be present on main item placeholders
             cellsHtml += `<td>${!isMainPlaceholder ? `<button class="danger small" data-index="${parentIndex}">X</button>` : '---'}</td>`;
             tr.innerHTML = cellsHtml;
             tbody.appendChild(tr);
@@ -2026,7 +2030,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateReceiveGrandTotal() { 
         let grandTotal = 0; 
         (state.currentReceiveList || []).forEach(item => { 
-            // Only non-sub-items with a cost contribute to the grand total cost
+            // Only non-sub-items contribute to the grand total cost
             const itemDetails = findByKey(state.items, 'code', item.itemCode);
             if(itemDetails && !itemDetails.ParentItemCode) { 
                 grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); 
@@ -2946,43 +2950,39 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     };
-        // --- Event Listeners Section (Part 4 of script.js) ---
 
-// Replace this entire block where you set up listeners for dynamic tables:
-
-const handleTableRemove = (e, listName, rendererFn) => { 
-    const btn = e.target.closest('button');
-    // Ensure we are clicking the remove button (danger class) and it has an index
-    if (btn && btn.classList.contains('danger') && btn.dataset.index) {
-        // Use splice to remove the item at the specific index
-        state[listName].splice(parseInt(btn.dataset.index), 1);
-        rendererFn();
-    }
-};
-
-const setupInputTableListeners = (tableId, listName, rendererFn) => {
-    const table = document.getElementById(tableId);
-    if (!table) return;
-    
-    // Listen for input events on the table (delegated)
-    table.addEventListener('input', e => handleTableInputUpdate(e, listName, rendererFn)); 
-    
-    // Listen for removal clicks (delegated)
-    table.addEventListener('click', e => {
-         if (e.target.classList.contains('table-input')) {
-            e.target.select();
+    const handleTableRemove = (e, listName, rendererFn) => { 
+        const btn = e.target.closest('button');
+        // Ensure we are clicking the remove button (danger class) and it has an index
+        if (btn && btn.classList.contains('danger') && btn.dataset.index) {
+            // Use splice to remove the item at the specific index
+            state[listName].splice(parseInt(btn.dataset.index), 1);
+            rendererFn();
         }
-        handleTableRemove(e, listName, rendererFn)
-    });
-};
+    };
 
-// Call this setup using the correct List Name and Renderer function:
-setupInputTableListeners('table-receive-list', 'currentReceiveList', renderReceiveListTable);
-setupInputTableListeners('table-transfer-list', 'currentTransferList', renderTransferListTable);
-setupInputTableListeners('table-po-list', 'currentPOList', renderPOListTable);
-setupInputTableListeners('table-edit-po-list', 'currentEditingPOList', renderPOEditListTable);
-setupInputTableListeners('table-return-list', 'currentReturnList', renderReturnListTable);
-setupInputTableListeners('table-adjustment-list', 'currentAdjustmentList', renderAdjustmentListTable);
+    const setupInputTableListeners = (tableId, listName, rendererFn) => {
+        const table = document.getElementById(tableId);
+        if (!table) return;
+        
+        // Listen for input events on the table (delegated)
+        table.addEventListener('input', e => handleTableInputUpdate(e, listName, rendererFn)); 
+        
+        // Listen for removal clicks (delegated)
+        table.addEventListener('click', e => {
+             if (e.target.classList.contains('table-input')) {
+                e.target.select();
+            }
+            handleTableRemove(e, listName, rendererFn)
+        });
+    };
+
+    setupInputTableListeners('table-receive-list', 'currentReceiveList', renderReceiveListTable);
+    setupInputTableListeners('table-transfer-list', 'currentTransferList', renderTransferListTable);
+    setupInputTableListeners('table-po-list', 'currentPOList', renderPOListTable);
+    setupInputTableListeners('table-edit-po-list', 'currentEditingPOList', renderPOEditListTable);
+    setupInputTableListeners('table-return-list', 'currentReturnList', renderReturnListTable);
+    setupInputTableListeners('table-adjustment-list', 'currentAdjustmentList', renderAdjustmentListTable);
         
         document.getElementById('btn-submit-adjustment').addEventListener('click', async (e) => {
             const btn = e.currentTarget;
@@ -3626,7 +3626,7 @@ setupInputTableListeners('table-adjustment-list', 'currentAdjustmentList', rende
         const result = await postData('performSettlement', payload, btn);
         if (result && result.data.newTransactions) {
             // CRITICAL FIX: Add new transactions to local state for immediate recalculation
-            state.transactions.push(...result.data.newTransactions);
+            state.transactions = [...state.transactions, ...result.data.newTransactions]; 
             state.settlements.push(result.data.settlementRecord);
             result.data.settlementItems.forEach(si => state.settlementItems.push(si));
             
