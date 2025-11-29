@@ -437,6 +437,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return p === true || String(p).toUpperCase() === 'TRUE';
     };
 
+    // --- DOM ELEMENT REFERENCES ---
     const loginContainer = document.getElementById('login-container');
     const loginForm = document.getElementById('login-form');
     const loginUsernameInput = document.getElementById('login-username');
@@ -731,6 +732,7 @@ document.addEventListener('DOMContentLoaded', () => {
         viewTransferModal.classList.add('active');
     }
 
+    // --- FIX: Ensure proper modal handling for sub-items ---
     function confirmModalSelection() {
         if (modalContext === 'invoices') {
             renderPaymentList();
@@ -751,6 +753,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const item = findByKey(state.items, 'code', code);
             if (!item) return;
 
+            // FIX: If Sub-Item, find Parent. If Main Item with Sub-Items, find Self.
             if (item.ParentItemCode && modalContext !== 'po') {
                 mainItemsToProcess.add(item.ParentItemCode);
             } else if (!item.ParentItemCode && state.items.some(sub => sub.ParentItemCode === item.code) && modalContext !== 'po') {
@@ -799,6 +802,92 @@ document.addEventListener('DOMContentLoaded', () => {
     
         renderer();
     }
+
+    // --- RESTORED MISSING FUNCTIONS ---
+    function renderInvoicesInModal() {
+        const modalInvoiceList = document.getElementById('modal-invoice-list');
+        const supplierCode = document.getElementById('payment-supplier-select').value;
+        const supplierFinancials = calculateSupplierFinancials();
+        const supplierInvoices = supplierFinancials[supplierCode]?.invoices;
+        modalInvoiceList.innerHTML = '';
+        if (!supplierInvoices || Object.keys(supplierInvoices).length === 0) {
+            modalInvoiceList.innerHTML = `<p>${_t('no_invoices_for_supplier')}</p>`;
+            return;
+        }
+        const unpaidInvoices = Object.values(supplierInvoices).filter(inv => inv.status !== 'Paid');
+        if (unpaidInvoices.length === 0) {
+            modalInvoiceList.innerHTML = `<p>${_t('no_unpaid_invoices')}</p>`;
+            return;
+        }
+        unpaidInvoices.sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(invoice => {
+            const isChecked = state.invoiceModalSelections.has(invoice.number);
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'modal-item';
+            const detailsText = _t('invoice_modal_details', { date: new Date(invoice.date).toLocaleDateString(), balance: invoice.balance.toFixed(2) });
+            itemDiv.innerHTML = `<input type="checkbox" id="modal-invoice-${invoice.number}" data-number="${invoice.number}" ${isChecked ? 'checked' : ''}><label for="modal-invoice-${invoice.number}"><strong>${_t('table_h_invoice_no')}: ${invoice.number}</strong><br><small style="color:var(--text-light-color)">${detailsText}</small></label>`;
+            modalInvoiceList.appendChild(itemDiv);
+        });
+    }
+
+    function handleModalCheckboxChange(e) {
+        if (e.target.type === 'checkbox') {
+            const itemCode = e.target.dataset.code;
+            if (e.target.checked) {
+                state.modalSelections.add(itemCode);
+            } else {
+                state.modalSelections.delete(itemCode);
+            }
+        }
+    }
+
+    function handleInvoiceModalCheckboxChange(e) {
+        if (e.target.type === 'checkbox') {
+            const invoiceNumber = e.target.dataset.number;
+            if (e.target.checked) {
+                state.invoiceModalSelections.add(invoiceNumber);
+            } else {
+                state.invoiceModalSelections.delete(invoiceNumber);
+            }
+        }
+    }
+
+    function renderPaymentList() {
+        const supplierCode = document.getElementById('payment-supplier-select').value;
+        const container = document.getElementById('payment-invoice-list-container');
+        if (!supplierCode) {
+            container.style.display = 'none';
+            return;
+        }
+        const supplierInvoices = calculateSupplierFinancials()[supplierCode]?.invoices;
+        const tableBody = document.getElementById('table-payment-list').querySelector('tbody');
+        tableBody.innerHTML = '';
+        let total = 0;
+        if (state.invoiceModalSelections.size === 0) {
+            container.style.display = 'none';
+            return;
+        }
+        state.invoiceModalSelections.forEach(invNum => {
+            const invoice = supplierInvoices[invNum];
+            if (!invoice) return;
+            const balance = invoice.balance;
+            total += balance;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${invoice.number}</td><td>${balance.toFixed(2)} EGP</td><td><input type="number" class="table-input payment-amount-input" data-invoice="${invoice.number}" value="${balance.toFixed(2)}" step="0.01" min="0" max="${balance.toFixed(2)}" style="max-width: 150px;"></td>`;
+            tableBody.appendChild(tr);
+        });
+        document.getElementById('payment-total-amount').textContent = `${total.toFixed(2)} EGP`;
+        container.style.display = 'block';
+    }
+
+    function handlePaymentInputChange() {
+        let total = 0;
+        document.querySelectorAll('.payment-amount-input').forEach(input => {
+            total += parseFloat(input.value) || 0;
+        });
+        document.getElementById('payment-total-amount').textContent = `${total.toFixed(2)} EGP`;
+    }
+
+    // --- END RESTORED FUNCTIONS ---
     
     function showToast(message, type = 'success') {
         if (type === 'error') Logger.error(`User Toast: ${message}`);
@@ -839,30 +928,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const modalBody = document.getElementById('sub-item-entry-modal-body');
         let tableHtml = `
             <table id="sub-item-entry-table">
-                <thead>
-                    <tr>
-                        <th>${_t('table_h_name')}</th>
-                        <th>${_t('table_h_quantity')}</th>
-                    </tr>
-                </thead>
+                <thead><tr><th>${_t('table_h_name')}</th><th>${_t('table_h_quantity')}</th></tr></thead>
                 <tbody>
         `;
         subItems.forEach(sub => {
-            tableHtml += `
-                <tr>
-                    <td>${sub.name} (${sub.code})</td>
-                    <td><input type="number" class="table-input sub-item-qty-input" data-item-code="${sub.code}" step="0.01" min="0"></td>
-                </tr>
-            `;
+            // FIX: If items were already selected in the first modal, pre-fill them?
+            // For now, start empty to be safe, or check list
+            tableHtml += `<tr><td>${sub.name} (${sub.code})</td><td><input type="number" class="table-input sub-item-qty-input" data-item-code="${sub.code}" step="0.01" min="0"></td></tr>`;
         });
-        tableHtml += `</tbody>
-            <tfoot>
-                <tr>
-                    <td style="text-align: right;"><strong>${_t('total_sub_item_weight')}:</strong></td>
-                    <td id="total-sub-item-weight">0.00</td>
-                </tr>
-            </tfoot>
-        </table>`;
+        tableHtml += `</tbody><tfoot><tr><td style="text-align: right;"><strong>${_t('total_sub_item_weight')}:</strong></td><td id="total-sub-item-weight">0.00</td></tr></tfoot></table>`;
         modalBody.innerHTML = tableHtml;
     
         const table = modalBody.querySelector('#sub-item-entry-table');
@@ -875,7 +949,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     
         const confirmBtn = document.getElementById('btn-confirm-sub-item-entry');
-        
         const newConfirmBtn = confirmBtn.cloneNode(true);
         confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
 
@@ -918,24 +991,22 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        if (totalSubQty > 0) {
-            const existingIndex = list.findIndex(i => i.itemCode === mainItem.code && i.isMainItemPlaceholder);
-            
-            if (existingIndex !== -1) {
-                 list[existingIndex].quantity = totalSubQty;
-            } else {
-                list.push({
-                    itemCode: mainItem.code,
-                    itemName: mainItem.name,
-                    quantity: totalSubQty,
-                    cost: 0, 
-                    isMainItemPlaceholder: true 
-                });
-            }
-            
-            list.push(...subItemsToAdd);
-            renderer();
+        // Ensure placeholder exists
+        const existingIndex = list.findIndex(i => i.itemCode === mainItem.code && i.isMainItemPlaceholder);
+        if (existingIndex !== -1) {
+             list[existingIndex].quantity = totalSubQty;
+        } else if (totalSubQty > 0) { // Only add if sub items exist
+            list.push({
+                itemCode: mainItem.code,
+                itemName: mainItem.name,
+                quantity: totalSubQty,
+                cost: 0, // Default cost 0 until user enters it
+                isMainItemPlaceholder: true 
+            });
         }
+        
+        list.push(...subItemsToAdd);
+        renderer();
 
         subItemEntryModal.classList.remove('active');
 
@@ -1005,6 +1076,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- Core Dynamic Table Renderer (Grouped View) ---
+    // FIXED: Properly associates children with parent placeholder using a map
     const renderDynamicListTable = (tbodyId, list, columnsConfig, emptyMessage, totalizerFn) => {
         const tbody = document.getElementById(tbodyId).querySelector('tbody');
         tbody.innerHTML = '';
@@ -1017,32 +1090,39 @@ document.addEventListener('DOMContentLoaded', () => {
         const stock = calculateStockLevels();
         const branchCode = document.getElementById(columnsConfig.find(c => c.branchSelectId)?.branchSelectId)?.value;
 
-        const groupedMap = {}; 
-        const standaloneList = []; 
+        // Grouping Logic
+        const groupedMap = {}; // Key: ParentCode, Value: { parentIndex, parentItem, children: [] }
+        const standaloneList = []; // Array of { item, index }
 
         list.forEach((item, index) => {
             if (item.isMainItemPlaceholder) {
                 if (!groupedMap[item.itemCode]) {
                     groupedMap[item.itemCode] = { parentIndex: index, parentItem: item, children: [] };
                 } else {
+                    // Update existing (unlikely in sequential parse but safe)
                     groupedMap[item.itemCode].parentIndex = index;
                     groupedMap[item.itemCode].parentItem = item;
                 }
             } else {
                 const itemDetails = findByKey(state.items, 'code', item.itemCode);
                 if (itemDetails && itemDetails.ParentItemCode) {
+                    // It's a sub-item
                     if (!groupedMap[itemDetails.ParentItemCode]) {
+                        // Create slot if parent hasn't been seen yet
                         groupedMap[itemDetails.ParentItemCode] = { parentIndex: -1, parentItem: null, children: [] };
                     }
                     groupedMap[itemDetails.ParentItemCode].children.push({ item, index });
                 } else {
+                    // Standalone main item
                     standaloneList.push({ item, index });
                 }
             }
         });
 
+        // Convert Map to Array and sort by first appearance
         const allGroups = [...Object.values(groupedMap), ...standaloneList.map(s => ({ parentIndex: s.index, parentItem: s.item, children: [], isStandalone: true }))];
         allGroups.sort((a, b) => {
+            // Logic to keep sort order roughly consistent
             const idxA = a.parentIndex > -1 ? a.parentIndex : (a.children[0]?.index || 9999);
             const idxB = b.parentIndex > -1 ? b.parentIndex : (b.children[0]?.index || 9999);
             return idxA - idxB;
@@ -1051,6 +1131,7 @@ document.addEventListener('DOMContentLoaded', () => {
         allGroups.forEach(group => {
             if (!group.parentItem && group.children.length === 0) return;
 
+            // --- Render Parent/Placeholder Row ---
             if (group.parentItem) {
                 const parentItem = group.parentItem;
                 const parentIndex = group.parentIndex;
@@ -1067,6 +1148,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 let cellsHtml = '';
                 let currentItem = parentItem;
                 
+                // For placeholders, use aggregated quantity
                 const currentItemQty = isMainPlaceholder ? totalSubItemWeight : (parseFloat(currentItem.quantity) || 0);
                 const currentItemCost = parseFloat(currentItem.cost) || 0;
                 
@@ -1074,27 +1156,37 @@ document.addEventListener('DOMContentLoaded', () => {
                     let content = '';
                     switch (col.type) {
                         case 'text': content = currentItem[col.key]; break;
+                        
                         case 'number_input':
+                            // If it's a placeholder, make Qty Read-Only
                             const readOnlyAttr = isMainPlaceholder ? 'readonly' : '';
                             const valueDisplay = isMainPlaceholder ? currentItemQty.toFixed(2) : (currentItem.quantity || '');
+
                             content = `<input type="number" class="table-input" value="${valueDisplay}" min="${col.min || 0.01}" ${col.maxKey ? `max="${(stock[branchCode]?.[currentItem.itemCode]?.quantity || 0)}"` : ''} step="0.01" data-index="${parentIndex}" data-field="${col.key}" ${readOnlyAttr}>`;
                             break;
+                            
                         case 'cost_input':
+                            // FIX: If Main Placeholder, Input is TOTAL VALUE. If Sub Item, Cost is Hidden.
                             if (isMainPlaceholder) {
                                 content = `<input type="number" class="table-input" value="${currentItemCost.toFixed(2)}" min="0" step="0.01" data-index="${parentIndex}" data-field="cost" title="Enter Total Batch Value here">`;
+                            } else if (findByKey(state.items, 'code', currentItem.itemCode)?.ParentItemCode) {
+                                content = '---'; 
                             } else {
                                 content = `<input type="number" class="table-input" value="${currentItemCost.toFixed(2)}" min="0" step="0.01" data-index="${parentIndex}" data-field="cost">`;
                             }
                             break;
+                            
                         case 'calculated': 
+                            // FIX: For Placeholder, Calculated = Input (Total Value). For Others, Qty * Cost.
                             let calculatedValue;
                             if (isMainPlaceholder) {
-                                calculatedValue = currentItemCost; 
+                                calculatedValue = currentItemCost; // Input is the total value
                             } else {
                                 calculatedValue = currentItemQty * currentItemCost;
                             }
                             content = `<span>${calculatedValue.toFixed(2)} EGP</span>`;
                             break;
+                            
                         case 'available_stock': content = (stock[branchCode]?.[currentItem.itemCode]?.quantity || 0).toFixed(2); break;
                     }
                     cellsHtml += `<td>${content}</td>`;
@@ -1105,6 +1197,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 tbody.appendChild(tr);
             }
 
+            // --- Render Children ---
             group.children.forEach(entry => {
                 const subItem = entry.item;
                 const subIndex = entry.index;
@@ -1117,6 +1210,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     switch (col.type) {
                         case 'text': subContent = subItem[col.key]; break;
                         case 'number_input': 
+                            // Sub-item Qty is Editable. It updates the Parent.
                             const subAvailableStock = (branchCode && stock[branchCode]?.[subItem.itemCode]?.quantity || 0);
                             subContent = `<input type="number" class="table-input" value="${subItem[col.key] || ''}" min="${col.min || 0}" step="0.01" data-index="${subIndex}" data-field="${col.key}" ${col.maxKey ? `max="${subAvailableStock}"` : ''}>`;
                             break;
@@ -1140,13 +1234,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (totalizerFn) totalizerFn();
     };
     
+    // --- UPDATED TOTALIZER FUNCTIONS ---
     function updateReceiveGrandTotal() { 
         let grandTotal = 0; 
         (state.currentReceiveList || []).forEach(item => { 
             const itemDetails = findByKey(state.items, 'code', item.itemCode);
+            
             if(item.isMainItemPlaceholder) {
+                // If it's a placeholder, cost = Total Batch Value
                 grandTotal += (parseFloat(item.cost) || 0);
             } else if(itemDetails && !itemDetails.ParentItemCode) { 
+                // Standalone Main Item
                 grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); 
             } 
         }); 
@@ -1156,6 +1254,7 @@ document.addEventListener('DOMContentLoaded', () => {
    function updateTransferGrandTotal() { 
         let grandTotalQty = 0; 
         (state.currentTransferList || []).forEach(item => { 
+            // Transfers usually don't use Lump Sum logic, but simply sum quantities
             grandTotalQty += (parseFloat(item.quantity) || 0); 
         }); 
         document.getElementById('transfer-grand-total').textContent = grandTotalQty.toFixed(2); 
@@ -1196,10 +1295,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('return-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; 
     }
     
+    // --- HELPER TO DISTRIBUTE COSTS BEFORE SUBMISSION ---
     function prepareListForSubmission(list) {
         const processedList = [];
         const groupedList = {};
 
+        // 1. Group items to find placeholders and their children
         list.forEach(item => {
             const itemDetails = findByKey(state.items, 'code', item.itemCode);
             if (itemDetails && itemDetails.ParentItemCode) {
@@ -1211,23 +1312,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!groupedList[item.itemCode]) groupedList[item.itemCode] = { parent: item, children: [] };
                     else groupedList[item.itemCode].parent = item;
                 } else {
+                    // Standalone main items are pushed directly
                     processedList.push(item);
                 }
             }
         });
 
+        // 2. Process groups
         Object.values(groupedList).forEach(group => {
             if (group.parent && group.parent.isMainItemPlaceholder) {
-                const totalBatchValue = parseFloat(group.parent.cost) || 0; 
+                const totalBatchValue = parseFloat(group.parent.cost) || 0; // The lump sum input
                 let totalBatchWeight = 0;
+                
+                // Calculate total weight from children
                 group.children.forEach(child => totalBatchWeight += (parseFloat(child.quantity) || 0));
+                
+                // Calculate Unit Cost (Price per KG)
                 const derivedUnitCost = totalBatchWeight > 0 ? (totalBatchValue / totalBatchWeight) : 0;
+                
+                // Assign unit cost to all children and add them to processed list
                 group.children.forEach(child => {
                     const childCopy = { ...child };
                     childCopy.cost = derivedUnitCost;
                     processedList.push(childCopy);
                 });
             } else {
+                // Orphan children (shouldn't happen in normal flow, but just in case)
                 group.children.forEach(child => processedList.push(child));
             }
         });
@@ -1235,263 +1345,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return processedList;
     }
 
-    function renderReceiveListTable() { renderDynamicListTable('table-receive-list', state.currentReceiveList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated' } ], 'no_items_selected_toast', updateReceiveGrandTotal); }
-    function renderTransferListTable() { renderDynamicListTable('table-transfer-list', state.currentTransferList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'available_stock', branchSelectId: 'transfer-from-branch' }, { type: 'number_input', key: 'quantity', maxKey: true, branchSelectId: 'transfer-from-branch' } ], 'no_items_selected_toast', updateTransferGrandTotal); }
-    function renderPOListTable() { renderDynamicListTable('table-po-list', state.currentPOList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated' } ], 'no_items_selected_toast', updatePOGrandTotal); }
-    function renderPOEditListTable() { renderDynamicListTable('table-edit-po-list', state.currentEditingPOList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated' } ], 'no_items_selected_toast', updatePOEditGrandTotal); }
-    function renderReturnListTable() { renderDynamicListTable('table-return-list', state.currentReturnList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'available_stock', branchSelectId: 'return-branch' }, { type: 'number_input', key: 'quantity', maxKey: true, branchSelectId: 'return-branch' }, { type: 'cost_input', key: 'cost' } ], 'no_items_selected_toast', updateReturnGrandTotal); }
-
-    function renderAdjustmentListTable() {
-        const tbody = document.getElementById('table-adjustment-list').querySelector('tbody');
-        tbody.innerHTML = '';
-        if (!state.currentAdjustmentList || state.currentAdjustmentList.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">${_t('no_items_for_adjustment')}</td></tr>`;
-            return;
-        }
-        const stock = calculateStockLevels();
-        const branchCode = document.getElementById('adjustment-branch').value;
-
-        state.currentAdjustmentList.forEach((item, index) => {
-            const systemQty = (branchCode && stock[branchCode]?.[item.itemCode]?.quantity) || 0;
-            const physicalCount = typeof item.physicalCount !== 'undefined' ? item.physicalCount : '';
-            const adjustment = physicalCount - systemQty;
-            item.physicalCount = physicalCount;
-
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${item.itemCode}</td>
-                <td>${item.itemName}</td>
-                <td>${systemQty.toFixed(2)}</td>
-                <td><input type="number" class="table-input" value="${physicalCount}" min="0" step="0.01" data-index="${index}" data-field="physicalCount"></td>
-                <td style="font-weight: bold; color: ${adjustment > 0 ? 'var(--secondary-color)' : (adjustment < 0 ? 'var(--danger-color)' : 'inherit')}">${adjustment.toFixed(2)}</td>
-                <td><button class="danger small" data-index="${index}">X</button></td>
-            `;
-            tbody.appendChild(tr);
-        });
-    }
-
-    function renderItemCentricStockView(itemsToRender = state.items, selectedBranches = []) {
-        const container = document.getElementById('item-centric-stock-container');
-        if (!container) return;
-        const stockByBranch = calculateStockLevels();
-        
-        let branchesToDisplay = getVisibleBranchesForCurrentUser();
-        if (selectedBranches.length > 0 && userCan('viewAllBranches')) {
-            branchesToDisplay = state.branches.filter(b => selectedBranches.includes(b.branchCode));
-        }
-    
-        const itemsWithChildren = {};
-        itemsToRender.forEach(item => {
-            if (item.ParentItemCode) {
-                if (!itemsWithChildren[item.ParentItemCode]) {
-                    itemsWithChildren[item.ParentItemCode] = [];
-                }
-                itemsWithChildren[item.ParentItemCode].push(item);
-            }
-        });
-    
-        let tableHTML = `<table id="table-stock-levels-by-item"><thead><tr><th>${_t('table_h_code')}</th><th>${_t('table_h_name')}</th>`;
-        branchesToDisplay.forEach(b => { tableHTML += `<th>${b.branchName}</th>` });
-        tableHTML += `<th>${_t('table_h_total')}</th></tr></thead><tbody>`;
-    
-        const renderedItems = new Set();
-    
-        itemsToRender.forEach(item => {
-            if (renderedItems.has(item.code)) return;
-            if (!item.ParentItemCode) {
-                tableHTML += renderStockRow(item, false);
-                renderedItems.add(item.code);
-                if (itemsWithChildren[item.code]) {
-                    itemsWithChildren[item.code].forEach(child => {
-                        tableHTML += renderStockRow(child, true);
-                        renderedItems.add(child.code);
-                    });
-                }
-            }
-        });
-    
-        function renderStockRow(item, isSubItem) {
-            let rowHtml = `<tr class="${isSubItem ? 'sub-item-row' : ''}"><td>${item.code}</td><td>${item.name}</td>`;
-            let total = 0;
-            branchesToDisplay.forEach(branch => {
-                const qty = stockByBranch[branch.branchCode]?.[item.code]?.quantity || 0;
-                total += qty;
-                rowHtml += `<td>${qty > 0 ? qty.toFixed(2) : '-'}</td>`;
-            });
-            rowHtml += `<td><strong>${total.toFixed(2)}</strong></td></tr>`;
-            return rowHtml;
-        }
-    
-        tableHTML += `</tbody></table>`;
-        container.innerHTML = tableHTML;
-    }
-
-    function renderItemInquiry(searchTerm) {
-        const resultsContainer = document.getElementById('item-inquiry-results');
-        if (!searchTerm) {
-            resultsContainer.innerHTML = '';
-            return;
-        }
-        const stockByBranch = calculateStockLevels();
-        const filteredItems = state.items.filter(i => i.name.toLowerCase().includes(searchTerm) || i.code.toLowerCase().includes(searchTerm));
-        let html = '';
-        const branchesToDisplay = getVisibleBranchesForCurrentUser();
-        filteredItems.slice(0, 10).forEach(item => {
-            html += `<h4>${item.name} (${item.code})</h4><table><thead><tr><th>${_t('branch')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_value')}</th></tr></thead><tbody>`;
-            let found = false;
-            let totalQty = 0;
-            let totalValue = 0;
-            branchesToDisplay.forEach(branch => {
-                const itemStock = stockByBranch[branch.branchCode]?.[item.code];
-                if (itemStock && itemStock.quantity > 0) {
-                    const value = itemStock.quantity * itemStock.avgCost;
-                    html += `<tr><td>${branch.branchName} (${branch.branchCode || ''})</td><td>${itemStock.quantity.toFixed(2)}</td><td>${value.toFixed(2)} EGP</td></tr>`;
-                    totalQty += itemStock.quantity;
-                    totalValue += value;
-                    found = true;
-                }
-            });
-            if (!found) {
-                html += `<tr><td colspan="3">${_t('no_stock_for_item')}</td></tr>`;
-            } else {
-                html += `<tr style="font-weight:bold; background-color: var(--bg-color);"><td>${_t('table_h_total')}</td><td>${totalQty.toFixed(2)}</td><td>${totalValue.toFixed(2)} EGP</td></tr>`
-            }
-            html += `</tbody></table><hr>`;
-        });
-        resultsContainer.innerHTML = html;
-    }
-    
-    // --- BACKUP FUNCTIONS ---
-    async function loadAndRenderBackups() {
-        const container = document.getElementById('backup-list-container');
-        container.innerHTML = `<table><tbody><tr><td><div class="spinner" style="width:30px;height:30px;border-width:3px;"></div></td><td>${_t('loading_backups')}</td></tr></tbody></table>`;
-        const result = await postData('listBackups', {}, null);
-        if (result && result.data) {
-            state.backups = result.data;
-            if (state.backups.length === 0) {
-                container.innerHTML = `<p>${_t('no_backups_found')}</p>`;
-                return;
-            }
-            let tableHtml = `<table id="table-backups"><thead><tr><th>${_t('backup_name')}</th><th>${_t('date_created')}</th><th>${_t('actions')}</th></tr></thead><tbody>`;
-            state.backups.forEach(backup => {
-                tableHtml += `
-                    <tr>
-                        <td>${backup.name}</td>
-                        <td>${new Date(backup.dateCreated).toLocaleString()}</td>
-                        <td>
-                            <div class="action-buttons">
-                                <a href="${backup.url}" target="_blank" rel="noopener noreferrer" class="secondary small" style="text-decoration: none;">${_t('open')}</a>
-                                <button class="danger small btn-restore" data-url="${backup.url}">${_t('restore')}</button>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-            });
-            tableHtml += '</tbody></table>';
-            container.innerHTML = tableHtml;
-        } else {
-            container.innerHTML = `<p>Could not load backup list. Please check permissions or try again.</p>`;
-        }
-    }
-    
-    async function loadAutoBackupSettings() {
-        const toggle = document.getElementById('auto-backup-toggle');
-        const frequencyContainer = document.getElementById('auto-backup-frequency-container');
-        const statusEl = document.getElementById('auto-backup-status');
-        
-        statusEl.textContent = 'Checking status...';
-        const result = await postData('getAutomaticBackupStatus', {}, null);
-        
-        if (result && result.data.enabled !== undefined) {
-            const isEnabled = result.data.enabled;
-            toggle.checked = isEnabled;
-            frequencyContainer.style.display = isEnabled ? 'block' : 'none';
-            statusEl.textContent = isEnabled 
-                ? 'Automatic backups are currently active.'
-                : 'Automatic backups are currently disabled.';
-        } else {
-            statusEl.textContent = 'Could not retrieve automatic backup status.';
-        }
-    }
-    
-    async function handleAutoBackupToggle() {
-        const toggle = document.getElementById('auto-backup-toggle');
-        const frequency = document.getElementById('auto-backup-frequency').value;
-        const frequencyContainer = document.getElementById('auto-backup-frequency-container');
-        const statusEl = document.getElementById('auto-backup-status');
-        
-        const isEnabled = toggle.checked;
-        frequencyContainer.style.display = isEnabled ? 'block' : 'none';
-        
-        statusEl.textContent = 'Updating settings...';
-        const result = await postData('setAutomaticBackup', { enabled: isEnabled, frequency: frequency }, toggle);
-
-        if (result) {
-            showToast(_t('auto_backup_updated_toast'), 'success');
-            statusEl.textContent = isEnabled
-                ? `Automatic backups are now enabled (${frequency}).`
-                : 'Automatic backups have been disabled.';
-        } else {
-            toggle.checked = !isEnabled;
-            frequencyContainer.style.display = toggle.checked ? 'block' : 'none';
-            statusEl.textContent = _t('auto_backup_failed_toast');
-        }
-    }
-
-    function openRestoreModal(backupFileId, backupFileName) {
-        const modal = document.getElementById('restore-modal');
-        const sheetListContainer = document.getElementById('restore-sheet-list');
-        const confirmInput = document.getElementById('restore-confirmation-input');
-        const confirmBtn = document.getElementById('btn-confirm-restore');
-    
-        document.getElementById('restore-filename-display').textContent = backupFileName;
-        confirmBtn.dataset.backupFileId = backupFileId;
-        
-        confirmInput.value = '';
-        confirmBtn.disabled = true;
-    
-        const coreSheets = [ 'Items', 'Suppliers', 'Branches', 'Transactions', 'Payments', 'PurchaseOrders', 'PurchaseOrderItems', 'Users', 'Permissions', 'Settlements', 'SettlementItems' ];
-        
-        sheetListContainer.innerHTML = '';
-        coreSheets.forEach(sheetName => {
-            sheetListContainer.innerHTML += `<div class="form-group-checkbox"><input type="checkbox" id="restore-sheet-${sheetName}" name="restoreSheet" value="${sheetName}"><label for="restore-sheet-${sheetName}">${sheetName}</label></div>`;
-        });
-        
-        const updateConfirmButtonState = () => {
-            const sheetsSelected = document.querySelectorAll('#restore-sheet-list input:checked').length > 0;
-            confirmBtn.disabled = !(confirmInput.value === 'RESTORE' && sheetsSelected);
-        };
-
-        confirmInput.addEventListener('input', updateConfirmButtonState);
-        sheetListContainer.addEventListener('change', updateConfirmButtonState);
-    
-        modal.classList.add('active');
-    }
-    
-    async function handleConfirmRestore(e) {
-        const btn = e.target;
-        const backupFileId = btn.dataset.backupFileId;
-        const selectedSheets = Array.from(document.querySelectorAll('#restore-sheet-list input:checked')).map(el => el.value);
-    
-        if (selectedSheets.length === 0) {
-            showToast(_t('restore_select_sheet_toast'), 'error');
-            return;
-        }
-    
-        const payload = {
-            backupFileId: backupFileId,
-            sheetsToRestore: selectedSheets
-        };
-    
-        const result = await postData('restoreFromBackup', payload, btn);
-    
-        if (result) {
-            showToast(result.data.message || _t('restore_completed_toast'), 'success');
-            closeModal();
-            await reloadDataAndRefreshUI();
-        }
-    }
-
+    // --- FIX: Prevent Focus Loss by updating DOM directly instead of re-rendering ---
     const handleTableInputUpdate = (e, listName, rendererFn) => {
         if (e.target.classList.contains('table-input')) {
             const index = parseInt(e.target.dataset.index);
@@ -1508,6 +1362,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (listName === 'currentPOList') updatePOGrandTotal();
             if (listName === 'currentEditingPOList') updatePOEditGrandTotal();
             if (listName === 'currentReturnList') updateReturnGrandTotal();
+
+            // DO NOT CALL rendererFn() here. It kills focus.
         }
     };
 
@@ -1515,7 +1371,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const btn = e.target.closest('button');
         if (btn && btn.classList.contains('danger') && btn.dataset.index) {
             state[listName].splice(parseInt(btn.dataset.index), 1);
-            rendererFn(); 
+            rendererFn(); // Safe to re-render here
         }
     };
 
@@ -1532,6 +1388,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
+    // --- FIX: Define renderTransactionHistory BEFORE it is called in refreshViewData ---
     function renderTransactionHistory(filters = {}) {
         const tbody = document.getElementById('table-transaction-history').querySelector('tbody');
         tbody.innerHTML = '';
@@ -2229,527 +2086,6 @@ document.addEventListener('DOMContentLoaded', () => {
         let displayText = '';
         if (branch) displayText += `${_t('branch')}: ${branch.branchName}`;
         displayEl.textContent = displayText;
-    }
-
-    function openPOEditModal(poId) {
-        const po = findByKey(state.purchaseOrders, 'poId', poId);
-        if (!po) return;
-        const poItems = state.purchaseOrderItems.filter(i => i.poId === poId);
-        state.currentEditingPOList = poItems.map(item => {
-            const masterItem = findByKey(state.items, 'code', item.itemCode);
-            return {
-                itemCode: item.itemCode,
-                itemName: masterItem?.name || "N/A",
-                quantity: parseFloat(item.quantity),
-                cost: parseFloat(item.cost)
-            };
-        });
-
-        const modalBody = document.getElementById('edit-po-modal-body');
-        modalBody.innerHTML = `
-            <div class="form-grid">
-                <div class="form-group"><label>${_t('table_h_po_no')}</label><input type="text" id="edit-po-id" value="${po.poId}" readonly></div>
-                <div class="form-group"><label>${_t('supplier')}</label><input type="text" value="${findByKey(state.suppliers, 'supplierCode', po.supplierCode)?.name}" readonly></div>
-                <div class="form-group span-full"><label for="edit-po-notes">${_t('notes_optional')}</label><textarea id="edit-po-notes" rows="2">${po.notes || ''}</textarea></div>
-            </div>
-            <div class="card" style="margin-top: 20px;">
-                <h2 data-translate-key="items_to_order">${_t('items_to_order')}</h2>
-                <table id="table-edit-po-list">
-                    <thead><tr><th>${_t('table_h_code')}</th><th>${_t('item_name')}</th><th>${_t('table_h_quantity')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th><th>${_t('table_h_actions')}</th></tr></thead>
-                    <tbody></tbody>
-                    <tfoot><tr style="font-weight: bold; background-color: var(--bg-color);"><td colspan="4" style="text-align: right;">${_t('grand_total')}</td><td id="edit-po-grand-total" colspan="2">0.00 EGP</td></tr></tfoot>
-                </table>
-                <div style="margin-top: 20px;"><button type="button" data-context="edit-po" class="secondary">${_t('select_items')}</button></div>
-            </div>
-        `;
-        
-        const modal = document.getElementById('edit-po-modal');
-        modal.querySelector('.modal-footer').innerHTML = `
-            <button class="secondary modal-cancel">${_t('cancel')}</button>
-            <button id="btn-print-draft-po" class="secondary">${_t('view_print')}</button>
-            <button id="btn-save-po-changes" class="primary" data-po-id="${po.poId}">${_t('save_changes')}</button>
-        `;
-        
-        document.getElementById('btn-print-draft-po').onclick = () => {
-            const supplier = findByKey(state.suppliers, 'supplierCode', po.supplierCode);
-            const dataToPrint = {
-                poId: document.getElementById('edit-po-id').value,
-                date: new Date(),
-                supplierCode: po.supplierCode,
-                notes: document.getElementById('edit-po-notes').value,
-                items: state.currentEditingPOList,
-                createdBy: po.createdBy || state.currentUser.Name
-            };
-            generatePODocument(dataToPrint);
-        };
-
-        renderPOEditListTable();
-        editPOModal.classList.add('active');
-    }
-
-    function openInvoiceEditModal(batchId) {
-        const txGroup = state.transactions.filter(t => t.batchId === batchId && t.type === 'receive');
-        if (txGroup.length === 0) {
-            showToast('Could not find invoice data to edit.', 'error');
-            return;
-        }
-        const firstTx = txGroup[0];
-
-        state.currentEditingPOList = txGroup.map(tx => {
-            const masterItem = findByKey(state.items, 'code', tx.itemCode);
-            return {
-                itemCode: tx.itemCode,
-                itemName: masterItem?.name || 'N/A',
-                quantity: parseFloat(tx.quantity),
-                cost: parseFloat(tx.cost)
-            };
-        });
-
-        const modalBody = document.getElementById('edit-po-modal-body');
-        const supplier = findByKey(state.suppliers, 'supplierCode', firstTx.supplierCode);
-        const branch = findByKey(state.branches, 'branchCode', firstTx.branchCode);
-
-        modalBody.innerHTML = `
-            <div class="form-grid">
-                <div class="form-group"><label>Batch ID</label><input type="text" value="${batchId}" readonly></div>
-                <div class="form-group"><label>${_t('supplier')}</label><input type="text" value="${supplier?.name || 'N/A'}" readonly></div>
-                <div class="form-group"><label>${_t('branch')}</label><input type="text" value="${branch?.branchName || 'N/A'}" readonly></div>
-                <div class="form-group"><label for="edit-invoice-number">${_t('table_h_invoice_no')}</label><input type="text" id="edit-invoice-number" value="${firstTx.invoiceNumber || ''}" required></div>
-                <div class="form-group span-full"><label for="edit-invoice-notes">${_t('notes_optional')}</label><textarea id="edit-invoice-notes" rows="2">${firstTx.notes || ''}</textarea></div>
-            </div>
-            <div class="card" style="margin-top: 20px;">
-                <h2 data-translate-key="items_to_be_received">${_t('items_to_be_received')}</h2>
-                <table id="table-edit-po-list">
-                    <thead><tr><th>${_t('table_h_code')}</th><th>${_t('item_name')}</th><th>${_t('table_h_quantity')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th><th>${_t('table_h_actions')}</th></tr></thead>
-                    <tbody></tbody>
-                    <tfoot><tr style="font-weight: bold; background-color: var(--bg-color);"><td colspan="4" style="text-align: right;">${_t('grand_total')}</td><td id="edit-po-grand-total" colspan="2">0.00 EGP</td></tr></tfoot>
-                </table>
-                <div style="margin-top: 20px;"><button type="button" data-context="edit-po" class="secondary">${_t('select_items')}</button></div>
-            </div>
-        `;
-
-        const modal = document.getElementById('edit-po-modal');
-        document.getElementById('edit-po-modal-title').textContent = _t('edit') + ' ' + _t('receive_stock');
-        modal.querySelector('.modal-footer').innerHTML = `
-            <button type="button" class="secondary modal-cancel">${_t('cancel')}</button>
-            <button id="btn-save-invoice-changes" class="primary" data-batch-id="${batchId}">${_t('save_changes')}</button>
-        `;
-
-        renderPOEditListTable();
-        editPOModal.classList.add('active');
-    }
-    
-    async function savePOChanges(e) {
-        const btn = e.currentTarget;
-        const poId = btn.dataset.poId;
-        const notes = document.getElementById('edit-po-notes').value;
-        const totalValue = state.currentEditingPOList.reduce((acc, item) => acc + (item.quantity * item.cost), 0);
-        const payload = {
-            poId,
-            notes,
-            totalValue,
-            items: state.currentEditingPOList
-        };
-        const result = await postData('editPurchaseOrder', payload, btn);
-        if (result) {
-            showToast('PO updated successfully!', 'success');
-            closeModal();
-            reloadDataAndRefreshUI();
-        }
-    }
-
-    async function saveInvoiceChanges(e) {
-        const btn = e.currentTarget;
-        const batchId = btn.dataset.batchId;
-        const notes = document.getElementById('edit-invoice-notes').value;
-        const invoiceNumber = document.getElementById('edit-invoice-number').value;
-
-        if (!invoiceNumber) {
-            showToast('Invoice Number is required.', 'error');
-            return;
-        }
-
-        const payload = {
-            batchId,
-            invoiceNumber,
-            notes,
-            items: state.currentEditingPOList
-        };
-        const result = await postData('editInvoice', payload, btn);
-        if (result) {
-            showToast('Invoice updated successfully!', 'success');
-            closeModal();
-            reloadDataAndRefreshUI();
-        }
-    }
-
-    // Admin Context Selector
-    async function requestAdminContext(config) {
-        const modal = document.getElementById('context-selector-modal');
-        
-        modal.querySelectorAll('.form-group').forEach(el => el.style.display = 'none');
-        
-        if(config.fromBranch) populateOptions(document.getElementById('context-from-branch-select'), state.branches, 'Select From Branch', 'branchCode', 'branchName');
-        if(config.toBranch) populateOptions(document.getElementById('context-to-branch-select'), state.branches, 'Select To Branch', 'branchCode', 'branchName');
-        if(config.branch) populateOptions(document.getElementById('context-branch-select'), state.branches, 'Select Branch', 'branchCode', 'branchName');
-
-        Object.keys(config).forEach(key => {
-            const group = document.getElementById(`context-modal-${key}-group`);
-            if(group) group.style.display = 'block';
-        });
-
-        modal.classList.add('active');
-        return new Promise((resolve, reject) => {
-            state.adminContextPromise = { resolve, reject };
-        });
-    }
-
-    // --- NEW EXTRACTION LOGIC ---
-    function renderExtractionPreview() {
-        const mainItemCode = document.getElementById('extraction-main-item').value;
-        const quantity = parseFloat(document.getElementById('extraction-quantity').value) || 0;
-        const branchCode = document.getElementById('extraction-branch').value;
-        const previewContainer = document.getElementById('extraction-preview-container');
-
-        if (!mainItemCode || !branchCode || quantity <= 0) {
-            previewContainer.innerHTML = '';
-            return;
-        }
-
-        const mainItem = findByKey(state.items, 'code', mainItemCode);
-        const subItems = state.items.filter(i => i.ParentItemCode === mainItemCode);
-        const stock = calculateStockLevels();
-        const availableQty = stock[branchCode]?.[mainItemCode]?.quantity || 0;
-
-        if (quantity > availableQty) {
-            previewContainer.innerHTML = `<p class="login-error">Error: Quantity to consume (${quantity}) exceeds available stock (${availableQty}).</p>`;
-            return;
-        }
-
-        let html = `<h4>${_t('sub_items_produced')}</h4>
-            <table id="table-extraction-preview">
-            <thead><tr><th>${_t('table_h_name')}</th><th>${_t('enter_produced_quantity')}</th></tr></thead>
-            <tbody>`;
-
-        if (subItems.length === 0) {
-            html += `<tr><td colspan="2" style="text-align:center;">This main item has no sub-items defined.</td></tr>`;
-        } else {
-            subItems.forEach(sub => {
-                html += `<tr><td>${sub.name} (${sub.code})</td><td><input type="number" class="table-input" data-item-code="${sub.code}" step="0.01" min="0"></td></tr>`;
-            });
-        }
-
-        html += '</tbody></table>';
-        previewContainer.innerHTML = html;
-    }
-
-    async function handleExtractionSubmit(e) {
-        const btn = e.currentTarget;
-        const mainItemCode = document.getElementById('extraction-main-item').value;
-        const quantity = parseFloat(document.getElementById('extraction-quantity').value) || 0;
-        const branchCode = document.getElementById('extraction-branch').value;
-        const notes = document.getElementById('extraction-notes').value;
-
-        if (!mainItemCode || !branchCode || quantity <= 0) {
-            showToast('Please select a branch, a main item, and enter a valid quantity to consume.', 'error');
-            return;
-        }
-
-        const mainItem = findByKey(state.items, 'code', mainItemCode);
-        const stock = calculateStockLevels();
-        const availableQty = stock[branchCode]?.[mainItemCode]?.quantity || 0;
-        if (quantity > availableQty) {
-            showToast(`Error: Quantity to consume (${quantity}) exceeds available stock (${availableQty}).`, 'error');
-            return;
-        }
-        
-        const mainItemCost = stock[branchCode]?.[mainItemCode]?.avgCost || mainItem.cost;
-        const batchId = `EXT-${Date.now()}`;
-        
-        const itemsPayload = [];
-        // Main item out
-        itemsPayload.push({
-            type: 'extraction_out',
-            itemCode: mainItemCode,
-            quantity: quantity,
-            cost: mainItemCost
-        });
-        
-        let hasSubItems = false;
-        document.querySelectorAll('#table-extraction-preview input').forEach(input => {
-            const subQty = parseFloat(input.value) || 0;
-            if (subQty > 0) {
-                hasSubItems = true;
-                itemsPayload.push({
-                    type: 'extraction_in',
-                    itemCode: input.dataset.itemCode,
-                    quantity: subQty,
-                    cost: 0 // Sub-items have no cost
-                });
-            }
-        });
-
-        if (!hasSubItems) {
-            showToast('Please enter the quantity produced for at least one sub-item.', 'error');
-            return;
-        }
-
-        const payload = {
-            type: 'extraction',
-            batchId: batchId,
-            ref: batchId,
-            fromBranchCode: branchCode,
-            notes: notes,
-            items: itemsPayload
-        };
-
-        const result = await postData('addTransactionBatch', payload, btn);
-        if(result) {
-            showToast('Extraction processed successfully!', 'success');
-            document.getElementById('form-extraction-details').reset();
-            renderExtractionPreview();
-            reloadDataAndRefreshUI();
-        }
-    }
-    
-    // --- NEW SALES RECONCILIATION & SETTLEMENT LOGIC ---
-    function downloadSalesTemplate() {
-        const header = { itemCode: "itemCode", itemName: "itemName" };
-        state.branches.forEach(b => {
-            header[b.branchCode] = ''; 
-        });
-    
-        const templateData = state.items.map(item => {
-            const row = {
-                itemCode: item.code,
-                itemName: item.name
-            };
-            state.branches.forEach(b => {
-                row[b.branchCode] = ''; 
-            });
-            return row;
-        });
-    
-        const ws = XLSX.utils.json_to_sheet(templateData);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "SalesData");
-        XLSX.writeFile(wb, "SalesUploadTemplate.xlsx");
-    }
-
-    function handleSalesFileUpload(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            try {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                const jsonData = XLSX.utils.sheet_to_json(firstSheet);
-
-                // FIX: Clean headers (Trim and Uppercase)
-                const cleanedData = jsonData.map(row => {
-                    const newRow = {};
-                    Object.keys(row).forEach(key => {
-                        newRow[key.trim().toUpperCase()] = row[key]; 
-                    });
-                    // Ensure itemCode is present even if casing differed in original
-                    const itemCodeKey = Object.keys(newRow).find(k => k === 'ITEMCODE');
-                    if(itemCodeKey) newRow.itemCode = newRow[itemCodeKey];
-                    
-                    return newRow;
-                });
-
-                if (!cleanedData[0] || !cleanedData[0].hasOwnProperty('itemCode')) {
-                    throw new Error("Invalid format: 'itemCode' column missing.");
-                }
-
-                state.uploadedSalesData = cleanedData;
-                showToast(_t('file_upload_success', { rows: cleanedData.length }), 'success');
-
-            } catch (err) {
-                showToast(_t('file_upload_error'), 'error');
-                Logger.error(err);
-            }
-        };
-        reader.readAsArrayBuffer(file);
-    }
-
-    function renderSalesDiscrepancyReport() {
-        const resultsContainer = document.getElementById('sales-report-results');
-        const exportBtn = document.getElementById('btn-export-sales-report');
-        
-        if (state.uploadedSalesData.length === 0) {
-            showToast(_t('no_sales_data_uploaded'), 'error');
-            return;
-        }
-        
-        const stock = calculateStockLevels();
-        
-        // FIX: Match against UPPERCASE system codes AND NAMES
-        const headers = Object.keys(state.uploadedSalesData[0]);
-        
-        // Create a mapping of [HEADER] -> [BRANCH_CODE]
-        // This handles "BR-001" and "CAIRO BRANCH" -> BR-001
-        const branchHeaderMap = {};
-        state.branches.forEach(b => {
-            if (headers.includes(b.branchCode.toUpperCase())) {
-                branchHeaderMap[b.branchCode.toUpperCase()] = b.branchCode;
-            }
-            if (headers.includes(b.branchName.toUpperCase())) {
-                branchHeaderMap[b.branchName.toUpperCase()] = b.branchCode;
-            }
-        });
-        
-        const branchHeadersFound = Object.keys(branchHeaderMap);
-        
-        if (branchHeadersFound.length === 0) {
-             resultsContainer.innerHTML = `<p class="login-error">Error: Sales file headers must match system Branch Codes or Names. No matches found.</p>`;
-             exportBtn.disabled = true;
-             return;
-        }
-
-        // FIX: Create Lookup Map for performance and duplicates
-        const salesMap = {};
-        state.uploadedSalesData.forEach(row => {
-            const itemCode = String(row.itemCode).trim();
-            if (!salesMap[itemCode]) salesMap[itemCode] = {};
-            
-            // Merge/Sum sales data for each matched branch header
-            branchHeadersFound.forEach(header => {
-                const targetBranchCode = branchHeaderMap[header];
-                const qty = parseFloat(row[header]) || 0;
-                
-                if (!salesMap[itemCode][targetBranchCode]) salesMap[itemCode][targetBranchCode] = 0;
-                salesMap[itemCode][targetBranchCode] += qty;
-            });
-        });
-
-        let finalHtml = '';
-        state.salesReportDataByBranch = {};
-
-        // Iterate through unique branch codes found
-        const uniqueBranchCodes = [...new Set(Object.values(branchHeaderMap))];
-
-        uniqueBranchCodes.forEach(branchCode => {
-            const branch = findByKey(state.branches, 'branchCode', branchCode);
-            if (!branch) return;
-
-            const branchStock = stock[branchCode] || {};
-            
-            const reportData = state.items.map(item => {
-                const systemStock = branchStock[item.code]?.quantity || 0;
-                
-                // FIX: Instant Lookup from Map
-                const soldQty = salesMap[item.code] ? (salesMap[item.code][branchCode] || 0) : 0;
-                
-                const expectedStock = systemStock - soldQty;
-                return { code: item.code, name: item.name, systemStock, soldQty, expectedStock, discrepancy: expectedStock };
-            });
-
-            state.salesReportDataByBranch[branchCode] = reportData;
-
-            let tableHtml = `<table id="table-sales-discrepancy-${branchCode}">
-                <thead><tr>
-                    <th>${_t('item_code')}</th><th>${_t('item_name')}</th><th>${_t('table_h_system_stock')}</th>
-                    <th>${_t('table_h_sold_qty')}</th><th>${_t('table_h_expected_stock')}</th><th>${_t('table_h_discrepancy')}</th>
-                </tr></thead><tbody>`;
-
-            reportData.forEach(row => {
-                 if (row.systemStock > 0 || row.soldQty > 0 || row.discrepancy !== 0) {
-                    const discrepancyClass = row.discrepancy !== 0 ? 'status-rejected' : '';
-                    tableHtml += `<tr class="${discrepancyClass}">
-                        <td>${row.code}</td><td>${row.name}</td><td>${row.systemStock.toFixed(2)}</td>
-                        <td>${row.soldQty.toFixed(2)}</td><td>${row.expectedStock.toFixed(2)}</td><td>${row.discrepancy.toFixed(2)}</td>
-                    </tr>`;
-                 }
-            });
-            tableHtml += `</tbody></table>`;
-            
-            finalHtml += `<div class="printable-document card">
-                <div class="printable-header">
-                    <h2>${_t('sales_discrepancy_report')} - ${branch.branchName}</h2>
-                    <p>${_t('date_generated')} ${new Date().toLocaleString()}</p>
-                </div>
-                ${tableHtml}
-                <div style="margin-top:24px;">
-                    <button class="danger btn-settle-stock" data-branch-code="${branchCode}">${_t('settle_stock')} for ${branch.branchName}</button>
-                </div>
-            </div>`;
-        });
-        
-        resultsContainer.innerHTML = finalHtml || `<p>No valid branch data found in the uploaded file.</p>`;
-        resultsContainer.style.display = 'block';
-        exportBtn.disabled = finalHtml === '';
-    }
-
-
-    function openSettlementModal(reportData, branchCode) {
-        document.getElementById('settlement-notes').value = '';
-        settlementConfirmModal.classList.add('active');
-        const confirmBtn = document.getElementById('btn-confirm-settlement');
-        
-        const newConfirmBtn = confirmBtn.cloneNode(true); // Clone to remove old event listeners
-        confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
-
-        newConfirmBtn.onclick = () => {
-            handleConfirmSettlement(reportData, branchCode);
-        };
-    }
-
-    async function handleConfirmSettlement(reportData, branchCode) {
-        const btn = document.getElementById('btn-confirm-settlement');
-        const notes = document.getElementById('settlement-notes').value;
-        const settlementId = `SET-${Date.now()}`;
-        const today = new Date().toISOString();
-
-        const reportDataWithCost = reportData.map(item => {
-            const masterItem = findByKey(state.items, 'code', item.code);
-            return { ...item, cost: masterItem?.cost || 0 };
-        });
-
-        const payload = {
-            branchCode,
-            notes,
-            settlementId,
-            reportData: reportDataWithCost
-        };
-
-        const result = await postData('performSettlement', payload, btn);
-        if (result && result.data.newTransactions) {
-            // FIX: Add new transactions to local state for immediate recalculation
-            state.transactions = [...state.transactions, ...result.data.newTransactions]; 
-            state.settlements.push(result.data.settlementRecord);
-            if(result.data.settlementItems) result.data.settlementItems.forEach(si => state.settlementItems.push(si));
-            
-            showToast(_t('settlement_complete'), 'success');
-            closeModal();
-            
-            const currentView = document.querySelector('.nav-item a.active')?.dataset.view || 'dashboard';
-            refreshViewData(currentView); 
-        }
-    }
-
-    function renderSettlementHistory() {
-        const tbody = document.getElementById('table-settlement-history').querySelector('tbody');
-        tbody.innerHTML = '';
-        if (!state.settlements || state.settlements.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">No settlement history found.</td></tr>`;
-            return;
-        }
-
-        state.settlements.slice().reverse().forEach(settlement => {
-            const branch = findByKey(state.branches, 'branchCode', settlement.branchCode);
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${settlement.settlementId}</td>
-                <td>${new Date(settlement.date).toLocaleString()}</td>
-                <td>${branch?.branchName || settlement.branchCode}</td>
-                <td>${settlement.settledBy}</td>
-                <td><button class="secondary small btn-view-settlement" data-id="${settlement.settlementId}">${_t('view_settlement')}</button></td>
-            `;
-            tbody.appendChild(tr);
-        });
     }
 
     function init() {
