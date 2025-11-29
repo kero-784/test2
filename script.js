@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // !!! IMPORTANT: PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwSM8G9AqHy6Nnhwcpit7xRJbKMkY93ACaHA3_3pzwZlNaF6ORzVL-Ev10FF7HQiu9M/exec';
 
+    // --- 1. STATE & HELPERS ---
     const Logger = {
         info: (message, ...args) => console.log(`[StockWise INFO] ${message}`, ...args),
         warn: (message, ...args) => console.warn(`[StockWise WARN] ${message}`, ...args),
@@ -57,6 +58,34 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     let modalContext = null;
 
+    // --- DOM ELEMENTS ---
+    const loginContainer = document.getElementById('login-container');
+    const loginForm = document.getElementById('login-form');
+    const loginUsernameInput = document.getElementById('login-username');
+    const loginCodeInput = document.getElementById('login-code');
+    const loginError = document.getElementById('login-error');
+    const loginLoader = document.getElementById('login-loader');
+    const appContainer = document.getElementById('app-container');
+    const btnLogout = document.getElementById('btn-logout');
+    const globalRefreshBtn = document.getElementById('global-refresh-button');
+    const mainContent = document.querySelector('.main-content');
+
+    const itemSelectorModal = document.getElementById('item-selector-modal');
+    const invoiceSelectorModal = document.getElementById('invoice-selector-modal');
+    const editModal = document.getElementById('edit-modal');
+    const historyModal = document.getElementById('history-modal');
+    const editPOModal = document.getElementById('edit-po-modal');
+    const subItemEntryModal = document.getElementById('sub-item-entry-modal');
+    const settlementConfirmModal = document.getElementById('settlement-confirm-modal');
+    
+    const modalItemList = document.getElementById('modal-item-list');
+    const modalSearchInput = document.getElementById('modal-search-items');
+    const editModalBody = document.getElementById('edit-modal-body');
+    const editModalTitle = document.getElementById('edit-modal-title');
+    const formEditRecord = document.getElementById('form-edit-record');
+    const viewTransferModal = document.getElementById('view-transfer-modal');
+
+    // --- TRANSLATIONS ---
     const translations = {
         'en': {
             'packing_stock': 'Packing Stock',
@@ -431,597 +460,288 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    const userCan = (permission) => {
-        if (!state.currentUser || !state.currentUser.permissions) return false;
-        const p = state.currentUser.permissions[permission];
-        return p === true || String(p).toUpperCase() === 'TRUE';
+    const findByKey = (array, key, value) => (array || []).find(el => el && String(el[key]) === String(value));
+    const generateId = (prefix) => `${prefix}-${Date.now()}`;
+    const printContent = (content) => { document.getElementById('print-area').innerHTML = content; setTimeout(() => window.print(), 200); };
+    const exportToExcel = (tableId, filename, sheetName = 'Sheet1') => { try { const table = document.getElementById(tableId); if (!table) { showToast('Please generate a report first.', 'error'); return; } const wb = XLSX.utils.table_to_book(table, {sheet: sheetName}); XLSX.writeFile(wb, filename); showToast('Exporting to Excel...', 'success'); } catch (err) { showToast('Excel export failed.', 'error'); Logger.error('Export Error:', err); } };
+
+    function setButtonLoading(isLoading, buttonEl) {
+        if (!buttonEl) return;
+        if (isLoading) {
+            buttonEl.disabled = true;
+            buttonEl.dataset.originalText = buttonEl.innerHTML;
+            const loaderText = (buttonEl.closest('#login-form')) ? _t('signing_in') : _t('loading');
+            buttonEl.innerHTML = `<div class="button-spinner"></div><span>${loaderText}</span>`;
+        } else {
+            buttonEl.disabled = false;
+            if (buttonEl.dataset.originalText) {
+                buttonEl.innerHTML = buttonEl.dataset.originalText;
+            }
+        }
+    }
+
+    function showToast(message, type = 'success') {
+        if (type === 'error') Logger.error(`User Toast: ${message}`);
+        const container = document.getElementById('toast-container');
+        if (!container) {
+            console.error("Toast container not found! Message:", message);
+            return;
+        }
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.textContent = message;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 3500);
+    }
+
+    function populateOptions(el, data, ph, valueKey, textKey, textKey2) { 
+        if (!el) { console.warn(`populateOptions failed: element is null for placeholder "${ph}"`); return; }
+        el.innerHTML = `<option value="">${ph}</option>`; 
+        (data || []).forEach(item => { 
+            el.innerHTML += `<option value="${item[valueKey]}">${item[textKey]}${textKey2 && item[textKey2] ? ' (' + item[textKey2] + ')' : ''}</option>`;
+        }); 
     };
 
-    // --- DOM ELEMENT REFERENCES ---
-    const loginContainer = document.getElementById('login-container');
-    const loginForm = document.getElementById('login-form');
-    const loginUsernameInput = document.getElementById('login-username');
-    const loginCodeInput = document.getElementById('login-code');
-    const loginError = document.getElementById('login-error');
-    const loginLoader = document.getElementById('login-loader');
-    const appContainer = document.getElementById('app-container');
-    const btnLogout = document.getElementById('btn-logout');
-    const globalRefreshBtn = document.getElementById('global-refresh-button');
-    const mainContent = document.querySelector('.main-content');
+    // --- 2. CORE LOGIC & CALCULATIONS ---
 
-    const itemSelectorModal = document.getElementById('item-selector-modal');
-    const invoiceSelectorModal = document.getElementById('invoice-selector-modal');
-    const editModal = document.getElementById('edit-modal');
-    const historyModal = document.getElementById('history-modal');
-    const editPOModal = document.getElementById('edit-po-modal');
-    const subItemEntryModal = document.getElementById('sub-item-entry-modal');
-    const settlementConfirmModal = document.getElementById('settlement-confirm-modal');
-    
-    const modalItemList = document.getElementById('modal-item-list');
-    const modalSearchInput = document.getElementById('modal-search-items');
-    const editModalBody = document.getElementById('edit-modal-body');
-    const editModalTitle = document.getElementById('edit-modal-title');
-    const formEditRecord = document.getElementById('form-edit-record');
-    const viewTransferModal = document.getElementById('view-transfer-modal');
-
-
-    async function attemptLogin(username, loginCode) {
-        if (!username || !loginCode) return;
-        loginForm.style.display = 'none';
-        loginError.textContent = '';
-        loginLoader.style.display = 'flex';
-        Logger.info(`Attempting to login...`);
-        if (!SCRIPT_URL || !SCRIPT_URL.includes('macros/s')) {
-            const errorMsg = 'SCRIPT_URL is not set or invalid in script.js.';
-            Logger.error(errorMsg);
-            loginError.textContent = errorMsg;
-            loginLoader.style.display = 'none';
-            loginForm.style.display = 'block';
-            return;
-        }
-        try {
-            const response = await fetch(`${SCRIPT_URL}?username=${encodeURIComponent(username)}&loginCode=${encodeURIComponent(loginCode)}`);
-            if (!response.ok) throw new Error(`Network error: ${response.status} ${response.statusText}`);
-            const data = await response.json();
-            if (data.status === 'error' || !data.user) {
-                throw new Error(data.message || 'Invalid username or login code.');
-            }
-            if (data.user.isDisabled === true || String(data.user.isDisabled).toUpperCase() === 'TRUE') {
-                throw new Error('This user account has been disabled. Please contact an administrator.');
-            }
-            state.username = username;
-            state.loginCode = loginCode;
-            state.currentUser = data.user;
-            Object.keys(data).forEach(key => {
-                if (key !== 'user') state[key] = data[key] || [];
-            });
-            Logger.info(`Login successful for user: ${state.currentUser.Name} (Role: ${state.currentUser.RoleName})`);
+    function calculateStockLevels() {
+        const stock = {};
+        (state.branches || []).forEach(branch => { stock[branch.branchCode] = {}; });
+        const sortedTransactions = [...(state.transactions || [])].sort((a, b) => new Date(a.date) - new Date(b.date));
+        const tempAvgCosts = {};
+        sortedTransactions.forEach(t => {
+            const isApproved = t.isApproved === true || String(t.isApproved).toUpperCase() === 'TRUE';
+            if (t.type === 'receive' && !isApproved) return;
             
-            const savedLang = localStorage.getItem('userLanguage') || 'en';
-            state.currentLanguage = savedLang;
-            document.getElementById('lang-switcher').value = savedLang;
-
-            loginContainer.style.display = 'none';
-            appContainer.style.display = 'flex';
-            initializeAppUI();
-        } catch (error) {
-            const userMsg = error.message.includes('Network error') ? 'Failed to connect to server.' : error.message;
-            Logger.error('Login failed:', error);
-            loginError.textContent = userMsg;
-            loginLoader.style.display = 'none';
-            loginForm.style.display = 'block';
-            loginCodeInput.value = '';
-            loginUsernameInput.value = '';
-        }
-    }
-
-    async function postData(action, data, buttonEl) {
-        setButtonLoading(true, buttonEl);
-        Logger.debug(`POSTing action: ${action}`, data);
-        const {
-            username,
-            loginCode
-        } = state;
-        if (!username || !loginCode) {
-            Logger.error("Authentication token missing. Cannot perform action.");
-            showToast(_t('session_error_toast'), 'error');
-            setButtonLoading(false, buttonEl);
-            return null;
-        }
-
-        try {
-            const response = await fetch(SCRIPT_URL, {
-                method: 'POST',
-                mode: 'cors',
-                body: JSON.stringify({
-                    username,
-                    loginCode,
-                    action,
-                    data
-                })
-            });
-            const result = await response.json();
-            if (result.status !== 'success') throw new Error(result.message || 'An unknown error occurred on the server.');
-            Logger.info(`POST successful for ${action}`, result);
-            return result;
-        } catch (error) {
-            const userMsg = _t('action_failed_toast', {errorMessage: error.message});
-            Logger.error(userMsg, error);
-            showToast(userMsg, 'error');
-            return null;
-        } finally {
-            setButtonLoading(false, buttonEl);
-        }
-    }
-
-    function showView(viewId, subViewId = null) {
-        Logger.info(`Switching view to: ${viewId}` + (subViewId ? `/${subViewId}` : ''));
-        
-        document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
-        document.querySelectorAll('#main-nav a').forEach(link => link.classList.remove('active'));
-
-        const viewToShow = document.getElementById(`view-${viewId}`);
-        if(viewToShow) viewToShow.classList.add('active');
-        
-        const activeLink = document.querySelector(`[data-view="${viewId}"]`);
-        if (activeLink) {
-            activeLink.classList.add('active');
-            const viewTitleKey = activeLink.querySelector('span').dataset.translateKey;
-            document.getElementById('view-title').textContent = _t(viewTitleKey);
-            document.getElementById('view-title').dataset.translateKey = viewTitleKey;
-        }
-
-        const parentView = document.getElementById(`view-${viewId}`);
-        if (parentView) {
-            parentView.querySelectorAll('.sub-nav-item').forEach(btn => btn.classList.remove('active'));
-            parentView.querySelectorAll('.sub-view').forEach(view => view.classList.remove('active'));
-
-            let targetSubViewId = subViewId;
-
-            if (!targetSubViewId) {
-                const firstVisibleTab = parentView.querySelector('.sub-nav-item:not([style*="display: none"])');
-                if (firstVisibleTab) {
-                    targetSubViewId = firstVisibleTab.dataset.subview;
-                }
-            }
-            
-            if (targetSubViewId) {
-                const subViewBtn = parentView.querySelector(`[data-subview="${targetSubViewId}"]`);
-                if(subViewBtn) subViewBtn.classList.add('active');
+            const item = findByKey(state.items, 'code', t.itemCode);
+            if (!item) return;
+            const processStockUpdate = (branchCode, qtyChange, cost) => {
+                if (!branchCode || !stock.hasOwnProperty(branchCode)) return;
+                const current = stock[branchCode][t.itemCode] || { quantity: 0, avgCost: parseFloat(item.cost) || 0, itemName: item.name };
                 
-                const subViewToShow = parentView.querySelector(`#subview-${targetSubViewId}`);
-                if (subViewToShow) subViewToShow.classList.add('active');
-            }
-        }
-        
-        refreshViewData(viewId);
-    }
-    
-    function openItemSelectorModal(event) {
-        const context = event.target.dataset.context;
-        if (!context) {
-            Logger.error("openItemSelectorModal called without a data-context on the button.");
-            return;
-        }
-
-        modalContext = context;
-        let currentList = [];
-
-        switch (context) {
-            case 'receive': currentList = state.currentReceiveList; break;
-            case 'transfer': currentList = state.currentTransferList; break;
-            case 'po': currentList = state.currentPOList; break;
-            case 'return': currentList = state.currentReturnList; break;
-            case 'edit-po': currentList = state.currentEditingPOList; break;
-            case 'adjustment': currentList = state.currentAdjustmentList; break;
-            default:
-                Logger.error(`Unknown modal context: ${context}`);
-                return;
-        }
-
-        state.modalSelections = new Set((currentList || []).map(item => item.itemCode));
-        renderItemsInModal();
-        itemSelectorModal.classList.add('active');
-    }
-
-    function openInvoiceSelectorModal() {
-        modalContext = 'invoices';
-        renderInvoicesInModal();
-        invoiceSelectorModal.classList.add('active');
-    }
-
-    async function openHistoryModal(itemCode) {
-        const item = findByKey(state.items, 'code', itemCode);
-        if (!item) return;
-
-        document.getElementById('history-modal-title').textContent = _t('history_for', {itemName: item.name, itemCode: item.code});
-        const historyModalBody = document.getElementById('history-modal-body');
-        const priceHistoryContainer = historyModalBody.querySelector('#subview-price-history');
-        const movementHistoryContainer = historyModalBody.querySelector('#subview-movement-history');
-        const subNav = historyModalBody.querySelector('.sub-nav');
-
-        priceHistoryContainer.innerHTML = '<div class="spinner"></div>';
-        movementHistoryContainer.querySelector('#movement-history-table-container').innerHTML = '<div class="spinner"></div>';
-        historyModal.classList.add('active');
-        
-        const subNavClickHandler = (e) => {
-            if (!e.target.classList.contains('sub-nav-item')) return;
-            const subviewId = e.target.dataset.subview;
-            subNav.querySelectorAll('.sub-nav-item').forEach(btn => btn.classList.remove('active'));
-            e.target.classList.add('active');
-            historyModalBody.querySelectorAll('.sub-view').forEach(view => view.classList.remove('active'));
-            const subViewToShow = historyModalBody.querySelector(`#subview-${subviewId}`);
-            if (subViewToShow) subViewToShow.classList.add('active');
-        };
-
-        subNav.removeEventListener('click', subNavClickHandler);
-        subNav.addEventListener('click', subNavClickHandler);
-
-        const firstTab = subNav.querySelector('.sub-nav-item');
-        if (firstTab) firstTab.click();
-
-        const result = await postData('getItemHistory', { itemCode }, null);
-        
-        populateOptions(document.getElementById('history-filter-branch'), state.branches, _t('all_branches'), 'branchCode', 'branchName');
-        const txTypes = ['receive', 'issue', 'transfer_out', 'transfer_in', 'return_out', 'adjustment_in', 'adjustment_out', 'extraction_in', 'extraction_out'];
-        const txTypeOptions = txTypes.map(t => ({'type': t, 'name': t.replace(/_/g, ' ').toUpperCase()}));
-        populateOptions(document.getElementById('history-filter-type'), txTypeOptions, _t('all_types'), 'type', 'name');
-
-        if (result && result.data) {
-            renderPriceHistory(result.data.priceHistory);
-            
-            const renderFilteredMovementHistory = () => renderMovementHistory(result.data.movementHistory, itemCode);
-            renderFilteredMovementHistory(); 
-
-            ['history-filter-start-date', 'history-filter-end-date', 'history-filter-type', 'history-filter-branch'].forEach(id => {
-                const element = document.getElementById(id);
-                element.removeEventListener('change', renderFilteredMovementHistory);
-                element.addEventListener('change', renderFilteredMovementHistory);
-            });
-        } else {
-            priceHistoryContainer.innerHTML = `<p>${_t('no_price_history')}</p>`;
-            movementHistoryContainer.querySelector('#movement-history-table-container').innerHTML = `<p>${_t('no_movements_found')}</p>`;
-        }
-    }
-
-    function closeModal() {
-        document.querySelectorAll('.modal-overlay').forEach(modal => modal.classList.remove('active'));
-        modalSearchInput.value = '';
-        modalContext = null;
-    }
-    
-    function openViewTransferModal(batchId) {
-        const transferGroup = state.transactions.filter(t => t.batchId === batchId && t.type === 'transfer_out');
-        if (transferGroup.length === 0) {
-            showToast('Transfer not found.', 'error');
-            return;
-        }
-        const first = transferGroup[0];
-        const fromBranch = findByKey(state.branches, 'branchCode', first.fromBranchCode)?.branchName || first.fromBranchCode;
-        const toBranch = findByKey(state.branches, 'branchCode', first.toBranchCode)?.branchName || first.toBranchCode;
-
-        const modalBody = document.getElementById('view-transfer-modal-body');
-        const items = transferGroup.map(tx => {
-            const item = findByKey(state.items, 'code', tx.itemCode) || { name: 'DELETED' };
-            return { itemCode: tx.itemCode, itemName: item.name, quantity: tx.quantity };
-        });
-
-        let itemsHtml = items.map(item => `<tr><td>${item.itemCode}</td><td>${item.itemName}</td><td>${item.quantity}</td></tr>`).join('');
-
-        modalBody.innerHTML = `
-            <p><strong>${_t('from_branch')}:</strong> ${fromBranch}</p>
-            <p><strong>${_t('to_branch')}:</strong> ${toBranch}</p>
-            <p><strong>${_t('reference')}:</strong> ${first.ref || 'N/A'}</p>
-            <hr>
-            <h4>Items in Shipment</h4>
-            <table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item_name')}</th><th>${_t('table_h_quantity')}</th></tr></thead><tbody>${itemsHtml}</tbody></table>`;
-        
-        const modal = document.getElementById('view-transfer-modal');
-        modal.querySelector('.modal-footer').innerHTML = `
-            <button class="secondary modal-cancel">${_t('cancel')}</button>
-            <button id="btn-print-transfer-receipt" class="secondary">${_t('view_print')}</button>
-            <button id="btn-reject-transfer" class="danger" data-batch-id="${batchId}">${_t('reject')}</button>
-            <button id="btn-confirm-receive-transfer" class="primary" data-batch-id="${batchId}">${_t('confirm_receipt')}</button>
-        `;
-
-        document.getElementById('btn-print-transfer-receipt').onclick = () => {
-            const dataToPrint = { ...first, items: items, date: new Date() };
-            generateTransferDocument(dataToPrint);
-        };
-
-        viewTransferModal.classList.add('active');
-    }
-
-    function openEditModal(type, id) {
-        let record, formHtml;
-        formEditRecord.dataset.type = type;
-        formEditRecord.dataset.id = id;
-        switch (type) {
-            case 'item':
-                record = findByKey(state.items, 'code', id);
-                if (!record) return;
-                const isSubItem = !!record.ParentItemCode;
-                editModalTitle.textContent = _t('edit_item');
-                formHtml = `<div class="form-grid">
-                    <div class="form-group"><label>${_t('item_code')}</label><input type="text" value="${record.code}" readonly></div>
-                    <div class="form-group"><label for="edit-item-name">${_t('item_name')}</label><input type="text" id="edit-item-name" name="name" value="${record.name}" required></div>
-                    <div class="form-group span-full" id="edit-cost-group" style="display: ${isSubItem ? 'none' : 'block'};"><label for="edit-item-cost">${_t('default_cost')}</label><input type="number" id="edit-item-cost" name="cost" step="0.01" min="0" value="${record.cost}"></div>
-                    <div class="form-group-checkbox span-full"><input type="checkbox" id="edit-is-sub-item-toggle" ${isSubItem ? 'checked' : ''}><label for="edit-is-sub-item-toggle">${_t('is_sub_item')}</label></div>
-                    <div id="edit-sub-item-fields" class="form-grid span-full" style="display: ${isSubItem ? 'grid' : 'none'};">
-                        <div class="form-group"><label for="edit-parent-item-code">${_t('parent_item')}</label><select id="edit-parent-item-code" name="ParentItemCode"></select></div>
-                    </div>
-                </div>`;
-                editModalBody.innerHTML = formHtml;
-                
-                const mainItems = state.items.filter(i => !i.ParentItemCode && i.code !== record.code);
-                const parentSelect = document.getElementById('edit-parent-item-code');
-                populateOptions(parentSelect, mainItems, _t('select_parent_item'), 'code', 'name');
-                if (isSubItem) {
-                    parentSelect.value = record.ParentItemCode;
-                }
-
-                document.getElementById('edit-is-sub-item-toggle').addEventListener('change', (e) => {
-                    document.getElementById('edit-sub-item-fields').style.display = e.target.checked ? 'grid' : 'none';
-                    document.getElementById('edit-cost-group').style.display = e.target.checked ? 'none' : 'block';
-                    if (!e.target.checked) {
-                        parentSelect.value = '';
+                if(qtyChange > 0) {
+                    const totalValue = (current.quantity * current.avgCost) + (qtyChange * cost);
+                    const totalQty = current.quantity + qtyChange;
+                    
+                    let newAvgCost;
+                    if (current.quantity < 0) {
+                        newAvgCost = cost; 
                     } else {
-                         document.getElementById('edit-item-cost').value = '0';
+                        newAvgCost = totalQty > 0 ? totalValue / totalQty : current.avgCost;
                     }
-                });
-                break;
-            case 'supplier':
-                record = findByKey(state.suppliers, 'supplierCode', id);
-                if (!record) return;
-                editModalTitle.textContent = _t('edit_supplier');
-                formHtml = `<div class="form-grid">
-                    <div class="form-group"><label>${_t('supplier_code')}</label><input type="text" value="${record.supplierCode}" readonly></div>
-                    <div class="form-group"><label for="edit-supplier-name">${_t('supplier_name')}</label><input type="text" id="edit-supplier-name" name="name" value="${record.name}" required></div>
-                </div>`;
-                editModalBody.innerHTML = formHtml;
-                break;
-            case 'branch':
-                record = findByKey(state.branches, 'branchCode', id);
-                if (!record) return;
-                editModalTitle.textContent = _t('edit_branch');
-                formHtml = `<div class="form-grid"><div class="form-group"><label>${_t('branch_code')}</label><input type="text" value="${record.branchCode}" readonly></div><div class="form-group"><label for="edit-branch-name">${_t('branch_name')}</label><input type="text" id="edit-branch-name" name="branchName" value="${record.branchName}" required></div></div>`;
-                editModalBody.innerHTML = formHtml;
-                break;
-            case 'user':
-                record = findByKey(state.allUsers, 'Username', id);
-                if (!record && id !== null) return;
-                editModalTitle.textContent = id ? _t('edit_user') : _t('add_new_user_title');
-                const isUserDisabled = record ? (record.isDisabled === true || String(record.isDisabled).toUpperCase() === 'TRUE') : false;
-                const currentUsername = record ? record.Username : '';
-                const currentName = record ? record.Name : '';
-                const currentRole = record ? record.RoleName : '';
-                const currentBranch = record ? record.AssignedBranchCode : '';
+                    
+                    stock[branchCode][t.itemCode] = { itemCode: t.itemCode, quantity: totalQty, avgCost: newAvgCost, itemName: item.name };
+                    if (!tempAvgCosts[branchCode]) tempAvgCosts[branchCode] = {};
+                    tempAvgCosts[branchCode][t.itemCode] = newAvgCost;
+                } else {
+                    current.quantity += qtyChange;
+                    stock[branchCode][t.itemCode] = current;
+                }
+            };
+            const qty = parseFloat(t.quantity) || 0;
+            switch (t.type) {
+                case 'receive': processStockUpdate(t.branchCode, qty, parseFloat(t.cost) || 0); break;
+                case 'transfer_out': processStockUpdate(t.fromBranchCode, -qty); break;
+                case 'issue': processStockUpdate(t.fromBranchCode, -qty); break;
+                case 'return_out': processStockUpdate(t.fromBranchCode, -qty); break;
+                case 'adjustment_out': processStockUpdate(t.fromBranchCode, -qty); break;
+                case 'extraction_out': processStockUpdate(t.fromBranchCode, -qty); break; 
+                case 'transfer_in':
+                    const fromAvgCost = tempAvgCosts[t.fromBranchCode]?.[t.itemCode] || findByKey(state.items, 'code', t.itemCode)?.cost || 0;
+                    processStockUpdate(t.toBranchCode, qty, parseFloat(fromAvgCost));
+                    break;
+                case 'adjustment_in': processStockUpdate(t.fromBranchCode, qty, parseFloat(t.cost) || 0); break;
+                case 'extraction_in': processStockUpdate(t.fromBranchCode, qty, parseFloat(t.cost) || 0); break;
+            }
+        });
+        return stock;
+    };
 
-                const roleOptions = state.allRoles.map(r => `<option value="${r.RoleName}" ${r.RoleName === currentRole ? 'selected' : ''}>${r.RoleName}</option>`).join('');
-                const branchOptions = state.branches.map(b => `<option value="${b.branchCode}" ${b.branchCode === currentBranch ? 'selected' : ''}>${b.branchName}</option>`).join('');
-                const passwordLabel = id ? _t('edit_user_password_label') : _t('edit_user_password_label_new');
+    function calculateSupplierFinancials() {
+        const financials = {};
+        (state.suppliers || []).forEach(s => { financials[s.supplierCode] = { supplierCode: s.supplierCode, supplierName: s.name, totalBilled: 0, totalPaid: 0, totalCredited: 0, balance: 0, invoices: {}, events: [] }; });
+        (state.transactions || []).forEach(t => {
+            const isApproved = t.isApproved === true || String(t.isApproved).toUpperCase() === 'TRUE';
+            if (!t.supplierCode || !financials[t.supplierCode] || t.cost === undefined) return;
+            const value = (parseFloat(t.quantity) || 0) * (parseFloat(t.cost) || 0);
+            if (t.type === 'receive' && isApproved) {
+                financials[t.supplierCode].totalBilled += value;
+                const invNum = t.invoiceNumber;
+                if (!financials[t.supplierCode].invoices[invNum]) { financials[t.supplierCode].invoices[invNum] = { number: invNum, date: t.date, total: 0, paid: 0 }; }
+                financials[t.supplierCode].invoices[invNum].total += value;
+            } else if (t.type === 'return_out') {
+                financials[t.supplierCode].totalCredited += value;
+            }
+        });
+        (state.payments || []).forEach(p => { 
+            if (financials[p.supplierCode]) { 
+                const amount = parseFloat(p.amount) || 0;
+                if (p.method === 'OPENING BALANCE') {
+                    financials[p.supplierCode].totalBilled += amount;
+                } else {
+                    financials[p.supplierCode].totalPaid += amount;
+                }
                 
-                formHtml = `<div class="form-grid">
-                    <div class="form-group"><label>${_t('username')}</label><input type="text" id="edit-user-username" name="Username" value="${currentUsername}" ${id ? 'readonly' : 'required'}></div>
-                    <div class="form-group"><label for="edit-user-name">${_t('table_h_fullname')}</label><input type="text" id="edit-user-name" name="Name" value="${currentName}" required></div>
-                    <div class="form-group"><label for="edit-user-role">${_t('table_h_role')}</label><select id="edit-user-role" name="RoleName" required>${roleOptions}</select></div>
-                    <div class="form-group"><label for="edit-user-branch">${_t('branch')}</label><select id="edit-user-branch" name="AssignedBranchCode"><option value="">None</option>${branchOptions}</select></div>
-                    <div class="form-group span-full"><label for="edit-user-password">${passwordLabel}</label><input type="password" id="edit-user-password" name="LoginCode" ${!id ? 'required' : ''}></div>`;
-                if(id) {
-                    const btnText = isUserDisabled ? _t('toggle_user_enable') : _t('toggle_user_disable');
-                    const btnClass = isUserDisabled ? 'primary' : 'danger';
-                    formHtml += `<div class="form-group span-full"><button type="button" id="btn-toggle-user-status" class="${btnClass}">${btnText}</button></div>`;
+                if (p.invoiceNumber && financials[p.supplierCode].invoices[p.invoiceNumber]) { 
+                    financials[p.supplierCode].invoices[p.invoiceNumber].paid += amount;
+                } else if (p.method === 'OPENING BALANCE') {
+                    financials[p.supplierCode].invoices[p.invoiceNumber] = { number: p.invoiceNumber, date: p.date, total: amount, paid: 0 };
                 }
-                formHtml += `</div>`;
-                editModalBody.innerHTML = formHtml;
+            } 
+        });
+        Object.values(financials).forEach(s => {
+            s.balance = s.totalBilled - s.totalPaid - s.totalCredited;
+            Object.values(s.invoices).forEach(inv => { inv.balance = inv.total - inv.paid; if (Math.abs(inv.balance) < 0.01) { inv.status = 'Paid'; } else if (inv.paid > 0) { inv.status = 'Partial'; } else { inv.status = 'Unpaid'; } });
+            const allEvents = [
+                ...Object.values(s.invoices).map(i => ({ date: i.date, type: 'Invoice/OB', ref: i.number, debit: i.total, credit: 0 })),
+                ...(state.transactions || []).filter(t => t.type === 'return_out' && t.supplierCode === s.supplierCode).map(t => ({ date: t.date, type: 'Return (Credit)', ref: t.ref, debit: 0, credit: (parseFloat(t.quantity) || 0) * (parseFloat(t.cost) || 0) })),
+                ...(state.payments || []).filter(p => p.supplierCode === s.supplierCode && p.method !== 'OPENING BALANCE').map(p => ({ date: p.date, type: 'Payment', ref: p.paymentId, debit: 0, credit: (parseFloat(p.amount) || 0) }))
+            ];
+            s.events = allEvents.sort((a,b) => new Date(a.date) - new Date(b.date));
+        });
+        financials.allInvoices = {}; Object.values(financials).forEach(s => { Object.assign(financials.allInvoices, s.invoices); }); return financials;
+    };
 
-                const toggleBtn = document.getElementById('btn-toggle-user-status');
-                if (toggleBtn) {
-                    toggleBtn.addEventListener('click', async () => {
-                        const newStatus = !isUserDisabled;
-                        const confirmationText = newStatus ? _t('toggle_user_disable_confirm') : _t('toggle_user_enable_confirm');
-                        if (confirm(confirmationText)) {
-                            const result = await postData('updateUser', { Username: id, updates: { isDisabled: newStatus } }, toggleBtn);
-                            if (result) {
-                                showToast(newStatus ? _t('user_disabled_toast') : _t('user_enabled_toast'), 'success');
-                                closeModal();
-                                reloadDataAndRefreshUI();
-                            }
-                        }
-                    });
-                }
-                break;
-            case 'role':
-                record = findByKey(state.allRoles, 'RoleName', id);
-                if (!record) {
-                    showToast('Role data not found. Please refresh and try again.', 'error');
-                    return;
-                }
-                editModalTitle.textContent = _t('edit_permissions_for', {roleName: record.RoleName});
+    // --- 3. BACKUP & RESTORE FUNCTIONS ---
+    
+    async function handleAutoBackupToggle() {
+        const toggle = document.getElementById('auto-backup-toggle');
+        const frequency = document.getElementById('auto-backup-frequency').value;
+        const frequencyContainer = document.getElementById('auto-backup-frequency-container');
+        const statusEl = document.getElementById('auto-backup-status');
+        
+        const isEnabled = toggle.checked;
+        frequencyContainer.style.display = isEnabled ? 'block' : 'none';
+        
+        statusEl.textContent = 'Updating settings...';
+        const result = await postData('setAutomaticBackup', { enabled: isEnabled, frequency: frequency }, toggle);
 
-                const permissionCategories = {
-                    'General Access': ['viewDashboard', 'viewActivityLog'],
-                    'User Management': ['manageUsers', 'opBackupRestore'],
-                    'Data Management': ['viewSetup', 'viewMasterData', 'createItem', 'editItem', 'createSupplier', 'editSupplier', 'createBranch', 'editBranch'],
-                    'Stock Operations': ['viewOperations', 'opReceive', 'opReceiveWithoutPO', 'opTransfer', 'opReturn', 'opStockAdjustment', 'opExtraction'],
-                    'Purchasing': ['viewPurchasing', 'opCreatePO'],
-                    'Financials': ['viewPayments', 'opRecordPayment', 'opFinancialAdjustment', 'opApproveFinancials', 'opEditInvoice'],
-                    'Reporting': ['viewReports', 'viewStockLevels', 'viewTransactionHistory', 'viewAllBranches'],
-                };
-                
-                formHtml = '<h3>Permissions</h3>';
-                for (const category in permissionCategories) {
-                    formHtml += `<h4 class="permission-category">${category}</h4><div class="form-grid permissions-grid">`;
-                    permissionCategories[category].forEach(key => {
-                        const isChecked = record[key] === true || String(record[key]).toUpperCase() === 'TRUE';
-                        formHtml += `<div class="form-group-checkbox"><input type="checkbox" id="edit-perm-${key}" name="${key}" ${isChecked ? 'checked' : ''}><label for="edit-perm-${key}">${key}</label></div>`;
-                    });
-                    formHtml += `</div>`;
-                }
-
-                formHtml += `<div class="form-group span-full" style="margin-top: 24px;"><button type="button" id="btn-delete-role" class="danger">${_t('delete_role')}</button></div>`;
-                editModalBody.innerHTML = formHtml;
-                break;
+        if (result) {
+            showToast(_t('auto_backup_updated_toast'), 'success');
+            statusEl.textContent = isEnabled
+                ? `Automatic backups are now enabled (${frequency}).`
+                : 'Automatic backups have been disabled.';
+        } else {
+            toggle.checked = !isEnabled;
+            frequencyContainer.style.display = toggle.checked ? 'block' : 'none';
+            statusEl.textContent = _t('auto_backup_failed_toast');
         }
-        editModal.classList.add('active');
     }
 
-    async function handleUpdateSubmit(e) {
-        e.preventDefault();
-        const btn = e.target.querySelector('button[type="submit"]');
-        const type = formEditRecord.dataset.type;
-        const id = formEditRecord.dataset.id;
-        const formData = new FormData(formEditRecord);
-        let payload = {}, action;
-
-        if (type === 'item') {
-            action = 'updateData';
-            const updates = {};
-            for (let [key, value] of formData.entries()) {
-                updates[key] = value;
-            }
-            if (!document.getElementById('edit-is-sub-item-toggle').checked) {
-                updates.ParentItemCode = '';
-            } else {
-                updates.cost = 0; 
-            }
-            payload = { type, id, updates };
-        } else if (type === 'user') {
-            action = id ? 'updateUser' : 'addUser';
-            payload = {};
-            for (let [key, value] of formData.entries()) {
-                 if (key === 'LoginCode' && value === '') continue;
-                 payload[key] = value;
-            }
-            if(id) {
-                payload = { Username: id, updates: {} };
-                for (let [key, value] of formData.entries()) {
-                    if (key === 'LoginCode' && value === '') continue;
-                    if (key !== 'Username') payload.updates[key] = value;
-                }
-            }
-        } else if (type === 'role') {
-            action = 'updateRolePermissions';
-            const updates = {};
-            const allPerms = Object.keys(findByKey(state.allRoles, 'RoleName', id) || {});
-            allPerms.forEach(key => {
-                if (key !== 'RoleName') {
-                    updates[key] = formData.has(key);
-                }
-            });
-            payload = { RoleName: id, updates: updates };
-        } else {
-            action = 'updateData';
-            const updates = {};
-            for (let [key, value] of formData.entries()) {
-                updates[key] = value;
-            }
-            payload = { type, id, updates };
-        }
+    async function loadAutoBackupSettings() {
+        const toggle = document.getElementById('auto-backup-toggle');
+        const frequencyContainer = document.getElementById('auto-backup-frequency-container');
+        const statusEl = document.getElementById('auto-backup-status');
         
-        const result = await postData(action, payload, btn);
+        statusEl.textContent = 'Checking status...';
+        const result = await postData('getAutomaticBackupStatus', {}, null);
+        
+        if (result && result.data.enabled !== undefined) {
+            const isEnabled = result.data.enabled;
+            toggle.checked = isEnabled;
+            frequencyContainer.style.display = isEnabled ? 'block' : 'none';
+            statusEl.textContent = isEnabled 
+                ? 'Automatic backups are currently active.'
+                : 'Automatic backups are currently disabled.';
+        } else {
+            statusEl.textContent = 'Could not retrieve automatic backup status.';
+        }
+    }
+
+    async function loadAndRenderBackups() {
+        const container = document.getElementById('backup-list-container');
+        container.innerHTML = `<table><tbody><tr><td><div class="spinner" style="width:30px;height:30px;border-width:3px;"></div></td><td>${_t('loading_backups')}</td></tr></tbody></table>`;
+        const result = await postData('listBackups', {}, null);
+        if (result && result.data) {
+            state.backups = result.data;
+            if (state.backups.length === 0) {
+                container.innerHTML = `<p>${_t('no_backups_found')}</p>`;
+                return;
+            }
+            let tableHtml = `<table id="table-backups"><thead><tr><th>${_t('backup_name')}</th><th>${_t('date_created')}</th><th>${_t('actions')}</th></tr></thead><tbody>`;
+            state.backups.forEach(backup => {
+                tableHtml += `
+                    <tr>
+                        <td>${backup.name}</td>
+                        <td>${new Date(backup.dateCreated).toLocaleString()}</td>
+                        <td>
+                            <div class="action-buttons">
+                                <a href="${backup.url}" target="_blank" rel="noopener noreferrer" class="secondary small" style="text-decoration: none;">${_t('open')}</a>
+                                <button class="danger small btn-restore" data-url="${backup.url}">${_t('restore')}</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+            tableHtml += '</tbody></table>';
+            container.innerHTML = tableHtml;
+        } else {
+            container.innerHTML = `<p>Could not load backup list. Please check permissions or try again.</p>`;
+        }
+    }
+
+    function openRestoreModal(backupFileId, backupFileName) {
+        const modal = document.getElementById('restore-modal');
+        const sheetListContainer = document.getElementById('restore-sheet-list');
+        const confirmInput = document.getElementById('restore-confirmation-input');
+        const confirmBtn = document.getElementById('btn-confirm-restore');
+    
+        document.getElementById('restore-filename-display').textContent = backupFileName;
+        confirmBtn.dataset.backupFileId = backupFileId;
+        
+        confirmInput.value = '';
+        confirmBtn.disabled = true;
+    
+        const coreSheets = [ 'Items', 'Suppliers', 'Branches', 'Transactions', 'Payments', 'PurchaseOrders', 'PurchaseOrderItems', 'Users', 'Permissions', 'Settlements', 'SettlementItems' ];
+        
+        sheetListContainer.innerHTML = '';
+        coreSheets.forEach(sheetName => {
+            sheetListContainer.innerHTML += `<div class="form-group-checkbox"><input type="checkbox" id="restore-sheet-${sheetName}" name="restoreSheet" value="${sheetName}"><label for="restore-sheet-${sheetName}">${sheetName}</label></div>`;
+        });
+        
+        const updateConfirmButtonState = () => {
+            const sheetsSelected = document.querySelectorAll('#restore-sheet-list input:checked').length > 0;
+            confirmBtn.disabled = !(confirmInput.value === 'RESTORE' && sheetsSelected);
+        };
+
+        confirmInput.addEventListener('input', updateConfirmButtonState);
+        sheetListContainer.addEventListener('change', updateConfirmButtonState);
+    
+        modal.classList.add('active');
+    }
+
+    async function handleConfirmRestore(e) {
+        const btn = e.target;
+        const backupFileId = btn.dataset.backupFileId;
+        const selectedSheets = Array.from(document.querySelectorAll('#restore-sheet-list input:checked')).map(el => el.value);
+    
+        if (selectedSheets.length === 0) {
+            showToast(_t('restore_select_sheet_toast'), 'error');
+            return;
+        }
+    
+        const payload = {
+            backupFileId: backupFileId,
+            sheetsToRestore: selectedSheets
+        };
+    
+        const result = await postData('restoreFromBackup', payload, btn);
+    
         if (result) {
-            const toastMessage = id ? _t('update_success_toast', {type: _t(type)}) : _t('add_success_toast', {type: _t(type)});
-            showToast(toastMessage, 'success');
+            showToast(result.data.message || _t('restore_completed_toast'), 'success');
             closeModal();
             await reloadDataAndRefreshUI();
         }
     }
 
-    function renderItemsInModal(filter = '') {
-        const modalItemList = document.getElementById('modal-item-list');
-        modalItemList.innerHTML = '';
-        const lowercasedFilter = filter.toLowerCase();
-    
-        let itemsToShow = state.items;
-        if (modalContext === 'po') {
-            itemsToShow = state.items.filter(i => !i.ParentItemCode);
-        }
-    
-        const filteredItems = itemsToShow.filter(item => 
-            item.name.toLowerCase().includes(lowercasedFilter) || 
-            item.code.toLowerCase().includes(lowercasedFilter)
-        );
-    
-        const itemTree = {};
-        filteredItems.forEach(item => {
-            if (item.ParentItemCode && modalContext !== 'po') {
-                if (!itemTree[item.ParentItemCode]) {
-                    const parent = findByKey(state.items, 'code', item.ParentItemCode);
-                    if (parent) { 
-                         itemTree[item.ParentItemCode] = { parent: parent, children: [] };
-                    }
-                }
-                if(itemTree[item.ParentItemCode]) {
-                    itemTree[item.ParentItemCode].children.push(item);
-                }
-            } else if (!item.ParentItemCode) {
-                 if (!itemTree[item.code]) {
-                    itemTree[item.code] = { parent: item, children: [] };
-                }
-            }
-        });
-    
-        Object.values(itemTree).forEach(node => {
-            if (!node.parent) return; 
-            const isChecked = state.modalSelections.has(node.parent.code);
-            const itemDiv = document.createElement('div');
-            itemDiv.className = 'modal-item-container';
-            const hasSubItems = state.items.some(sub => sub.ParentItemCode === node.parent.code);
+    // --- 4. PAYMENT & MODAL HELPERS ---
 
-            let checkboxHtml = `<input type="checkbox" id="modal-item-${node.parent.code}" data-code="${node.parent.code}" ${isChecked ? 'checked' : ''}>`;
-            if (hasSubItems && modalContext !== 'po') {
-                checkboxHtml = `<div class="modal-checkbox-placeholder"></div>`; 
-            }
-
-            let itemHtml = `
-                <div class="modal-item">
-                    ${checkboxHtml}
-                    <label for="modal-item-${node.parent.code}">
-                        <strong>${node.parent.name}</strong><br>
-                        <small style="color:var(--text-light-color)">${_t('table_h_code')}: ${node.parent.code}</small>
-                    </label>`;
-            
-            if (hasSubItems && modalContext !== 'po') {
-                itemHtml += `<button class="secondary small btn-show-cuts" data-parent-code="${node.parent.code}">${_t('show_cuts')}</button>`;
-            }
-    
-            itemHtml += `</div><div class="sub-item-list" id="sub-items-for-${node.parent.code}" style="display:none;"></div>`;
-            itemDiv.innerHTML = itemHtml;
-            modalItemList.appendChild(itemDiv);
+    function handlePaymentInputChange() {
+        let total = 0;
+        document.querySelectorAll('.payment-amount-input').forEach(input => {
+            total += parseFloat(input.value) || 0;
         });
-    
-        document.querySelectorAll('.btn-show-cuts').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const parentCode = e.target.dataset.parentCode;
-                const subItemList = document.getElementById(`sub-items-for-${parentCode}`);
-                if (subItemList.style.display === 'none') {
-                    renderSubItemsInModal(parentCode, subItemList);
-                    subItemList.style.display = 'block';
-                } else {
-                    subItemList.style.display = 'none';
-                }
-            });
-        });
-    }
-    
-    function renderSubItemsInModal(parentCode, container) {
-        const subItems = state.items.filter(i => i.ParentItemCode === parentCode);
-        let subItemsHtml = '';
-        subItems.forEach(sub => {
-            const isChecked = state.modalSelections.has(sub.code);
-            subItemsHtml += `
-                <div class="modal-item sub-item-row">
-                    <input type="checkbox" id="modal-item-${sub.code}" data-code="${sub.code}" ${isChecked ? 'checked' : ''}>
-                    <label for="modal-item-${sub.code}">
-                        <strong>${sub.name}</strong><br>
-                        <small style="color:var(--text-light-color)">${_t('table_h_code')}: ${sub.code}</small>
-                    </label>
-                </div>
-            `;
-        });
-        container.innerHTML = subItemsHtml;
+        document.getElementById('payment-total-amount').textContent = `${total.toFixed(2)} EGP`;
     }
 
     function renderInvoicesInModal() {
@@ -1099,271 +819,126 @@ document.addEventListener('DOMContentLoaded', () => {
         container.style.display = 'block';
     }
 
-    function handlePaymentInputChange() {
-        let total = 0;
-        document.querySelectorAll('.payment-amount-input').forEach(input => {
-            total += parseFloat(input.value) || 0;
-        });
-        document.getElementById('payment-total-amount').textContent = `${total.toFixed(2)} EGP`;
-    }
+    async function handleUpdateSubmit(e) {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        const type = formEditRecord.dataset.type;
+        const id = formEditRecord.dataset.id;
+        const formData = new FormData(formEditRecord);
+        let payload = {}, action;
 
-    // --- FIX: Ensure proper modal handling for sub-items ---
-    function confirmModalSelection() {
-        if (modalContext === 'invoices') {
-            renderPaymentList();
-            closeModal();
-            return;
-        }
-
-        const selectedCodes = Array.from(state.modalSelections);
-        if (selectedCodes.length === 0) {
-            closeModal();
-            return;
-        }
-
-        const mainItemsToProcess = new Set();
-        const regularItemsToAdd = [];
-
-        selectedCodes.forEach(code => {
-            const item = findByKey(state.items, 'code', code);
-            if (!item) return;
-
-            // FIX: If Sub-Item, find Parent. If Main Item with Sub-Items, find Self.
-            if (item.ParentItemCode && modalContext !== 'po') {
-                mainItemsToProcess.add(item.ParentItemCode);
-            } else if (!item.ParentItemCode && state.items.some(sub => sub.ParentItemCode === item.code) && modalContext !== 'po') {
-                mainItemsToProcess.add(item.code);
+        if (type === 'item') {
+            action = 'updateData';
+            const updates = {};
+            for (let [key, value] of formData.entries()) {
+                updates[key] = value;
+            }
+            if (!document.getElementById('edit-is-sub-item-toggle').checked) {
+                updates.ParentItemCode = '';
             } else {
-                regularItemsToAdd.push(code);
+                updates.cost = 0; 
             }
-        });
-
-        addRegularItemsToList(regularItemsToAdd);
-
-        const mainItemCodes = Array.from(mainItemsToProcess);
-        if (mainItemCodes.length > 0) {
-            itemSelectorModal.classList.remove('active');
-            openSubItemEntryModal(mainItemCodes[0], mainItemCodes.slice(1));
+            payload = { type, id, updates };
+        } else if (type === 'user') {
+            action = id ? 'updateUser' : 'addUser';
+            payload = {};
+            for (let [key, value] of formData.entries()) {
+                 if (key === 'LoginCode' && value === '') continue;
+                 payload[key] = value;
+            }
+            if(id) {
+                payload = { Username: id, updates: {} };
+                for (let [key, value] of formData.entries()) {
+                    if (key === 'LoginCode' && value === '') continue;
+                    if (key !== 'Username') payload.updates[key] = value;
+                }
+            }
+        } else if (type === 'role') {
+            action = 'updateRolePermissions';
+            const updates = {};
+            const allPerms = Object.keys(findByKey(state.allRoles, 'RoleName', id) || {});
+            allPerms.forEach(key => {
+                if (key !== 'RoleName') {
+                    updates[key] = formData.has(key);
+                }
+            });
+            payload = { RoleName: id, updates: updates };
         } else {
+            action = 'updateData';
+            const updates = {};
+            for (let [key, value] of formData.entries()) {
+                updates[key] = value;
+            }
+            payload = { type, id, updates };
+        }
+        
+        const result = await postData(action, payload, btn);
+        if (result) {
+            const toastMessage = id ? _t('update_success_toast', {type: _t(type)}) : _t('add_success_toast', {type: _t(type)});
+            showToast(toastMessage, 'success');
             closeModal();
+            await reloadDataAndRefreshUI();
         }
     }
 
-    function addRegularItemsToList(itemCodes) {
-        const addToList = (currentList, newList, item) => {
-            if (currentList && currentList.some(i => i.itemCode === item.code)) return;
-            const newItem = { itemCode: item.code, itemName: item.name, quantity: '', cost: item.cost };
-            if (modalContext === 'adjustment') {
-                newItem.physicalCount = '';
+    // --- 5. RENDERERS & UTILS (MUST BE DEFINED BEFORE LISTENERS) ---
+
+    function updateReceiveGrandTotal() { 
+        let grandTotal = 0; 
+        (state.currentReceiveList || []).forEach(item => { 
+            const itemDetails = findByKey(state.items, 'code', item.itemCode);
+            if(item.isMainItemPlaceholder) {
+                grandTotal += (parseFloat(item.cost) || 0);
+            } else if(itemDetails && !itemDetails.ParentItemCode) { 
+                grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); 
+            } 
+        }); 
+        document.getElementById('receive-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; 
+    }
+    
+   function updateTransferGrandTotal() { 
+        let grandTotalQty = 0; 
+        (state.currentTransferList || []).forEach(item => { 
+            grandTotalQty += (parseFloat(item.quantity) || 0); 
+        }); 
+        document.getElementById('transfer-grand-total').textContent = grandTotalQty.toFixed(2); 
+    }
+    
+    function updatePOGrandTotal() { 
+        let grandTotal = 0; 
+        (state.currentPOList || []).forEach(item => { 
+            if(item.isMainItemPlaceholder) {
+                grandTotal += (parseFloat(item.cost) || 0);
+            } else if(!findByKey(state.items, 'code', item.itemCode)?.ParentItemCode) { 
+                grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); 
+            } 
+        }); 
+        document.getElementById('po-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; 
+    }
+    
+    function updatePOEditGrandTotal() { 
+        let grandTotal = 0; 
+        (state.currentEditingPOList || []).forEach(item => { 
+            const itemDetails = findByKey(state.items, 'code', item.itemCode);
+            if(itemDetails && !itemDetails.ParentItemCode) { 
+                 grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); 
             }
-            newList.push(newItem);
-        };
-    
-        let list, renderer;
-        switch (modalContext) {
-            case 'receive': [list, renderer] = [state.currentReceiveList, renderReceiveListTable]; break;
-            case 'transfer': [list, renderer] = [state.currentTransferList, renderTransferListTable]; break;
-            case 'po': [list, renderer] = [state.currentPOList, renderPOListTable]; break;
-            case 'return': [list, renderer] = [state.currentReturnList, renderReturnListTable]; break;
-            case 'edit-po': [list, renderer] = [state.currentEditingPOList, renderPOEditListTable]; break;
-            case 'adjustment': [list, renderer] = [state.currentAdjustmentList, renderAdjustmentListTable]; break;
-            default: return;
-        }
-    
-        itemCodes.forEach(code => {
-            const item = findByKey(state.items, 'code', code);
-            if (item) addToList(list, list, item);
-        });
-    
-        renderer();
-    }
-
-    function showToast(message, type = 'success') {
-        if (type === 'error') Logger.error(`User Toast: ${message}`);
-        const container = document.getElementById('toast-container');
-        if (!container) {
-            console.error("Toast container not found! Message:", message);
-            return;
-        }
-        const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
-        toast.textContent = message;
-        container.appendChild(toast);
-        setTimeout(() => toast.remove(), 3500);
-    }
-
-    function setButtonLoading(isLoading, buttonEl) {
-        if (!buttonEl) return;
-        if (isLoading) {
-            buttonEl.disabled = true;
-            buttonEl.dataset.originalText = buttonEl.innerHTML;
-            const loaderText = (buttonEl.closest('#login-form')) ? _t('signing_in') : _t('loading');
-            buttonEl.innerHTML = `<div class="button-spinner"></div><span>${loaderText}</span>`;
-        } else {
-            buttonEl.disabled = false;
-            if (buttonEl.dataset.originalText) {
-                buttonEl.innerHTML = buttonEl.dataset.originalText;
-            }
-        }
-    }
-
-    function openSubItemEntryModal(mainItemCode, remainingMainItems) {
-        const mainItem = findByKey(state.items, 'code', mainItemCode);
-        const subItems = state.items.filter(i => i.ParentItemCode === mainItemCode);
-        
-        const modalTitle = document.getElementById('sub-item-entry-modal-title');
-        modalTitle.textContent = `${_t('enter_sub_item_quantities')} for ${mainItem.name}`;
-    
-        const modalBody = document.getElementById('sub-item-entry-modal-body');
-        let tableHtml = `
-            <table id="sub-item-entry-table">
-                <thead><tr><th>${_t('table_h_name')}</th><th>${_t('table_h_quantity')}</th></tr></thead>
-                <tbody>
-        `;
-        subItems.forEach(sub => {
-            tableHtml += `<tr><td>${sub.name} (${sub.code})</td><td><input type="number" class="table-input sub-item-qty-input" data-item-code="${sub.code}" step="0.01" min="0"></td></tr>`;
-        });
-        tableHtml += `</tbody><tfoot><tr><td style="text-align: right;"><strong>${_t('total_sub_item_weight')}:</strong></td><td id="total-sub-item-weight">0.00</td></tr></tfoot></table>`;
-        modalBody.innerHTML = tableHtml;
-    
-        const table = modalBody.querySelector('#sub-item-entry-table');
-        table.addEventListener('input', () => {
-            let total = 0;
-            table.querySelectorAll('.sub-item-qty-input').forEach(input => {
-                total += parseFloat(input.value) || 0;
-            });
-            document.getElementById('total-sub-item-weight').textContent = total.toFixed(2);
-        });
-    
-        const confirmBtn = document.getElementById('btn-confirm-sub-item-entry');
-        const newConfirmBtn = confirmBtn.cloneNode(true);
-        confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
-
-        newConfirmBtn.onclick = () => {
-            confirmSubItemEntry(mainItem, remainingMainItems);
-        };
-    
-        itemSelectorModal.classList.remove('active');
-        subItemEntryModal.classList.add('active');
+        }); 
+        document.getElementById('edit-po-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; 
     }
     
-    function confirmSubItemEntry(mainItem, remainingMainItems) {
-        let list, renderer;
-        switch (modalContext) {
-            case 'receive': [list, renderer] = [state.currentReceiveList, renderReceiveListTable]; break;
-            case 'transfer': [list, renderer] = [state.currentTransferList, renderTransferListTable]; break;
-            case 'po': [list, renderer] = [state.currentPOList, renderPOListTable]; break;
-            case 'return': [list, renderer] = [state.currentReturnList, renderReturnListTable]; break;
-            case 'edit-po': [list, renderer] = [state.currentEditingPOList, renderPOEditListTable]; break;
-            case 'adjustment': [list, renderer] = [state.currentAdjustmentList, renderAdjustmentListTable]; break;
-            default: return;
-        }
-
-        const subItemInputs = document.querySelectorAll('#sub-item-entry-table .sub-item-qty-input');
-        let totalSubQty = 0;
-        const subItemsToAdd = [];
-
-        subItemInputs.forEach(input => {
-            const qty = parseFloat(input.value) || 0;
-            if (qty > 0) {
-                const itemCode = input.dataset.itemCode;
-                const subItem = findByKey(state.items, 'code', itemCode);
-                totalSubQty += qty;
-                subItemsToAdd.push({
-                    itemCode: subItem.code,
-                    itemName: subItem.name,
-                    quantity: qty,
-                    cost: 0 
-                });
-            }
-        });
-
-        // Ensure placeholder exists
-        const existingIndex = list.findIndex(i => i.itemCode === mainItem.code && i.isMainItemPlaceholder);
-        if (existingIndex !== -1) {
-             list[existingIndex].quantity = totalSubQty;
-        } else if (totalSubQty > 0) { // Only add if sub items exist
-            list.push({
-                itemCode: mainItem.code,
-                itemName: mainItem.name,
-                quantity: totalSubQty,
-                cost: 0, 
-                isMainItemPlaceholder: true 
-            });
-        }
-        
-        list.push(...subItemsToAdd);
-        renderer();
-
-        subItemEntryModal.classList.remove('active');
-
-        if (remainingMainItems.length > 0) {
-            openSubItemEntryModal(remainingMainItems[0], remainingMainItems.slice(1));
-        } else {
-            closeModal(); 
-        }
+    function updateReturnGrandTotal() { 
+        let grandTotal = 0; 
+        (state.currentReturnList || []).forEach(item => { 
+            if(item.isMainItemPlaceholder) {
+                grandTotal += (parseFloat(item.cost) || 0);
+            } else if(!findByKey(state.items, 'code', item.itemCode)?.ParentItemCode) { 
+                grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); 
+            } 
+        }); 
+        document.getElementById('return-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; 
     }
 
-    function renderItemsTable(data = state.items) {
-        const tbody = document.getElementById('table-items').querySelector('tbody');
-        tbody.innerHTML = '';
-        if (!data || data.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">${_t('no_items_found')}</td></tr>`;
-            return;
-        }
-        const canEdit = userCan('editItem');
-        data.forEach(item => {
-            const parentItem = item.ParentItemCode ? findByKey(state.items, 'code', item.ParentItemCode) : null;
-            const parentName = parentItem ? `${parentItem.name} (${parentItem.code})` : 'N/A';
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${item.code}</td>
-                <td>${item.name}</td>
-                <td>${parentName}</td>
-                <td>${(parseFloat(item.cost) || 0).toFixed(2)} EGP</td>
-                <td>
-                    <div class="action-buttons">
-                        <button class="secondary small btn-edit" data-type="item" data-id="${item.code}" ${!canEdit ? 'disabled' : ''}>${_t('edit')}</button>
-                        <button class="secondary small btn-history" data-type="item" data-id="${item.code}">${_t('history')}</button>
-                    </div>
-                </td>`;
-            tbody.appendChild(tr);
-        });
-    }
-
-    function renderSuppliersTable(data = state.suppliers) {
-        const tbody = document.getElementById('table-suppliers').querySelector('tbody');
-        tbody.innerHTML = '';
-        if (!data || data.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;">${_t('no_suppliers_found')}</td></tr>`;
-            return;
-        }
-        const financials = calculateSupplierFinancials();
-        const canEdit = userCan('editSupplier');
-        data.forEach(supplier => {
-            const balance = financials[supplier.supplierCode]?.balance || 0;
-            const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${supplier.supplierCode || ''}</td><td>${supplier.name}</td><td>${balance.toFixed(2)} EGP</td><td>${canEdit ? `<button class="secondary small btn-edit" data-type="supplier" data-id="${supplier.supplierCode}">${_t('edit')}</button>`: 'N/A'}</td>`;
-            tbody.appendChild(tr);
-        });
-    }
-
-    function renderBranchesTable(data = state.branches) {
-        const tbody = document.getElementById('table-branches').querySelector('tbody');
-        tbody.innerHTML = '';
-        if (!data || data.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;">${_t('no_branches_found')}</td></tr>`;
-            return;
-        }
-        const canEdit = userCan('editBranch');
-        data.forEach(branch => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${branch.branchCode || ''}</td><td>${branch.branchName}</td><td>${canEdit ? `<button class="secondary small btn-edit" data-type="branch" data-id="${branch.branchCode}">${_t('edit')}</button>`: 'N/A'}</td>`;
-            tbody.appendChild(tr);
-        });
-    }
-
-    // --- Core Dynamic Table Renderer (Grouped View) ---
     const renderDynamicListTable = (tbodyId, list, columnsConfig, emptyMessage, totalizerFn) => {
         const tbody = document.getElementById(tbodyId).querySelector('tbody');
         tbody.innerHTML = '';
@@ -1376,7 +951,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const stock = calculateStockLevels();
         const branchCode = document.getElementById(columnsConfig.find(c => c.branchSelectId)?.branchSelectId)?.value;
 
-        // Grouping Logic
         const groupedMap = {}; 
         const standaloneList = []; 
 
@@ -1499,1103 +1073,105 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (totalizerFn) totalizerFn();
     };
-    
-    function updateReceiveGrandTotal() { 
-        let grandTotal = 0; 
-        (state.currentReceiveList || []).forEach(item => { 
-            const itemDetails = findByKey(state.items, 'code', item.itemCode);
-            if(item.isMainItemPlaceholder) {
-                grandTotal += (parseFloat(item.cost) || 0);
-            } else if(itemDetails && !itemDetails.ParentItemCode) { 
-                grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); 
-            } 
-        }); 
-        document.getElementById('receive-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; 
-    }
-    
-   function updateTransferGrandTotal() { 
-        let grandTotalQty = 0; 
-        (state.currentTransferList || []).forEach(item => { 
-            grandTotalQty += (parseFloat(item.quantity) || 0); 
-        }); 
-        document.getElementById('transfer-grand-total').textContent = grandTotalQty.toFixed(2); 
-    }
-    
-    function updatePOGrandTotal() { 
-        let grandTotal = 0; 
-        (state.currentPOList || []).forEach(item => { 
-            if(item.isMainItemPlaceholder) {
-                grandTotal += (parseFloat(item.cost) || 0);
-            } else if(!findByKey(state.items, 'code', item.itemCode)?.ParentItemCode) { 
-                grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); 
-            } 
-        }); 
-        document.getElementById('po-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; 
-    }
-    
-    function updatePOEditGrandTotal() { 
-        let grandTotal = 0; 
-        (state.currentEditingPOList || []).forEach(item => { 
-            const itemDetails = findByKey(state.items, 'code', item.itemCode);
-            if(itemDetails && !itemDetails.ParentItemCode) { 
-                 grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); 
-            }
-        }); 
-        document.getElementById('edit-po-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; 
-    }
-    
-    function updateReturnGrandTotal() { 
-        let grandTotal = 0; 
-        (state.currentReturnList || []).forEach(item => { 
-            if(item.isMainItemPlaceholder) {
-                grandTotal += (parseFloat(item.cost) || 0);
-            } else if(!findByKey(state.items, 'code', item.itemCode)?.ParentItemCode) { 
-                grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); 
-            } 
-        }); 
-        document.getElementById('return-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; 
-    }
-    
-    // --- HELPER TO DISTRIBUTE COSTS BEFORE SUBMISSION ---
-    function prepareListForSubmission(list) {
-        const processedList = [];
-        const groupedList = {};
 
-        // 1. Group items to find placeholders and their children
-        list.forEach(item => {
-            const itemDetails = findByKey(state.items, 'code', item.itemCode);
-            if (itemDetails && itemDetails.ParentItemCode) {
-                const parentCode = itemDetails.ParentItemCode;
-                if (!groupedList[parentCode]) groupedList[parentCode] = { parent: null, children: [] };
-                groupedList[parentCode].children.push(item);
-            } else {
-                if (item.isMainItemPlaceholder) {
-                    if (!groupedList[item.itemCode]) groupedList[item.itemCode] = { parent: item, children: [] };
-                    else groupedList[item.itemCode].parent = item;
-                } else {
-                    processedList.push(item);
-                }
-            }
-        });
-
-        // 2. Process groups
-        Object.values(groupedList).forEach(group => {
-            if (group.parent && group.parent.isMainItemPlaceholder) {
-                const totalBatchValue = parseFloat(group.parent.cost) || 0; 
-                let totalBatchWeight = 0;
-                group.children.forEach(child => totalBatchWeight += (parseFloat(child.quantity) || 0));
-                const derivedUnitCost = totalBatchWeight > 0 ? (totalBatchValue / totalBatchWeight) : 0;
-                group.children.forEach(child => {
-                    const childCopy = { ...child };
-                    childCopy.cost = derivedUnitCost;
-                    processedList.push(childCopy);
-                });
-            } else {
-                group.children.forEach(child => processedList.push(child));
-            }
-        });
-
-        return processedList;
-    }
-
-    // --- FIX: Prevent Focus Loss by updating DOM directly instead of re-rendering ---
-    const handleTableInputUpdate = (e, listName, rendererFn) => {
-        if (e.target.classList.contains('table-input')) {
-            const index = parseInt(e.target.dataset.index);
-            const field = e.target.dataset.field;
-            const value = e.target.type === 'number' ? (parseFloat(e.target.value) || 0) : e.target.value;
-            
-            if (state[listName] && state[listName][index]) {
-                state[listName][index][field] = value;
-            }
-
-            // Update Grand Totals based on context
-            if (listName === 'currentReceiveList') updateReceiveGrandTotal();
-            if (listName === 'currentTransferList') updateTransferGrandTotal();
-            if (listName === 'currentPOList') updatePOGrandTotal();
-            if (listName === 'currentEditingPOList') updatePOEditGrandTotal();
-            if (listName === 'currentReturnList') updateReturnGrandTotal();
-        }
-    };
-
-    const handleTableRemove = (e, listName, rendererFn) => { 
-        const btn = e.target.closest('button');
-        if (btn && btn.classList.contains('danger') && btn.dataset.index) {
-            state[listName].splice(parseInt(btn.dataset.index), 1);
-            rendererFn(); // Safe to re-render here
-        }
-    };
-
-    const setupInputTableListeners = (tableId, listName, rendererFn) => {
-        const table = document.getElementById(tableId);
-        if (!table) return;
-        
-        table.addEventListener('input', e => handleTableInputUpdate(e, listName, rendererFn)); 
-        table.addEventListener('click', e => {
-             if (e.target.classList.contains('table-input')) {
-                e.target.select();
-            }
-            handleTableRemove(e, listName, rendererFn)
-        });
-    };
-
-    function renderTransactionHistory(filters = {}) {
-        const tbody = document.getElementById('table-transaction-history').querySelector('tbody');
-        tbody.innerHTML = '';
-        
-        let allTx = [...state.transactions];
-        let allPo = [...state.purchaseOrders];
-
-        if (!userCan('viewAllBranches')) {
-            const branchCode = state.currentUser.AssignedBranchCode;
-            if (branchCode) {
-                allTx = allTx.filter(t => 
-                    String(t.branchCode) === branchCode || 
-                    String(t.fromBranchCode) === branchCode || 
-                    String(t.toBranchCode) === branchCode
-                );
-                allPo = []; 
-            }
-        }
-        
-        let allHistoryItems = [ ...allTx, ...allPo.map(po => ({...po, type: 'po', batchId: po.poId, ref: po.poId})) ];
-
-        const sDate = filters.startDate ? new Date(filters.startDate) : null;
-        if(sDate) sDate.setHours(0,0,0,0);
-        const eDate = filters.endDate ? new Date(filters.endDate) : null;
-        if(eDate) eDate.setHours(23,59,59,999);
-
-        if (sDate) allHistoryItems = allHistoryItems.filter(t => new Date(t.date) >= sDate);
-        if (eDate) allHistoryItems = allHistoryItems.filter(t => new Date(t.date) <= eDate);
-        if (filters.type) allHistoryItems = allHistoryItems.filter(t => String(t.type) === String(filters.type));
-        
-        if (filters.branch) {
-            allHistoryItems = allHistoryItems.filter(t => 
-                String(t.branchCode) === String(filters.branch) || 
-                String(t.fromBranchCode) === String(filters.branch) || 
-                String(t.toBranchCode) === String(filters.branch)
-            );
-        }
-
-        if (filters.searchTerm) {
-            const lowerFilter = filters.searchTerm.toLowerCase();
-            allHistoryItems = allHistoryItems.filter(t => {
-                const item = findByKey(state.items, 'code', t.itemCode);
-                return (t.ref && String(t.ref).toLowerCase().includes(lowerFilter)) ||
-                       (t.batchId && String(t.batchId).toLowerCase().includes(lowerFilter)) ||
-                       (t.invoiceNumber && String(t.invoiceNumber).toLowerCase().includes(lowerFilter)) ||
-                       (item && item.name.toLowerCase().includes(lowerFilter));
-            });
-        }
-
-        const grouped = {};
-        allHistoryItems.forEach(t => {
-            const key = t.batchId;
-            if (!key) return;
-            if (!grouped[key]) grouped[key] = { date: t.date, type: t.type, batchId: key, transactions: [] };
-            grouped[key].transactions.push(t);
-        });
-
-        Object.values(grouped).sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(group => {
-            const first = group.transactions[0];
-            let details = '', statusTag = '', refNum = first.ref || first.batchId, typeDisplay = first.type.replace(/_/g, ' ').toUpperCase();
-            const canEditInvoice = userCan('opEditInvoice') && first.type === 'receive' && (first.isApproved !== true && String(first.isApproved).toUpperCase() !== 'TRUE');
-
-            let actionsHtml = `<button class="secondary small btn-view-tx" data-batch-id="${group.batchId}" data-type="${first.type}">${_t('view_print')}</button>`;
-            if(canEditInvoice){
-                actionsHtml += `<button class="secondary small btn-edit-invoice" data-batch-id="${group.batchId}">${_t('edit')}</button>`;
-            }
-
-            switch(first.type) {
-                case 'receive':
-                    details = `${_t('receive')} ${group.transactions.length} ${_t('items')} from <strong>${findByKey(state.suppliers, 'supplierCode', first.supplierCode)?.name || 'N/A'}</strong> to <strong>${findByKey(state.branches, 'branchCode', first.branchCode)?.branchName || 'N/A'}</strong>`;
-                    refNum = first.invoiceNumber;
-                    statusTag = first.isApproved === true || String(first.isApproved).toUpperCase() === 'TRUE' ? `<span class="status-tag status-approved">${_t('status_approved')}</span>` : `<span class="status-tag status-pendingapproval">${_t('status_pending')}</span>`;
-                    break;
-                case 'return_out':
-                    details = `${_t('return')} ${group.transactions.length} ${_t('items')} from <strong>${findByKey(state.branches, 'branchCode', first.fromBranchCode)?.branchName || 'N/A'}</strong> to <strong>${findByKey(state.suppliers, 'supplierCode', first.supplierCode)?.name || 'N/A'}</strong>`;
-                    typeDisplay = _t('return_to_supplier');
-                    break;
-                case 'issue':
-                    details = `Consumed ${group.transactions.length} items at <strong>${findByKey(state.branches, 'branchCode', first.fromBranchCode)?.branchName || 'N/A'}</strong>`;
-                    break;
-                case 'transfer_out':
-                case 'transfer_in':
-                     details = `${_t('transfer')} ${group.transactions.length} ${_t('items')} from <strong>${findByKey(state.branches, 'branchCode', first.fromBranchCode)?.branchName || 'N/A'}</strong> to <strong>${findByKey(state.branches, 'branchCode', first.toBranchCode)?.branchName || 'N/A'}</strong>`;
-                     typeDisplay = _t('transfer');
-                     statusTag = `<span class="status-tag status-${(first.Status || '').toLowerCase().replace(/ /g,'')}">${_t('status_' + (first.Status || '').toLowerCase().replace(/ /g,''))}</span>`;
-                     break;
-                case 'po':
-                    typeDisplay = _t('po');
-                    details = `${_t('create_po')} for <strong>${findByKey(state.suppliers, 'supplierCode', first.supplierCode)?.name || 'N/A'}</strong>`;
-                    statusTag = `<span class="status-tag status-${(first.Status || 'pending').toLowerCase().replace(/ /g,'')}">${_t('status_' + (first.Status || 'pending').toLowerCase().replace(/ /g,''))}</span>`;
-                    break;
-                case 'adjustment_in':
-                case 'adjustment_out':
-                     typeDisplay = _t('stock_adjustment');
-                     details = `${_t('adjustments')} ${group.transactions.length} ${_t('items')} at <strong>${findByKey(state.branches, 'branchCode', first.fromBranchCode)?.branchName || 'N/A'}</strong>`;
-                     break;
-                case 'extraction_in':
-                case 'extraction_out':
-                    typeDisplay = _t('extraction');
-                    const mainItemTx = group.transactions.find(t => t.type === 'extraction_out');
-                    const mainItem = mainItemTx ? findByKey(state.items, 'code', mainItemTx.itemCode) : null;
-                    details = mainItem ? `Extraction from ${mainItem.name} at <strong>${findByKey(state.branches, 'branchCode', first.fromBranchCode)?.branchName || 'N/A'}</strong>` : 'Extraction';
-                    break;
-            }
-            
-            const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${new Date(first.date).toLocaleString()}</td><td>${typeDisplay}</td><td>${refNum}</td><td>${details}</td><td>${statusTag}</td><td><div class="action-buttons">${actionsHtml}</div></td>`;
-            tbody.appendChild(tr);
-        });
-    }
-
-    // --- RENDERER FUNCTIONS (Must be declared before attached) ---
     function renderReceiveListTable() { renderDynamicListTable('table-receive-list', state.currentReceiveList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated' } ], 'no_items_selected_toast', updateReceiveGrandTotal); }
     function renderTransferListTable() { renderDynamicListTable('table-transfer-list', state.currentTransferList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'available_stock', branchSelectId: 'transfer-from-branch' }, { type: 'number_input', key: 'quantity', maxKey: true, branchSelectId: 'transfer-from-branch' } ], 'no_items_selected_toast', updateTransferGrandTotal); }
     function renderPOListTable() { renderDynamicListTable('table-po-list', state.currentPOList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated' } ], 'no_items_selected_toast', updatePOGrandTotal); }
     function renderPOEditListTable() { renderDynamicListTable('table-edit-po-list', state.currentEditingPOList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated' } ], 'no_items_selected_toast', updatePOEditGrandTotal); }
     function renderReturnListTable() { renderDynamicListTable('table-return-list', state.currentReturnList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'available_stock', branchSelectId: 'return-branch' }, { type: 'number_input', key: 'quantity', maxKey: true, branchSelectId: 'return-branch' }, { type: 'cost_input', key: 'cost' } ], 'no_items_selected_toast', updateReturnGrandTotal); }
 
-    function renderAdjustmentListTable() {
-        const tbody = document.getElementById('table-adjustment-list').querySelector('tbody');
-        tbody.innerHTML = '';
-        if (!state.currentAdjustmentList || state.currentAdjustmentList.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">${_t('no_items_for_adjustment')}</td></tr>`;
-            return;
-        }
-        const stock = calculateStockLevels();
-        const branchCode = document.getElementById('adjustment-branch').value;
-
-        state.currentAdjustmentList.forEach((item, index) => {
-            const systemQty = (branchCode && stock[branchCode]?.[item.itemCode]?.quantity) || 0;
-            const physicalCount = typeof item.physicalCount !== 'undefined' ? item.physicalCount : '';
-            const adjustment = physicalCount - systemQty;
+    // --- 6. DOCUMENT GENERATORS ---
+    const generateGroupedItemsHtml = (data, headers) => {
+        let itemsHtml = '';
+        const groupedItems = {};
+        let grandTotal = 0;
+    
+        data.items.forEach(item => {
+            const fullItem = findByKey(state.items, 'code', item.itemCode) || { ParentItemCode: null };
+            const parentCode = fullItem.ParentItemCode || item.itemCode; 
             
-            item.physicalCount = physicalCount;
-
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${item.itemCode}</td>
-                <td>${item.itemName}</td>
-                <td>${systemQty.toFixed(2)}</td>
-                <td><input type="number" class="table-input" value="${physicalCount}" min="0" step="0.01" data-index="${index}" data-field="physicalCount"></td>
-                <td style="font-weight: bold; color: ${adjustment > 0 ? 'var(--secondary-color)' : (adjustment < 0 ? 'var(--danger-color)' : 'inherit')}">${adjustment.toFixed(2)}</td>
-                <td><button class="danger small" data-index="${index}">X</button></td>
-            `;
-            tbody.appendChild(tr);
-        });
-    }
-
-    function renderItemCentricStockView(itemsToRender = state.items, selectedBranches = []) {
-        const container = document.getElementById('item-centric-stock-container');
-        if (!container) return;
-        const stockByBranch = calculateStockLevels();
-        
-        let branchesToDisplay = getVisibleBranchesForCurrentUser();
-        if (selectedBranches.length > 0 && userCan('viewAllBranches')) {
-            branchesToDisplay = state.branches.filter(b => selectedBranches.includes(b.branchCode));
-        }
-    
-        const itemsWithChildren = {};
-        itemsToRender.forEach(item => {
-            if (item.ParentItemCode) {
-                if (!itemsWithChildren[item.ParentItemCode]) {
-                    itemsWithChildren[item.ParentItemCode] = [];
-                }
-                itemsWithChildren[item.ParentItemCode].push(item);
+            if (!groupedItems[parentCode]) {
+                 const parentItem = findByKey(state.items, 'code', parentCode);
+                 groupedItems[parentCode] = {
+                    parent: parentItem,
+                    children: [],
+                    totalValue: 0,
+                    totalWeight: 0,
+                    mainItemData: null 
+                };
             }
-        });
     
-        let tableHTML = `<table id="table-stock-levels-by-item"><thead><tr><th>${_t('table_h_code')}</th><th>${_t('table_h_name')}</th>`;
-        branchesToDisplay.forEach(b => { tableHTML += `<th>${b.branchName}</th>` });
-        tableHTML += `<th>${_t('table_h_total')}</th></tr></thead><tbody>`;
-    
-        const renderedItems = new Set();
-    
-        itemsToRender.forEach(item => {
-            if (renderedItems.has(item.code)) return;
-            if (!item.ParentItemCode) {
-                tableHTML += renderStockRow(item, false);
-                renderedItems.add(item.code);
-                if (itemsWithChildren[item.code]) {
-                    itemsWithChildren[item.code].forEach(child => {
-                        tableHTML += renderStockRow(child, true);
-                        renderedItems.add(child.code);
-                    });
-                }
-            }
-        });
-    
-        function renderStockRow(item, isSubItem) {
-            let rowHtml = `<tr class="${isSubItem ? 'sub-item-row' : ''}"><td>${item.code}</td><td>${item.name}</td>`;
-            let total = 0;
-            branchesToDisplay.forEach(branch => {
-                const qty = stockByBranch[branch.branchCode]?.[item.code]?.quantity || 0;
-                total += qty;
-                rowHtml += `<td>${qty > 0 ? qty.toFixed(2) : '-'}</td>`;
-            });
-            rowHtml += `<td><strong>${total.toFixed(2)}</strong></td></tr>`;
-            return rowHtml;
-        }
-    
-        tableHTML += `</tbody></table>`;
-        container.innerHTML = tableHTML;
-    }
-
-    function renderItemInquiry(searchTerm) {
-        const resultsContainer = document.getElementById('item-inquiry-results');
-        if (!searchTerm) {
-            resultsContainer.innerHTML = '';
-            return;
-        }
-        const stockByBranch = calculateStockLevels();
-        const filteredItems = state.items.filter(i => i.name.toLowerCase().includes(searchTerm) || i.code.toLowerCase().includes(searchTerm));
-        let html = '';
-        const branchesToDisplay = getVisibleBranchesForCurrentUser();
-        filteredItems.slice(0, 10).forEach(item => {
-            html += `<h4>${item.name} (${item.code})</h4><table><thead><tr><th>${_t('branch')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_value')}</th></tr></thead><tbody>`;
-            let found = false;
-            let totalQty = 0;
-            let totalValue = 0;
-            branchesToDisplay.forEach(branch => {
-                const itemStock = stockByBranch[branch.branchCode]?.[item.code];
-                if (itemStock && itemStock.quantity > 0) {
-                    const value = itemStock.quantity * itemStock.avgCost;
-                    html += `<tr><td>${branch.branchName} (${branch.branchCode || ''})</td><td>${itemStock.quantity.toFixed(2)}</td><td>${value.toFixed(2)} EGP</td></tr>`;
-                    totalQty += itemStock.quantity;
-                    totalValue += value;
-                    found = true;
-                }
-            });
-            if (!found) {
-                html += `<tr><td colspan="3">${_t('no_stock_for_item')}</td></tr>`;
-            } else {
-                html += `<tr style="font-weight:bold; background-color: var(--bg-color);"><td>${_t('table_h_total')}</td><td>${totalQty.toFixed(2)}</td><td>${totalValue.toFixed(2)} EGP</td></tr>`
-            }
-            html += `</tbody></table><hr>`;
-        });
-        resultsContainer.innerHTML = html;
-    }
-    
-    // --- BACKUP FUNCTIONS (RESTORED) ---
-    async function loadAndRenderBackups() {
-        const container = document.getElementById('backup-list-container');
-        container.innerHTML = `<table><tbody><tr><td><div class="spinner" style="width:30px;height:30px;border-width:3px;"></div></td><td>${_t('loading_backups')}</td></tr></tbody></table>`;
-        const result = await postData('listBackups', {}, null);
-        if (result && result.data) {
-            state.backups = result.data;
-            if (state.backups.length === 0) {
-                container.innerHTML = `<p>${_t('no_backups_found')}</p>`;
-                return;
-            }
-            let tableHtml = `<table id="table-backups"><thead><tr><th>${_t('backup_name')}</th><th>${_t('date_created')}</th><th>${_t('actions')}</th></tr></thead><tbody>`;
-            state.backups.forEach(backup => {
-                tableHtml += `
-                    <tr>
-                        <td>${backup.name}</td>
-                        <td>${new Date(backup.dateCreated).toLocaleString()}</td>
-                        <td>
-                            <div class="action-buttons">
-                                <a href="${backup.url}" target="_blank" rel="noopener noreferrer" class="secondary small" style="text-decoration: none;">${_t('open')}</a>
-                                <button class="danger small btn-restore" data-url="${backup.url}">${_t('restore')}</button>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-            });
-            tableHtml += '</tbody></table>';
-            container.innerHTML = tableHtml;
-        } else {
-            container.innerHTML = `<p>Could not load backup list. Please check permissions or try again.</p>`;
-        }
-    }
-    
-    async function loadAutoBackupSettings() {
-        const toggle = document.getElementById('auto-backup-toggle');
-        const frequencyContainer = document.getElementById('auto-backup-frequency-container');
-        const statusEl = document.getElementById('auto-backup-status');
-        
-        statusEl.textContent = 'Checking status...';
-        const result = await postData('getAutomaticBackupStatus', {}, null);
-        
-        if (result && result.data.enabled !== undefined) {
-            const isEnabled = result.data.enabled;
-            toggle.checked = isEnabled;
-            frequencyContainer.style.display = isEnabled ? 'block' : 'none';
-            statusEl.textContent = isEnabled 
-                ? 'Automatic backups are currently active.'
-                : 'Automatic backups are currently disabled.';
-        } else {
-            statusEl.textContent = 'Could not retrieve automatic backup status.';
-        }
-    }
-    
-    async function handleAutoBackupToggle() {
-        const toggle = document.getElementById('auto-backup-toggle');
-        const frequency = document.getElementById('auto-backup-frequency').value;
-        const frequencyContainer = document.getElementById('auto-backup-frequency-container');
-        const statusEl = document.getElementById('auto-backup-status');
-        
-        const isEnabled = toggle.checked;
-        frequencyContainer.style.display = isEnabled ? 'block' : 'none';
-        
-        statusEl.textContent = 'Updating settings...';
-        const result = await postData('setAutomaticBackup', { enabled: isEnabled, frequency: frequency }, toggle);
-
-        if (result) {
-            showToast(_t('auto_backup_updated_toast'), 'success');
-            statusEl.textContent = isEnabled
-                ? `Automatic backups are now enabled (${frequency}).`
-                : 'Automatic backups have been disabled.';
-        } else {
-            toggle.checked = !isEnabled;
-            frequencyContainer.style.display = toggle.checked ? 'block' : 'none';
-            statusEl.textContent = _t('auto_backup_failed_toast');
-        }
-    }
-
-    function openRestoreModal(backupFileId, backupFileName) {
-        const modal = document.getElementById('restore-modal');
-        const sheetListContainer = document.getElementById('restore-sheet-list');
-        const confirmInput = document.getElementById('restore-confirmation-input');
-        const confirmBtn = document.getElementById('btn-confirm-restore');
-    
-        document.getElementById('restore-filename-display').textContent = backupFileName;
-        confirmBtn.dataset.backupFileId = backupFileId;
-        
-        confirmInput.value = '';
-        confirmBtn.disabled = true;
-    
-        const coreSheets = [ 'Items', 'Suppliers', 'Branches', 'Transactions', 'Payments', 'PurchaseOrders', 'PurchaseOrderItems', 'Users', 'Permissions', 'Settlements', 'SettlementItems' ];
-        
-        sheetListContainer.innerHTML = '';
-        coreSheets.forEach(sheetName => {
-            sheetListContainer.innerHTML += `<div class="form-group-checkbox"><input type="checkbox" id="restore-sheet-${sheetName}" name="restoreSheet" value="${sheetName}"><label for="restore-sheet-${sheetName}">${sheetName}</label></div>`;
-        });
-        
-        const updateConfirmButtonState = () => {
-            const sheetsSelected = document.querySelectorAll('#restore-sheet-list input:checked').length > 0;
-            confirmBtn.disabled = !(confirmInput.value === 'RESTORE' && sheetsSelected);
-        };
-
-        confirmInput.addEventListener('input', updateConfirmButtonState);
-        sheetListContainer.addEventListener('change', updateConfirmButtonState);
-    
-        modal.classList.add('active');
-    }
-    
-    async function handleConfirmRestore(e) {
-        const btn = e.target;
-        const backupFileId = btn.dataset.backupFileId;
-        const selectedSheets = Array.from(document.querySelectorAll('#restore-sheet-list input:checked')).map(el => el.value);
-    
-        if (selectedSheets.length === 0) {
-            showToast(_t('restore_select_sheet_toast'), 'error');
-            return;
-        }
-    
-        const payload = {
-            backupFileId: backupFileId,
-            sheetsToRestore: selectedSheets
-        };
-    
-        const result = await postData('restoreFromBackup', payload, btn);
-    
-        if (result) {
-            showToast(result.data.message || _t('restore_completed_toast'), 'success');
-            closeModal();
-            await reloadDataAndRefreshUI();
-        }
-    }
-
-    const refreshViewData = async (viewId) => {
-        if (!state.currentUser) return;
-        Logger.debug(`Refreshing view: ${viewId}`);
-
-        switch(viewId) {
-            case 'dashboard':
-                const stock = calculateStockLevels();
-                document.getElementById('dashboard-total-items').textContent = (state.items || []).length.toLocaleString();
-                document.getElementById('dashboard-total-suppliers').textContent = (state.suppliers || []).length;
-                document.getElementById('dashboard-total-branches').textContent = (state.branches || []).length;
-                let totalValue = 0;
-                Object.values(stock).forEach(bs => Object.values(bs).forEach(i => totalValue += i.quantity * i.avgCost));
-                document.getElementById('dashboard-total-value').textContent = `${totalValue.toFixed(2)} EGP`;
-                break;
-            case 'transaction-history': 
-                const txFilterBranch = document.getElementById('tx-filter-branch');
-                const txFilterSupplier = document.getElementById('tx-filter-supplier'); 
-                
-                populateOptions(txFilterBranch, state.branches, _t('all_branches'), 'branchCode', 'branchName');
-                if (txFilterSupplier) {
-                    populateOptions(txFilterSupplier, state.suppliers, 'All Suppliers', 'supplierCode', 'name');
-                } else {
-                    Logger.warn("tx-filter-supplier element not found in HTML");
-                }
-                
-                if (state.currentUser.AssignedBranchCode && !userCan('viewAllBranches')) {
-                    txFilterBranch.value = state.currentUser.AssignedBranchCode;
-                    txFilterBranch.disabled = true;
-                }
-
-                const txTypes = ['receive', 'issue', 'transfer_out', 'transfer_in', 'return_out', 'po', 'adjustment_in', 'adjustment_out', 'extraction_in', 'extraction_out'];
-                const txTypeOptions = txTypes.map(t => ({'type': t, 'name': _t(t.replace(/_/g,''))}));
-                populateOptions(document.getElementById('tx-filter-type'), txTypeOptions, _t('all_types'), 'type', 'name');
-                
-                renderTransactionHistory({
-                    startDate: document.getElementById('tx-filter-start-date').value,
-                    endDate: document.getElementById('tx-filter-end-date').value,
-                    type: document.getElementById('tx-filter-type').value,
-                    branch: document.getElementById('tx-filter-branch').value,
-                    searchTerm: document.getElementById('transaction-search').value
-                }); 
-                break;
-            case 'master-data':
-                document.querySelector('[data-subview="view-items"]').style.display = userCan('viewMasterData') ? 'inline-block' : 'none';
-                document.querySelector('[data-subview="add-item"]').style.display = userCan('createItem') ? 'inline-block' : 'none';
-                document.querySelector('[data-subview="view-suppliers"]').style.display = userCan('viewMasterData') ? 'inline-block' : 'none';
-                document.querySelector('[data-subview="add-supplier"]').style.display = userCan('createSupplier') ? 'inline-block' : 'none';
-                document.querySelector('[data-subview="view-branches"]').style.display = userCan('viewMasterData') ? 'inline-block' : 'none';
-                document.querySelector('[data-subview="add-branch"]').style.display = userCan('createBranch') ? 'inline-block' : 'none';
-                renderItemsTable(); renderSuppliersTable(); renderBranchesTable();
-                const mainItems = (state.items || []).filter(i => !i.ParentItemCode);
-                populateOptions(document.getElementById('parent-item-code'), mainItems, _t('select_parent_item'), 'code', 'name');
-                break;
-            case 'backup':
-                 loadAndRenderBackups();
-                 loadAutoBackupSettings();
-                 break;
-            case 'operations':
-                document.querySelector('[data-subview="receive"]').style.display = userCan('opReceive') ? 'inline-block' : 'none';
-                document.querySelector('[data-subview="transfer"]').style.display = userCan('opTransfer') ? 'inline-block' : 'none';
-                document.querySelector('[data-subview="return"]').style.display = userCan('opReturn') ? 'inline-block' : 'none';
-                document.querySelector('[data-subview="extraction"]').style.display = userCan('opExtraction') ? 'inline-block' : 'none';
-                const canAdjustStock = userCan('opStockAdjustment');
-                const canAdjustFinance = userCan('opFinancialAdjustment');
-                document.querySelector('[data-subview="adjustments"]').style.display = canAdjustStock || canAdjustFinance ? 'inline-block' : 'none';
-                document.getElementById('stock-adjustment-card').style.display = canAdjustStock ? 'block' : 'none';
-                document.getElementById('stock-adjustment-list-card').style.display = canAdjustStock ? 'block' : 'none';
-                document.getElementById('financial-adjustment-card').style.display = canAdjustFinance ? 'block' : 'none';
-                populateOptions(document.getElementById('receive-supplier'), state.suppliers, _t('select_supplier'), 'supplierCode', 'name');
-                populateOptions(document.getElementById('receive-branch'), state.branches, _t('select_a_branch'), 'branchCode', 'branchName');
-                populateOptions(document.getElementById('transfer-from-branch'), state.branches, _t('select_a_branch'), 'branchCode', 'branchName');
-                populateOptions(document.getElementById('transfer-to-branch'), state.branches, _t('select_a_branch'), 'branchCode', 'branchName');
-                populateOptions(document.getElementById('return-supplier'), state.suppliers, _t('select_supplier'), 'supplierCode', 'name');
-                populateOptions(document.getElementById('return-branch'), state.branches, _t('select_a_branch'), 'branchCode', 'branchName');
-                populateOptions(document.getElementById('adjustment-branch'), state.branches, _t('select_a_branch'), 'branchCode', 'branchName');
-                populateOptions(document.getElementById('extraction-branch'), state.branches, _t('select_a_branch'), 'branchCode', 'branchName');
-                const mainItemsForExtraction = (state.items || []).filter(i => !i.ParentItemCode);
-                populateOptions(document.getElementById('extraction-main-item'), mainItemsForExtraction, _t('select_main_item_to_extract'), 'code', 'name');
-                populateOptions(document.getElementById('fin-adj-supplier'), state.suppliers, _t('select_supplier'), 'supplierCode', 'name');
-                const openPOs = (state.purchaseOrders || []).filter(po => po.Status === 'Approved');
-                populateOptions(document.getElementById('receive-po-select'), openPOs, _t('select_a_po'), 'poId', 'poId', 'supplierCode');
-                document.getElementById('transfer-ref').value = generateId('TRN');
-                renderReceiveListTable(); renderTransferListTable(); renderReturnListTable(); renderPendingTransfers(); renderInTransitReport(); renderAdjustmentListTable(); renderExtractionPreview();
-                break;
-            case 'purchasing':
-                 document.querySelector('[data-subview="create-po"]').style.display = userCan('opCreatePO') ? 'inline-block' : 'none';
-                 document.querySelector('[data-subview="view-pos"]').style.display = userCan('opCreatePO') || userCan('opApproveFinancials') ? 'inline-block' : 'none';
-                 document.querySelector('[data-subview="pending-financial-approval"]').style.display = userCan('opApproveFinancials') ? 'inline-block' : 'none';
-                 populateOptions(document.getElementById('po-supplier'), state.suppliers, _t('select_supplier'), 'supplierCode', 'name');
-                 document.getElementById('po-ref').value = generateId('PO');
-                 renderPOListTable(); renderPurchaseOrdersViewer(); renderPendingFinancials();
-                 break;
-            case 'payments':
-                populateOptions(document.getElementById('payment-supplier-select'), state.suppliers, _t('select_supplier'), 'supplierCode', 'name');
-                renderPaymentList();
-                document.getElementById('btn-select-invoices').disabled = true;
-                break;
-            case 'reports':
-                populateOptions(document.getElementById('supplier-statement-select'), state.suppliers, _t('select_a_supplier'), 'supplierCode', 'name');
-                renderSettlementHistory();
-                break;
-            case 'stock-levels':
-                document.getElementById('stock-levels-title').textContent = userCan('viewAllBranches') ? _t('stock_by_item_all_branches') : _t('stock_by_item_your_branch');
-                 const branchFilterContainer = document.getElementById('stock-levels-branch-filter-container');
-                if (userCan('viewAllBranches') && !state.currentUser.AssignedBranchCode) {
-                    branchFilterContainer.style.display = 'block';
-                    const select = document.getElementById('stock-levels-branch-filter');
-                    select.innerHTML = '';
-                    state.branches.forEach(branch => {
-                        select.innerHTML += `<option value="${branch.branchCode}">${branch.branchName}</option>`;
-                    });
-                } else {
-                    branchFilterContainer.style.display = 'none';
-                }
-                renderItemCentricStockView();
-                document.getElementById('item-inquiry-search').value = ''; renderItemInquiry('');
-                document.getElementById('stock-levels-search').value = '';
-                break;
-            case 'user-management':
-                const result = await postData('getAllUsersAndRoles', {}, null);
-                if (result) { state.allUsers = result.data.users; state.allRoles = result.data.roles; renderUserManagementUI(); }
-                break;
-            case 'activity-log':
-                renderActivityLog();
-                break;
-        }
-        applyUserUIConstraints();
-        applyTranslations();
-    };
-
-    async function reloadDataAndRefreshUI() { 
-        Logger.info('Reloading data...'); 
-        const { username, loginCode } = state; 
-        if (!username || !loginCode) { logout(); return; } 
-        const currentView = document.querySelector('.nav-item a.active')?.dataset.view || 'dashboard'; 
-        setButtonLoading(true, globalRefreshBtn); 
-        try { 
-            const response = await fetch(`${SCRIPT_URL}?username=${encodeURIComponent(username)}&loginCode=${encodeURIComponent(loginCode)}`); 
-            if (!response.ok) throw new Error('Failed to reload data.'); 
-            const data = await response.json(); 
-            if (data.status === 'error') throw new Error(data.message); 
-            Object.keys(data).forEach(key => { 
-                if(key !== 'user') state[key] = data[key] || state[key]; 
-            }); 
-            updateUserBranchDisplay(); 
-            await refreshViewData(currentView); 
-            Logger.info('Reload complete.'); 
-            showToast(_t('data_refreshed_toast'), 'success'); 
-        } catch (err) { 
-            Logger.error('Data reload failed:', err); 
-            showToast(_t('data_refresh_fail_toast'), 'error'); 
-        } finally { 
-            setButtonLoading(false, globalRefreshBtn); 
-        } 
-    }
-    
-    function renderUserManagementUI() {
-        const usersTbody = document.getElementById('table-users').querySelector('tbody');
-        usersTbody.innerHTML = '';
-        (state.allUsers || []).forEach(user => {
-            const tr = document.createElement('tr');
-            const assigned = findByKey(state.branches, 'branchCode', user.AssignedBranchCode);
-            const isDisabled = user.isDisabled === true || String(user.isDisabled).toUpperCase() === 'TRUE';
-            tr.innerHTML = `<td>${user.Username}</td><td>${user.Name}</td><td>${user.RoleName}</td><td>${assigned?.branchName || 'N/A'}</td><td><span class="status-tag ${isDisabled ? 'status-rejected' : 'status-approved'}">${isDisabled ? 'Disabled' : 'Active'}</span></td><td><button class="secondary small btn-edit" data-type="user" data-id="${user.Username}">${_t('edit')}</button></td>`;
-            usersTbody.appendChild(tr);
-        });
-        const rolesTbody = document.getElementById('table-roles').querySelector('tbody');
-        rolesTbody.innerHTML = '';
-        (state.allRoles || []).forEach(role => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${role.RoleName}</td><td><button class="secondary small btn-edit" data-type="role" data-id="${role.RoleName}">${_t('edit')}</button></td>`;
-            rolesTbody.appendChild(tr);
-        });
-    }
-
-    function attachSubNavListeners() { document.querySelectorAll('.sub-nav').forEach(nav => { if(nav.closest('#history-modal')) return; nav.addEventListener('click', e => { if (!e.target.classList.contains('sub-nav-item')) return; const subviewId = e.target.dataset.subview; const parentView = e.target.closest('.view'); if (!parentView) return; const currentActive = parentView.querySelector('.sub-nav-item.active'); if(currentActive) currentActive.classList.remove('active'); e.target.classList.add('active'); parentView.querySelectorAll('.sub-view').forEach(view => view.classList.remove('active')); const subViewToShow = parentView.querySelector(`#subview-${subviewId}`); if (subViewToShow) subViewToShow.classList.add('active'); refreshViewData(parentView.id.replace('view-','')); }); }); }
-    
-    function attachEventListeners() {
-        btnLogout.addEventListener('click', logout);
-        globalRefreshBtn.addEventListener('click', reloadDataAndRefreshUI);
-        
-        document.getElementById('btn-create-backup').addEventListener('click', async (e) => {
-            const btn = e.currentTarget;
-            if (confirm(_t('backup_confirm_prompt'))) {
-                const result = await postData('createBackup', {}, btn);
-                if (result && result.data) {
-                    showToast(_t('backup_created_toast', {fileName: result.data.fileName}), 'success');
-                    await loadAndRenderBackups();
-                }
-            }
-        });
-
-        document.getElementById('backup-list-container').addEventListener('click', (e) => {
-            const btn = e.target.closest('button');
-            if (btn && btn.classList.contains('btn-restore')) {
-                const backupFileId = findByKey(state.backups, 'url', btn.dataset.url)?.id;
-                const backupFileName = findByKey(state.backups, 'url', btn.dataset.url)?.name;
-                if (backupFileId) {
-                    openRestoreModal(backupFileId, backupFileName);
-                } else {
-                    showToast(_t('restore_find_id_fail_toast'), 'error');
-                }
-            }
-        });
-        
-        document.getElementById('auto-backup-toggle').addEventListener('change', handleAutoBackupToggle);
-        document.getElementById('auto-backup-frequency').addEventListener('change', handleAutoBackupToggle);
-        document.getElementById('btn-confirm-restore').addEventListener('click', handleConfirmRestore);
-
-        document.querySelectorAll('#main-nav a:not(#btn-logout)').forEach(link => { link.addEventListener('click', e => { e.preventDefault(); showView(link.dataset.view); }); });
-        
-        mainContent.addEventListener('click', e => {
-            const btn = e.target.closest('button');
-            if (!btn) return;
-            if (btn.dataset.context) { openItemSelectorModal(e); }
-            if (btn.id === 'btn-select-invoices') { openInvoiceSelectorModal(); } 
-            if (btn.classList.contains('btn-edit')) { openEditModal(btn.dataset.type, btn.dataset.id); }
-            if (btn.classList.contains('btn-history')) { openHistoryModal(btn.dataset.id); }
-            if (btn.id === 'btn-add-new-user') { openEditModal('user', null); }
-            if (btn.id === 'btn-add-new-role') { const roleName = prompt(_t('add_role_prompt')); if(roleName) { postData('addRole', { RoleName: roleName }, btn).then(res => res && reloadDataAndRefreshUI()); } }
-            if (btn.classList.contains('btn-view-tx')) {
-                 const batchId = btn.dataset.batchId;
-                 const type = btn.dataset.type;
-                 let data, items;
-                 
-                 switch(type) {
-                     case 'po':
-                         data = findByKey(state.purchaseOrders, 'poId', batchId);
-                         items = (state.purchaseOrderItems || []).filter(i => i.poId === batchId);
-                         if (data && items) generatePODocument({ ...data, items });
-                         break;
-                     default:
-                         const transactionGroup = state.transactions.filter(t => t.batchId === batchId);
-                         if (transactionGroup.length > 0) {
-                             const first = transactionGroup[0];
-                             data = { ...first, items: transactionGroup.map(t => ({...t, itemName: findByKey(state.items, 'code', t.itemCode)?.name })) };
-                             if (type === 'receive') generateReceiveDocument(data);
-                             else if (type.startsWith('transfer')) generateTransferDocument(data);
-                             else if (type === 'return_out') generateReturnDocument(data);
-                         }
-                         break;
+            if(fullItem.ParentItemCode) { 
+                groupedItems[parentCode].children.push(item);
+                groupedItems[parentCode].totalWeight += (parseFloat(item.quantity) || 0);
+            } else { 
+                 if(item.isMainItemPlaceholder) {
+                     groupedItems[parentCode].mainItemData = item;
+                 } else {
+                     groupedItems[parentCode].mainItemData = item;
+                     groupedItems[parentCode].totalWeight = (parseFloat(item.quantity) || 0);
+                     groupedItems[parentCode].totalValue = groupedItems[parentCode].totalWeight * (parseFloat(item.cost) || 0);
                  }
             }
-            if (btn.classList.contains('btn-receive-transfer')) { openViewTransferModal(btn.dataset.batchId); }
-            if (btn.classList.contains('btn-edit-transfer')) { openPOEditModal(btn.dataset.batchId); } // Re-using PO edit modal for transfers
-            if (btn.classList.contains('btn-cancel-transfer')) { const batchId = btn.dataset.batchId; if (confirm(`Are you sure you want to cancel transfer ${batchId}?`)) { postData('cancelTransfer', { batchId }, btn).then(res => res && reloadDataAndRefreshUI()); } }
-            if (btn.classList.contains('btn-edit-po')) { openPOEditModal(btn.dataset.poId); }
-            if (btn.classList.contains('btn-edit-invoice')) { openInvoiceEditModal(btn.dataset.batchId); }
-            if (btn.classList.contains('btn-approve-financial') || btn.classList.contains('btn-reject-financial')) {
-                const id = btn.dataset.id;
-                const type = btn.dataset.type;
-                const action = btn.classList.contains('btn-approve-financial') ? 'approveFinancial' : 'rejectFinancial';
-                const confirmationText = action === 'approveFinancial' ? _t('approve_confirm_prompt', {type: _t(type)}) : _t('reject_confirm_prompt', {type: _t(type)});
-                
-                if (confirm(confirmationText)) {
-                    postData(action, { id, type }, btn).then(result => {
-                        if (result) {
-                            showToast(action.includes('approve') ? _t('approved_toast', {type: _t(type)}) : _t('rejected_toast', {type: _t(type)}), 'success');
-                            reloadDataAndRefreshUI();
+        });
+    
+        for (const key in groupedItems) {
+            const group = groupedItems[key];
+            
+            if (group.children.length > 0) {
+                 const mainData = group.mainItemData || { cost: 0 };
+                 
+                 group.totalValue = group.totalWeight * (parseFloat(mainData.cost) || 0);
+                 
+                itemsHtml += `<tr class="main-item-group-header"><td colspan="${headers.length}"><strong>${group.parent.name} (${group.parent.code}) - Total Weight: ${group.totalWeight.toFixed(2)} KG</strong></td></tr>`;
+                 
+                 group.children.forEach(item => {
+                    const fullItem = findByKey(state.items, 'code', item.itemCode);
+                    itemsHtml += `<tr class="sub-item-row">`;
+                    headers.forEach(header => {
+                        switch (header) {
+                            case 'code': itemsHtml += `<td>${item.itemCode}</td>`; break;
+                            case 'name': itemsHtml += `<td>${item.itemName || fullItem.name}</td>`; break;
+                            case 'qty': itemsHtml += `<td>${(parseFloat(item.quantity) || 0).toFixed(2)}</td>`; break;
+                            case 'cost': itemsHtml += `<td>---</td>`; break;
+                            case 'total': itemsHtml += `<td>---</td>`; break;
                         }
                     });
-                }
-            }
-        });
-        
-        document.body.addEventListener('click', (e) => { 
-            if (e.target.classList.contains('close-button') || e.target.classList.contains('modal-cancel')) { closeModal(); } 
-             
-            if (e.target.id === 'btn-confirm-receive-transfer') {
-                const btn = e.target;
-                const batchId = btn.dataset.batchId;
-                const transferGroup = state.transactions.filter(t => t.batchId === batchId);
-                const payload = { originalBatchId: batchId, ref: transferGroup[0].ref, fromBranchCode: transferGroup[0].fromBranchCode, toBranchCode: transferGroup[0].toBranchCode, items: transferGroup.map(t => ({ itemCode: t.itemCode, quantity: t.quantity })), notes: `Received from ${batchId}` };
-                postData('receiveTransfer', payload, btn).then(result => {
-                    if (result) { showToast('Transfer received!', 'success'); closeModal(); reloadDataAndRefreshUI(); }
+                    itemsHtml += `</tr>`;
                 });
-            }
-            if (e.target.id === 'btn-reject-transfer') {
-                const btn = e.target;
-                const batchId = btn.dataset.batchId;
-                if(confirm('Are you sure you want to reject this transfer? This action cannot be undone.')) {
-                    postData('rejectTransfer', { batchId }, btn).then(result => {
-                        if (result) { showToast('Transfer rejected.', 'success'); closeModal(); reloadDataAndRefreshUI(); }
-                    });
-                }
-            }
-            if (e.target.id === 'btn-save-po-changes') { savePOChanges(e); }
-            if (e.target.id === 'btn-save-invoice-changes') { saveInvoiceChanges(e); }
-        });
-        document.getElementById('btn-confirm-modal-selection').addEventListener('click', confirmModalSelection);
-        document.getElementById('btn-confirm-invoice-selection').addEventListener('click', confirmModalSelection);
-        
-        document.getElementById('payment-supplier-select').addEventListener('change', e => { document.getElementById('btn-select-invoices').disabled = !e.target.value; state.invoiceModalSelections.clear(); renderPaymentList(); }); 
-        document.getElementById('table-payment-list').addEventListener('input', handlePaymentInputChange);
-        document.getElementById('invoice-selector-modal').addEventListener('change', handleInvoiceModalCheckboxChange);
-        modalItemList.addEventListener('change', handleModalCheckboxChange);
-        modalSearchInput.addEventListener('input', e => renderItemsInModal(e.target.value)); 
-        formEditRecord.addEventListener('submit', handleUpdateSubmit);
-        
-        document.getElementById('form-add-item').addEventListener('submit', async e => {
-            e.preventDefault();
-            const btn = e.target.querySelector('button[type="submit"]');
-            const isSub = document.getElementById('is-sub-item-toggle').checked;
-            const data = {
-                name: document.getElementById('item-name').value,
-                cost: isSub ? 0 : parseFloat(document.getElementById('item-cost').value),
-                ParentItemCode: isSub ? document.getElementById('parent-item-code').value : '',
-            };
-            if (isSub && !data.ParentItemCode) {
-                showToast('Parent item is required for sub-items.', 'error');
-                return;
-            }
-            if (!isSub && (isNaN(data.cost) || data.cost < 0)) {
-                showToast('A valid cost is required for main items.', 'error');
-                return;
-            }
-            const result = await postData('addItem', data, btn);
-            if (result) {
-                showToast(_t('add_success_toast', { type: _t('item') }), 'success');
-                e.target.reset();
-                document.getElementById('sub-item-fields').style.display = 'none';
-                document.getElementById('item-cost-group').style.display = 'block';
-                document.getElementById('is-sub-item-toggle').checked = false;
-                reloadDataAndRefreshUI();
-            }
-        });
-
-        document.getElementById('is-sub-item-toggle').addEventListener('change', e => {
-            document.getElementById('sub-item-fields').style.display = e.target.checked ? 'grid' : 'none';
-            document.getElementById('item-cost-group').style.display = e.target.checked ? 'none' : 'block';
-        });
-
-        document.getElementById('form-add-supplier').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { name: document.getElementById('supplier-name').value }; const result = await postData('addSupplier', data, btn); if (result) { showToast(_t('add_success_toast', {type: _t('supplier')}), 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
-        document.getElementById('form-add-branch').addEventListener('submit', async e => { e.preventDefault(); const btn = e.target.querySelector('button[type="submit"]'); const data = { branchName: document.getElementById('branch-name').value }; const result = await postData('addBranch', data, btn); if (result) { showToast(_t('add_success_toast', {type: _t('branch')}), 'success'); e.target.reset(); reloadDataAndRefreshUI(); } });
-        document.getElementById('form-record-payment').addEventListener('submit', async e => {
-            e.preventDefault(); 
-            const btn = e.target.querySelector('button[type="submit"]');
-            const supplierCode = document.getElementById('payment-supplier-select').value;
-            const method = document.getElementById('payment-method').value;
-            if (!supplierCode || state.invoiceModalSelections.size === 0) {
-                showToast('Please select a supplier and at least one invoice to pay.', 'error');
-                return;
-            }
-            const paymentId = `PAY-${Date.now()}`;
-            let totalAmount = 0;
-            const payments = [];
-            document.querySelectorAll('.payment-amount-input').forEach(input => {
-                const amount = parseFloat(input.value) || 0;
-                if (amount > 0) {
-                    totalAmount += amount;
-                    payments.push({
-                        paymentId: paymentId,
-                        date: new Date().toISOString(),
-                        supplierCode: supplierCode,
-                        invoiceNumber: input.dataset.invoice,
-                        amount: amount,
-                        method: method
-                    });
-                }
-            });
-            if (payments.length === 0) {
-                showToast('Payment amount must be greater than zero.', 'error');
-                return;
-            }
-            const payload = {
-                supplierCode: supplierCode,
-                method: method,
-                date: new Date().toISOString(),
-                totalAmount: totalAmount,
-                payments: payments
-            };
-            const result = await postData('addPaymentBatch', payload, btn);
-            if (result) {
-                showToast('Payment recorded successfully!', 'success');
-                generatePaymentVoucher(payload); 
-                state.invoiceModalSelections.clear();
-                document.getElementById('form-record-payment').reset();
-                document.getElementById('btn-select-invoices').disabled = true;
-                renderPaymentList();
-                await reloadDataAndRefreshUI();
-            }
-        });
-
-        document.getElementById('btn-submit-receive-batch').addEventListener('click', async (e) => { const btn = e.currentTarget; let branchCode = document.getElementById('receive-branch').value; const supplierCode = document.getElementById('receive-supplier').value, invoiceNumber = document.getElementById('receive-invoice').value, notes = document.getElementById('receive-notes').value, poId = document.getElementById('receive-po-select').value; if(userCan('viewAllBranches') && !state.currentUser.AssignedBranchCode) { const context = await requestAdminContext({ branch: true }); if(!context) return; branchCode = context.branch; } if (!userCan('opReceiveWithoutPO') && !poId) { showToast(_t('select_po_first_toast'), 'error'); return; } if (!supplierCode || !branchCode || !invoiceNumber || state.currentReceiveList.length === 0) { showToast(_t('fill_required_fields_toast'), 'error'); return; } const payload = { type: 'receive', batchId: `GRN-${Date.now()}`, supplierCode, branchCode, invoiceNumber, poId, date: new Date().toISOString(), items: state.currentReceiveList.map(i => ({...i, type: 'receive'})), notes }; await handleTransactionSubmit(payload, btn); });
-        document.getElementById('btn-submit-transfer-batch').addEventListener('click', async (e) => { const btn = e.currentTarget; let fromBranchCode = document.getElementById('transfer-from-branch').value, toBranchCode = document.getElementById('transfer-to-branch').value; const notes = document.getElementById('transfer-notes').value, ref = document.getElementById('transfer-ref').value; if(userCan('viewAllBranches') && !state.currentUser.AssignedBranchCode) { const context = await requestAdminContext({ fromBranch: true, toBranch: true }); if(!context) return; fromBranchCode = context.fromBranch; toBranchCode = context.toBranch; } if (!fromBranchCode || !toBranchCode || fromBranchCode === toBranchCode || state.currentTransferList.length === 0) { showToast('Please select valid branches and add at least one item.', 'error'); return; } const payload = { type: 'transfer_out', batchId: ref, ref: ref, fromBranchCode, toBranchCode, date: new Date().toISOString(), items: state.currentTransferList.map(i => ({...i, type: 'transfer_out'})), notes }; await handleTransactionSubmit(payload, btn); });
-        document.getElementById('btn-submit-po').addEventListener('click', async (e) => { const btn = e.currentTarget; const supplierCode = document.getElementById('po-supplier').value, poId = document.getElementById('po-ref').value, notes = document.getElementById('po-notes').value; if (!supplierCode || state.currentPOList.length === 0) { showToast('Please select a supplier and add items.', 'error'); return; } const totalValue = state.currentPOList.reduce((acc, item) => acc + ((parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0)), 0); const payload = { type: 'po', poId, supplierCode, date: new Date().toISOString(), items: state.currentPOList, totalValue, notes }; await handleTransactionSubmit(payload, btn); });
-        document.getElementById('btn-submit-return').addEventListener('click', async (e) => { const btn = e.currentTarget; const supplierCode = document.getElementById('return-supplier').value; let fromBranchCode = document.getElementById('return-branch').value; const ref = document.getElementById('return-ref').value, notes = document.getElementById('return-notes').value; if(userCan('viewAllBranches') && !state.currentUser.AssignedBranchCode) { const context = await requestAdminContext({ fromBranch: true }); if(!context) return; fromBranchCode = context.fromBranch; } if (!supplierCode || !fromBranchCode || !ref || state.currentReturnList.length === 0) { showToast('Please fill all required fields and add items.', 'error'); return; } const payload = { type: 'return_out', batchId: `RTN-${Date.now()}`, ref: ref, supplierCode, fromBranchCode, date: new Date().toISOString(), items: state.currentReturnList.map(i => ({...i, type: 'return_out'})), notes }; await handleTransactionSubmit(payload, btn); });
-        
-       // --- ATTACH INPUT TABLE LISTENERS (MUST BE AFTER RENDERERS ARE DEFINED) ---
-        setupInputTableListeners('table-receive-list', 'currentReceiveList', renderReceiveListTable);
-        setupInputTableListeners('table-transfer-list', 'currentTransferList', renderTransferListTable);
-        setupInputTableListeners('table-po-list', 'currentPOList', renderPOListTable);
-        setupInputTableListeners('table-edit-po-list', 'currentEditingPOList', renderPOEditListTable);
-        setupInputTableListeners('table-return-list', 'currentReturnList', renderReturnListTable);
-        setupInputTableListeners('table-adjustment-list', 'currentAdjustmentList', renderAdjustmentListTable);
-        
-        document.getElementById('btn-submit-adjustment').addEventListener('click', async (e) => {
-            const btn = e.currentTarget;
-            let branchCode = document.getElementById('adjustment-branch').value;
-            const ref = document.getElementById('adjustment-ref').value;
-            const notes = document.getElementById('adjustment-notes').value;
-            if(userCan('viewAllBranches') && !state.currentUser.AssignedBranchCode) { const context = await requestAdminContext({ branch: true }); if(!context) return; branchCode = context.branch; }
-            if (!branchCode || !ref || !state.currentAdjustmentList || state.currentAdjustmentList.length === 0) {
-                showToast('Please select a branch, provide a reference, and add items to adjust.', 'error');
-                return;
-            }
-
-            const stock = calculateStockLevels();
-            const adjustmentItems = state.currentAdjustmentList.map(item => {
-                const systemQty = (stock[branchCode]?.[item.itemCode]?.quantity) || 0;
-                const physicalCount = item.physicalCount || 0;
-                const adjustmentQty = physicalCount - systemQty;
                 
-                if (Math.abs(adjustmentQty) < 0.01) return null;
-
-                return {
-                    itemCode: item.itemCode,
-                    quantity: Math.abs(adjustmentQty),
-                    type: adjustmentQty > 0 ? 'adjustment_in' : 'adjustment_out',
-                    cost: findByKey(state.items, 'code', item.itemCode)?.cost || 0
-                };
-            }).filter(Boolean);
-
-            if (adjustmentItems.length === 0) {
-                showToast('No adjustments needed for the entered counts.', 'info');
-                return;
-            }
-
-            const payload = {
-                type: 'stock_adjustment',
-                batchId: `ADJ-${Date.now()}`,
-                ref: ref,
-                fromBranchCode: branchCode,
-                notes: notes,
-                items: adjustmentItems
-            };
-            await handleTransactionSubmit(payload, btn);
-            state.currentAdjustmentList = [];
-            renderAdjustmentListTable();
-            document.getElementById('form-adjustment-details').reset();
-        });
-
-        document.getElementById('form-financial-adjustment').addEventListener('submit', async(e) => {
-            e.preventDefault();
-            const btn = e.target.querySelector('button[type="submit"]');
-            const supplierCode = document.getElementById('fin-adj-supplier').value;
-            const balance = parseFloat(document.getElementById('fin-adj-balance').value);
-            
-            if (!supplierCode || isNaN(balance) || balance < 0) {
-                showToast('Please select a supplier and enter a valid opening balance.', 'error');
-                return;
-            }
-            
-            if (!confirm(`Are you sure you want to set the opening balance for this supplier to ${balance.toFixed(2)} EGP? This should only be done once.`)) {
-                return;
-            }
-
-            const payload = {
-                supplierCode: supplierCode,
-                balance: balance,
-                ref: `OB-${supplierCode}`
-            };
-            
-            const result = await postData('financialAdjustment', payload, btn);
-            if (result) {
-                showToast('Supplier opening balance set successfully!', 'success');
-                e.target.reset();
-                await reloadDataAndRefreshUI();
-            }
-        });
-        
-        document.getElementById('btn-generate-supplier-statement').addEventListener('click', () => { const supplierCode = document.getElementById('supplier-statement-select').value; const startDate = document.getElementById('statement-start-date').value; const endDate = document.getElementById('statement-end-date').value; if(!supplierCode) { showToast('Please select a supplier.', 'error'); return; } renderSupplierStatement(supplierCode, startDate, endDate); });
-        
-        ['tx-filter-start-date', 'tx-filter-end-date', 'tx-filter-type', 'tx-filter-branch', 'transaction-search'].forEach(id => {
-            const el = document.getElementById(id);
-            const eventType = (el.tagName === 'SELECT' || el.type === 'date') ? 'change' : 'input';
-            el.addEventListener(eventType, () => {
-                const filters = {
-                    startDate: document.getElementById('tx-filter-start-date').value,
-                    endDate: document.getElementById('tx-filter-end-date').value,
-                    type: document.getElementById('tx-filter-type').value,
-                    branch: document.getElementById('tx-filter-branch').value,
-                    searchTerm: document.getElementById('transaction-search').value
-                };
-                renderTransactionHistory(filters);
-            });
-        });
-
-        document.getElementById('receive-po-select').addEventListener('change', e => {
-            const poId = e.target.value;
-            if(!poId) {
-                state.currentReceiveList = [];
-                renderReceiveListTable();
-                document.getElementById('receive-supplier').value = '';
-                return;
-            }
-            const po = findByKey(state.purchaseOrders, 'poId', poId);
-            const poItems = state.purchaseOrderItems.filter(i => i.poId === poId);
-            document.getElementById('receive-supplier').value = po.supplierCode;
-            state.currentReceiveList = poItems.map(item => {
-                const masterItem = findByKey(state.items, 'code', item.itemCode);
-                return { itemCode: item.itemCode, itemName: masterItem?.name || 'Unknown Item', quantity: parseFloat(item.quantity), cost: parseFloat(item.cost) }
-            });
-            renderReceiveListTable();
-        });
-        
-        document.getElementById('is-sub-item-toggle').addEventListener('change', e => {
-            document.getElementById('sub-item-fields').style.display = e.target.checked ? 'grid' : 'none';
-            document.getElementById('item-cost-group').style.display = e.target.checked ? 'none' : 'block';
-        });
-
-        ['extraction-main-item', 'extraction-quantity', 'extraction-branch'].forEach(id => {
-            document.getElementById(id).addEventListener('change', renderExtractionPreview);
-        });
-
-        document.getElementById('btn-submit-extraction').addEventListener('click', handleExtractionSubmit);
-        document.getElementById('stock-levels-branch-filter').addEventListener('change', () => {
-             const searchTerm = document.getElementById('stock-levels-search').value.toLowerCase();
-             const selectedBranches = Array.from(document.getElementById('stock-levels-branch-filter').selectedOptions).map(opt => opt.value);
-             const dataToFilter = state.items || [];
-             renderItemCentricStockView(searchTerm ? dataToFilter.filter(item => ['name', 'code'].some(key => item[key] && String(item[key]).toLowerCase().includes(searchTerm))) : dataToFilter, selectedBranches);
-        });
-
-        // Sales Reconciliation Listeners
-        document.getElementById('btn-download-sales-template').addEventListener('click', downloadSalesTemplate);
-        document.getElementById('sales-file-upload').addEventListener('change', handleSalesFileUpload);
-        document.getElementById('btn-generate-sales-report').addEventListener('click', renderSalesDiscrepancyReport);
-        document.getElementById('sales-report-results').addEventListener('click', (e) => {
-             if (e.target.classList.contains('btn-settle-stock')) {
-                const branchCode = e.target.dataset.branchCode;
-                const reportData = state.salesReportDataByBranch[branchCode];
-                if (reportData) {
-                    openSettlementModal(reportData, branchCode);
+                if (headers.includes('total')) {
+                    itemsHtml += `<tr class="main-item-group-footer"><td colspan="${headers.length - 1}" style="text-align:right;font-weight:bold;">${_t('main_item_total')}</td><td style="font-weight:bold;">${group.totalValue.toFixed(2)} EGP</td></tr>`;
                 }
-            }
-        });
-    }
-    
-    function setupRoleBasedNav() {
-        const user = state.currentUser; if (!user) return;
-        const userFirstName = user.Name.split(' ')[0];
-        document.querySelector('.sidebar-header h1').textContent = _t('hi_user', {userFirstName});
-        const navMap = { 'dashboard': 'viewDashboard', 'operations': 'viewOperations', 'purchasing': 'viewPurchasing', 'payments': 'viewPayments', 'reports': 'viewReports', 'stock-levels': 'viewStockLevels', 'transaction-history': 'viewTransactionHistory', 'master-data': 'viewMasterData', 'user-management': 'manageUsers', 'backup': 'opBackupRestore', 'activity-log': 'viewActivityLog' };
-        for (const [view, permission] of Object.entries(navMap)) {
-            const navItem = document.querySelector(`[data-view="${view}"]`);
-            if (navItem) { 
-                let hasPermission = userCan(permission);
-                if (view === 'operations') { hasPermission = userCan('viewOperations') || userCan('opStockAdjustment') || userCan('opFinancialAdjustment') || userCan('opExtraction'); }
-                navItem.parentElement.style.display = hasPermission ? '' : 'none'; 
+                grandTotal += group.totalValue;
+            } else if (group.mainItemData) { 
+                const item = group.mainItemData;
+                const itemTotal = (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0);
+                itemsHtml += `<tr>`;
+                headers.forEach(header => {
+                    switch (header) {
+                        case 'code': itemsHtml += `<td>${item.itemCode}</td>`; break;
+                        case 'name': itemsHtml += `<td>${item.itemName}</td>`; break;
+                        case 'qty': itemsHtml += `<td>${(parseFloat(item.quantity) || 0).toFixed(2)}</td>`; break;
+                        case 'cost': itemsHtml += `<td>${(parseFloat(item.cost) || 0).toFixed(2)} EGP</td>`; break;
+                        case 'total': itemsHtml += `<td>${itemTotal.toFixed(2)} EGP</td>`; break;
+                    }
+                });
+                itemsHtml += `</tr>`;
+                grandTotal += itemTotal;
             }
         }
-    }
-    
-    function logout() { Logger.info('User logging out.'); location.reload(); }
-    
-    function initializeAppUI() {
-        Logger.info('Application UI initializing...');
-        setupRoleBasedNav();
-        attachEventListeners();
-        attachSubNavListeners(); 
-        setupSearch('search-items', renderItemsTable, 'items', ['name', 'code']);
-        setupSearch('search-suppliers', renderSuppliersTable, 'suppliers', ['name', 'supplierCode']);
-        setupSearch('search-branches', renderBranchesTable, 'branches', ['branchName', 'branchCode']);
-        setupSearch('stock-levels-search', renderItemCentricStockView, 'items', ['name', 'code']);
-        document.getElementById('item-inquiry-search').addEventListener('input', e => renderItemInquiry(e.target.value.toLowerCase()));
-        
-        document.getElementById('btn-export-items').addEventListener('click', () => exportToExcel('table-items', 'ItemList.xlsx'));
-        document.getElementById('btn-export-suppliers').addEventListener('click', () => exportToExcel('table-suppliers', 'SupplierList.xlsx'));
-        document.getElementById('btn-export-branches').addEventListener('click', () => exportToExcel('table-branches', 'BranchList.xlsx'));
-        document.getElementById('btn-export-stock').addEventListener('click', () => exportToExcel('table-stock-levels-by-item', 'StockLevels.xlsx'));
-        document.getElementById('btn-export-supplier-statement').addEventListener('click', () => exportToExcel('table-supplier-statement-report', 'SupplierStatement.xlsx'));
-        document.getElementById('btn-export-sales-report').addEventListener('click', () => exportToExcel('table-sales-discrepancy', 'SalesDiscrepancyReport.xlsx'));
+        return { html: itemsHtml, totalValue: grandTotal };
+    };
 
-        updateUserBranchDisplay();
-        const firstVisibleView = document.querySelector('#main-nav .nav-item:not([style*="display: none"]) a')?.dataset.view || 'dashboard';
-        showView(firstVisibleView, null);
-        Logger.info('Application initialized successfully.');
-    }
-    
-    function updateUserBranchDisplay() {
-        const displayEl = document.getElementById('user-branch-display');
-        if (!state.currentUser || !displayEl) { return; }
-        const branch = findByKey(state.branches, 'branchCode', state.currentUser.AssignedBranchCode);
-        let displayText = '';
-        if (branch) displayText += `${_t('branch')}: ${branch.branchName}`;
-        displayEl.textContent = displayText;
-    }
+    const generateReceiveDocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; const branch = findByKey(state.branches, 'branchCode', data.branchCode) || { branchName: 'DELETED' }; const headers = ['code', 'name', 'qty', 'cost', 'total']; const { html: itemsHtml, totalValue } = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>Goods Received Note</h2><p><strong>GRN No:</strong> ${data.batchId}</p><p><strong>${_t('table_h_invoice_no')}:</strong> ${data.invoiceNumber}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>${_t('supplier')}:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><p><strong>${_t('receive_stock')} at:</strong> ${branch.branchName} (${branch.branchCode || ''})</p><hr><h3>${_t('items_to_be_received')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item_name')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">${_t('grand_total')}</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>${_t('notes_optional')}:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Signature:</strong> _________________________</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
+    const generateTransferDocument = (data) => { const fromBranch = findByKey(state.branches, 'branchCode', data.fromBranchCode) || { branchName: 'DELETED' }; const toBranch = findByKey(state.branches, 'branchCode', data.toBranchCode) || { branchName: 'DELETED' }; const headers = ['code', 'name', 'qty']; const { html: itemsHtml } = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>${_t('internal_transfer')} Order</h2><p><strong>Order ID:</strong> ${data.batchId}</p><p><strong>${_t('reference')}:</strong> ${data.ref}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><hr><p><strong>${_t('from_branch')}:</strong> ${fromBranch.branchName} (${fromBranch.branchCode || ''})</p><p><strong>${_t('to_branch')}:</strong> ${toBranch.branchName} (${toBranch.branchCode || ''})</p><hr><h3>${_t('items_to_be_transferred')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item_name')}</th><th>${_t('table_h_qty')}</th></tr></thead><tbody>${itemsHtml}</tbody></table><hr><p><strong>${_t('notes_optional')}:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Sender:</strong> _________________</p><p><strong>Receiver:</strong> _________________</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
+    const generatePaymentVoucher = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; let invoicesHtml = ''; data.payments.forEach(p => { invoicesHtml += `<tr><td>${p.invoiceNumber}</td><td>${p.amount.toFixed(2)} EGP</td></tr>`; }); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>Payment Voucher</h2><p><strong>Voucher ID:</strong> ${data.payments[0].paymentId}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><hr><p><strong>Paid To:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><p><strong>${_t('table_h_amount')}:</strong> ${data.totalAmount.toFixed(2)} EGP</p><p><strong>Method:</strong> ${data.method}</p><hr><h3>Payment Allocation</h3><table><thead><tr><th>${_t('table_h_invoice_no')}</th><th>${_t('table_h_amount_to_pay')}</th></tr></thead><tbody>${invoicesHtml}</tbody></table><br><p><strong>Signature:</strong> _________________</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
+    const generatePODocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; const headers = ['code', 'name', 'qty', 'cost', 'total']; const { html: itemsHtml, totalValue } = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>${_t('po')}</h2><p><strong>${_t('table_h_po_no')}:</strong> ${data.poId || data.batchId}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>${_t('supplier')}:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><hr><h3>${_t('items_to_order')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item_name')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">${_t('grand_total')}</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>${_t('notes_optional')}:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Authorized By:</strong> ${data.createdBy || state.currentUser.Name}</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
+    const generateReturnDocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; const branch = findByKey(state.branches, 'branchCode', data.fromBranchCode) || { branchName: 'DELETED' }; const headers = ['code', 'name', 'qty', 'cost', 'total']; const { html: itemsHtml, totalValue } = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>${_t('return_to_supplier')} Note</h2><p><strong>${_t('credit_note_ref')}:</strong> ${data.ref}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>Returned To:</strong> ${supplier.name}</p><p><strong>Returned From:</strong> ${branch.branchName}</p><hr><h3>${_t('items_to_return')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item_name')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">${_t('total_value')}</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>Reason:</strong> ${data.notes || 'N/A'}</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
+
+
+    // --- 7. INITIALIZATION & EVENT LISTENERS (FINAL BLOCK) ---
 
     function init() {
         const langSwitcher = document.getElementById('lang-switcher');
