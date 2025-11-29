@@ -732,6 +732,381 @@ document.addEventListener('DOMContentLoaded', () => {
         viewTransferModal.classList.add('active');
     }
 
+    function openEditModal(type, id) {
+        let record, formHtml;
+        formEditRecord.dataset.type = type;
+        formEditRecord.dataset.id = id;
+        switch (type) {
+            case 'item':
+                record = findByKey(state.items, 'code', id);
+                if (!record) return;
+                const isSubItem = !!record.ParentItemCode;
+                editModalTitle.textContent = _t('edit_item');
+                formHtml = `<div class="form-grid">
+                    <div class="form-group"><label>${_t('item_code')}</label><input type="text" value="${record.code}" readonly></div>
+                    <div class="form-group"><label for="edit-item-name">${_t('item_name')}</label><input type="text" id="edit-item-name" name="name" value="${record.name}" required></div>
+                    <div class="form-group span-full" id="edit-cost-group" style="display: ${isSubItem ? 'none' : 'block'};"><label for="edit-item-cost">${_t('default_cost')}</label><input type="number" id="edit-item-cost" name="cost" step="0.01" min="0" value="${record.cost}"></div>
+                    <div class="form-group-checkbox span-full"><input type="checkbox" id="edit-is-sub-item-toggle" ${isSubItem ? 'checked' : ''}><label for="edit-is-sub-item-toggle">${_t('is_sub_item')}</label></div>
+                    <div id="edit-sub-item-fields" class="form-grid span-full" style="display: ${isSubItem ? 'grid' : 'none'};">
+                        <div class="form-group"><label for="edit-parent-item-code">${_t('parent_item')}</label><select id="edit-parent-item-code" name="ParentItemCode"></select></div>
+                    </div>
+                </div>`;
+                editModalBody.innerHTML = formHtml;
+                
+                const mainItems = state.items.filter(i => !i.ParentItemCode && i.code !== record.code);
+                const parentSelect = document.getElementById('edit-parent-item-code');
+                populateOptions(parentSelect, mainItems, _t('select_parent_item'), 'code', 'name');
+                if (isSubItem) {
+                    parentSelect.value = record.ParentItemCode;
+                }
+
+                document.getElementById('edit-is-sub-item-toggle').addEventListener('change', (e) => {
+                    document.getElementById('edit-sub-item-fields').style.display = e.target.checked ? 'grid' : 'none';
+                    document.getElementById('edit-cost-group').style.display = e.target.checked ? 'none' : 'block';
+                    if (!e.target.checked) {
+                        parentSelect.value = '';
+                    } else {
+                         document.getElementById('edit-item-cost').value = '0';
+                    }
+                });
+                break;
+            case 'supplier':
+                record = findByKey(state.suppliers, 'supplierCode', id);
+                if (!record) return;
+                editModalTitle.textContent = _t('edit_supplier');
+                formHtml = `<div class="form-grid">
+                    <div class="form-group"><label>${_t('supplier_code')}</label><input type="text" value="${record.supplierCode}" readonly></div>
+                    <div class="form-group"><label for="edit-supplier-name">${_t('supplier_name')}</label><input type="text" id="edit-supplier-name" name="name" value="${record.name}" required></div>
+                </div>`;
+                editModalBody.innerHTML = formHtml;
+                break;
+            case 'branch':
+                record = findByKey(state.branches, 'branchCode', id);
+                if (!record) return;
+                editModalTitle.textContent = _t('edit_branch');
+                formHtml = `<div class="form-grid"><div class="form-group"><label>${_t('branch_code')}</label><input type="text" value="${record.branchCode}" readonly></div><div class="form-group"><label for="edit-branch-name">${_t('branch_name')}</label><input type="text" id="edit-branch-name" name="branchName" value="${record.branchName}" required></div></div>`;
+                editModalBody.innerHTML = formHtml;
+                break;
+            case 'user':
+                record = findByKey(state.allUsers, 'Username', id);
+                if (!record && id !== null) return;
+                editModalTitle.textContent = id ? _t('edit_user') : _t('add_new_user_title');
+                const isUserDisabled = record ? (record.isDisabled === true || String(record.isDisabled).toUpperCase() === 'TRUE') : false;
+                const currentUsername = record ? record.Username : '';
+                const currentName = record ? record.Name : '';
+                const currentRole = record ? record.RoleName : '';
+                const currentBranch = record ? record.AssignedBranchCode : '';
+
+                const roleOptions = state.allRoles.map(r => `<option value="${r.RoleName}" ${r.RoleName === currentRole ? 'selected' : ''}>${r.RoleName}</option>`).join('');
+                const branchOptions = state.branches.map(b => `<option value="${b.branchCode}" ${b.branchCode === currentBranch ? 'selected' : ''}>${b.branchName}</option>`).join('');
+                const passwordLabel = id ? _t('edit_user_password_label') : _t('edit_user_password_label_new');
+                
+                formHtml = `<div class="form-grid">
+                    <div class="form-group"><label>${_t('username')}</label><input type="text" id="edit-user-username" name="Username" value="${currentUsername}" ${id ? 'readonly' : 'required'}></div>
+                    <div class="form-group"><label for="edit-user-name">${_t('table_h_fullname')}</label><input type="text" id="edit-user-name" name="Name" value="${currentName}" required></div>
+                    <div class="form-group"><label for="edit-user-role">${_t('table_h_role')}</label><select id="edit-user-role" name="RoleName" required>${roleOptions}</select></div>
+                    <div class="form-group"><label for="edit-user-branch">${_t('branch')}</label><select id="edit-user-branch" name="AssignedBranchCode"><option value="">None</option>${branchOptions}</select></div>
+                    <div class="form-group span-full"><label for="edit-user-password">${passwordLabel}</label><input type="password" id="edit-user-password" name="LoginCode" ${!id ? 'required' : ''}></div>`;
+                if(id) {
+                    const btnText = isUserDisabled ? _t('toggle_user_enable') : _t('toggle_user_disable');
+                    const btnClass = isUserDisabled ? 'primary' : 'danger';
+                    formHtml += `<div class="form-group span-full"><button type="button" id="btn-toggle-user-status" class="${btnClass}">${btnText}</button></div>`;
+                }
+                formHtml += `</div>`;
+                editModalBody.innerHTML = formHtml;
+
+                const toggleBtn = document.getElementById('btn-toggle-user-status');
+                if (toggleBtn) {
+                    toggleBtn.addEventListener('click', async () => {
+                        const newStatus = !isUserDisabled;
+                        const confirmationText = newStatus ? _t('toggle_user_disable_confirm') : _t('toggle_user_enable_confirm');
+                        if (confirm(confirmationText)) {
+                            const result = await postData('updateUser', { Username: id, updates: { isDisabled: newStatus } }, toggleBtn);
+                            if (result) {
+                                showToast(newStatus ? _t('user_disabled_toast') : _t('user_enabled_toast'), 'success');
+                                closeModal();
+                                reloadDataAndRefreshUI();
+                            }
+                        }
+                    });
+                }
+                break;
+            case 'role':
+                record = findByKey(state.allRoles, 'RoleName', id);
+                if (!record) {
+                    showToast('Role data not found. Please refresh and try again.', 'error');
+                    return;
+                }
+                editModalTitle.textContent = _t('edit_permissions_for', {roleName: record.RoleName});
+
+                const permissionCategories = {
+                    'General Access': ['viewDashboard', 'viewActivityLog'],
+                    'User Management': ['manageUsers', 'opBackupRestore'],
+                    'Data Management': ['viewSetup', 'viewMasterData', 'createItem', 'editItem', 'createSupplier', 'editSupplier', 'createBranch', 'editBranch'],
+                    'Stock Operations': ['viewOperations', 'opReceive', 'opReceiveWithoutPO', 'opTransfer', 'opReturn', 'opStockAdjustment', 'opExtraction'],
+                    'Purchasing': ['viewPurchasing', 'opCreatePO'],
+                    'Financials': ['viewPayments', 'opRecordPayment', 'opFinancialAdjustment', 'opApproveFinancials', 'opEditInvoice'],
+                    'Reporting': ['viewReports', 'viewStockLevels', 'viewTransactionHistory', 'viewAllBranches'],
+                };
+                
+                formHtml = '<h3>Permissions</h3>';
+                for (const category in permissionCategories) {
+                    formHtml += `<h4 class="permission-category">${category}</h4><div class="form-grid permissions-grid">`;
+                    permissionCategories[category].forEach(key => {
+                        const isChecked = record[key] === true || String(record[key]).toUpperCase() === 'TRUE';
+                        formHtml += `<div class="form-group-checkbox"><input type="checkbox" id="edit-perm-${key}" name="${key}" ${isChecked ? 'checked' : ''}><label for="edit-perm-${key}">${key}</label></div>`;
+                    });
+                    formHtml += `</div>`;
+                }
+
+                formHtml += `<div class="form-group span-full" style="margin-top: 24px;"><button type="button" id="btn-delete-role" class="danger">${_t('delete_role')}</button></div>`;
+                editModalBody.innerHTML = formHtml;
+                break;
+        }
+        editModal.classList.add('active');
+    }
+
+    async function handleUpdateSubmit(e) {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        const type = formEditRecord.dataset.type;
+        const id = formEditRecord.dataset.id;
+        const formData = new FormData(formEditRecord);
+        let payload = {}, action;
+
+        if (type === 'item') {
+            action = 'updateData';
+            const updates = {};
+            for (let [key, value] of formData.entries()) {
+                updates[key] = value;
+            }
+            if (!document.getElementById('edit-is-sub-item-toggle').checked) {
+                updates.ParentItemCode = '';
+            } else {
+                updates.cost = 0; 
+            }
+            payload = { type, id, updates };
+        } else if (type === 'user') {
+            action = id ? 'updateUser' : 'addUser';
+            payload = {};
+            for (let [key, value] of formData.entries()) {
+                 if (key === 'LoginCode' && value === '') continue;
+                 payload[key] = value;
+            }
+            if(id) {
+                payload = { Username: id, updates: {} };
+                for (let [key, value] of formData.entries()) {
+                    if (key === 'LoginCode' && value === '') continue;
+                    if (key !== 'Username') payload.updates[key] = value;
+                }
+            }
+        } else if (type === 'role') {
+            action = 'updateRolePermissions';
+            const updates = {};
+            const allPerms = Object.keys(findByKey(state.allRoles, 'RoleName', id) || {});
+            allPerms.forEach(key => {
+                if (key !== 'RoleName') {
+                    updates[key] = formData.has(key);
+                }
+            });
+            payload = { RoleName: id, updates: updates };
+        } else {
+            action = 'updateData';
+            const updates = {};
+            for (let [key, value] of formData.entries()) {
+                updates[key] = value;
+            }
+            payload = { type, id, updates };
+        }
+        
+        const result = await postData(action, payload, btn);
+        if (result) {
+            const toastMessage = id ? _t('update_success_toast', {type: _t(type)}) : _t('add_success_toast', {type: _t(type)});
+            showToast(toastMessage, 'success');
+            closeModal();
+            await reloadDataAndRefreshUI();
+        }
+    }
+
+    function renderItemsInModal(filter = '') {
+        const modalItemList = document.getElementById('modal-item-list');
+        modalItemList.innerHTML = '';
+        const lowercasedFilter = filter.toLowerCase();
+    
+        let itemsToShow = state.items;
+        if (modalContext === 'po') {
+            itemsToShow = state.items.filter(i => !i.ParentItemCode);
+        }
+    
+        const filteredItems = itemsToShow.filter(item => 
+            item.name.toLowerCase().includes(lowercasedFilter) || 
+            item.code.toLowerCase().includes(lowercasedFilter)
+        );
+    
+        const itemTree = {};
+        filteredItems.forEach(item => {
+            if (item.ParentItemCode && modalContext !== 'po') {
+                if (!itemTree[item.ParentItemCode]) {
+                    const parent = findByKey(state.items, 'code', item.ParentItemCode);
+                    if (parent) { 
+                         itemTree[item.ParentItemCode] = { parent: parent, children: [] };
+                    }
+                }
+                if(itemTree[item.ParentItemCode]) {
+                    itemTree[item.ParentItemCode].children.push(item);
+                }
+            } else if (!item.ParentItemCode) {
+                 if (!itemTree[item.code]) {
+                    itemTree[item.code] = { parent: item, children: [] };
+                }
+            }
+        });
+    
+        Object.values(itemTree).forEach(node => {
+            if (!node.parent) return; 
+            const isChecked = state.modalSelections.has(node.parent.code);
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'modal-item-container';
+            const hasSubItems = state.items.some(sub => sub.ParentItemCode === node.parent.code);
+
+            let checkboxHtml = `<input type="checkbox" id="modal-item-${node.parent.code}" data-code="${node.parent.code}" ${isChecked ? 'checked' : ''}>`;
+            if (hasSubItems && modalContext !== 'po') {
+                checkboxHtml = `<div class="modal-checkbox-placeholder"></div>`; 
+            }
+
+            let itemHtml = `
+                <div class="modal-item">
+                    ${checkboxHtml}
+                    <label for="modal-item-${node.parent.code}">
+                        <strong>${node.parent.name}</strong><br>
+                        <small style="color:var(--text-light-color)">${_t('table_h_code')}: ${node.parent.code}</small>
+                    </label>`;
+            
+            if (hasSubItems && modalContext !== 'po') {
+                itemHtml += `<button class="secondary small btn-show-cuts" data-parent-code="${node.parent.code}">${_t('show_cuts')}</button>`;
+            }
+    
+            itemHtml += `</div><div class="sub-item-list" id="sub-items-for-${node.parent.code}" style="display:none;"></div>`;
+            itemDiv.innerHTML = itemHtml;
+            modalItemList.appendChild(itemDiv);
+        });
+    
+        document.querySelectorAll('.btn-show-cuts').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const parentCode = e.target.dataset.parentCode;
+                const subItemList = document.getElementById(`sub-items-for-${parentCode}`);
+                if (subItemList.style.display === 'none') {
+                    renderSubItemsInModal(parentCode, subItemList);
+                    subItemList.style.display = 'block';
+                } else {
+                    subItemList.style.display = 'none';
+                }
+            });
+        });
+    }
+    
+    function renderSubItemsInModal(parentCode, container) {
+        const subItems = state.items.filter(i => i.ParentItemCode === parentCode);
+        let subItemsHtml = '';
+        subItems.forEach(sub => {
+            const isChecked = state.modalSelections.has(sub.code);
+            subItemsHtml += `
+                <div class="modal-item sub-item-row">
+                    <input type="checkbox" id="modal-item-${sub.code}" data-code="${sub.code}" ${isChecked ? 'checked' : ''}>
+                    <label for="modal-item-${sub.code}">
+                        <strong>${sub.name}</strong><br>
+                        <small style="color:var(--text-light-color)">${_t('table_h_code')}: ${sub.code}</small>
+                    </label>
+                </div>
+            `;
+        });
+        container.innerHTML = subItemsHtml;
+    }
+
+    function renderInvoicesInModal() {
+        const modalInvoiceList = document.getElementById('modal-invoice-list');
+        const supplierCode = document.getElementById('payment-supplier-select').value;
+        const supplierFinancials = calculateSupplierFinancials();
+        const supplierInvoices = supplierFinancials[supplierCode]?.invoices;
+        modalInvoiceList.innerHTML = '';
+        if (!supplierInvoices || Object.keys(supplierInvoices).length === 0) {
+            modalInvoiceList.innerHTML = `<p>${_t('no_invoices_for_supplier')}</p>`;
+            return;
+        }
+        const unpaidInvoices = Object.values(supplierInvoices).filter(inv => inv.status !== 'Paid');
+        if (unpaidInvoices.length === 0) {
+            modalInvoiceList.innerHTML = `<p>${_t('no_unpaid_invoices')}</p>`;
+            return;
+        }
+        unpaidInvoices.sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(invoice => {
+            const isChecked = state.invoiceModalSelections.has(invoice.number);
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'modal-item';
+            const detailsText = _t('invoice_modal_details', { date: new Date(invoice.date).toLocaleDateString(), balance: invoice.balance.toFixed(2) });
+            itemDiv.innerHTML = `<input type="checkbox" id="modal-invoice-${invoice.number}" data-number="${invoice.number}" ${isChecked ? 'checked' : ''}><label for="modal-invoice-${invoice.number}"><strong>${_t('table_h_invoice_no')}: ${invoice.number}</strong><br><small style="color:var(--text-light-color)">${detailsText}</small></label>`;
+            modalInvoiceList.appendChild(itemDiv);
+        });
+    }
+
+    function handleModalCheckboxChange(e) {
+        if (e.target.type === 'checkbox') {
+            const itemCode = e.target.dataset.code;
+            if (e.target.checked) {
+                state.modalSelections.add(itemCode);
+            } else {
+                state.modalSelections.delete(itemCode);
+            }
+        }
+    }
+
+    function handleInvoiceModalCheckboxChange(e) {
+        if (e.target.type === 'checkbox') {
+            const invoiceNumber = e.target.dataset.number;
+            if (e.target.checked) {
+                state.invoiceModalSelections.add(invoiceNumber);
+            } else {
+                state.invoiceModalSelections.delete(invoiceNumber);
+            }
+        }
+    }
+
+    function renderPaymentList() {
+        const supplierCode = document.getElementById('payment-supplier-select').value;
+        const container = document.getElementById('payment-invoice-list-container');
+        if (!supplierCode) {
+            container.style.display = 'none';
+            return;
+        }
+        const supplierInvoices = calculateSupplierFinancials()[supplierCode]?.invoices;
+        const tableBody = document.getElementById('table-payment-list').querySelector('tbody');
+        tableBody.innerHTML = '';
+        let total = 0;
+        if (state.invoiceModalSelections.size === 0) {
+            container.style.display = 'none';
+            return;
+        }
+        state.invoiceModalSelections.forEach(invNum => {
+            const invoice = supplierInvoices[invNum];
+            if (!invoice) return;
+            const balance = invoice.balance;
+            total += balance;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${invoice.number}</td><td>${balance.toFixed(2)} EGP</td><td><input type="number" class="table-input payment-amount-input" data-invoice="${invoice.number}" value="${balance.toFixed(2)}" step="0.01" min="0" max="${balance.toFixed(2)}" style="max-width: 150px;"></td>`;
+            tableBody.appendChild(tr);
+        });
+        document.getElementById('payment-total-amount').textContent = `${total.toFixed(2)} EGP`;
+        container.style.display = 'block';
+    }
+
+    function handlePaymentInputChange() {
+        let total = 0;
+        document.querySelectorAll('.payment-amount-input').forEach(input => {
+            total += parseFloat(input.value) || 0;
+        });
+        document.getElementById('payment-total-amount').textContent = `${total.toFixed(2)} EGP`;
+    }
+
     // --- FIX: Ensure proper modal handling for sub-items ---
     function confirmModalSelection() {
         if (modalContext === 'invoices') {
@@ -753,7 +1128,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const item = findByKey(state.items, 'code', code);
             if (!item) return;
 
-            // If Sub-Item, find Parent. If Main Item with Sub-Items, find Self.
+            // FIX: If Sub-Item, find Parent. If Main Item with Sub-Items, find Self.
             if (item.ParentItemCode && modalContext !== 'po') {
                 mainItemsToProcess.add(item.ParentItemCode);
             } else if (!item.ParentItemCode && state.items.some(sub => sub.ParentItemCode === item.code) && modalContext !== 'po') {
@@ -801,6 +1176,35 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     
         renderer();
+    }
+
+    function showToast(message, type = 'success') {
+        if (type === 'error') Logger.error(`User Toast: ${message}`);
+        const container = document.getElementById('toast-container');
+        if (!container) {
+            console.error("Toast container not found! Message:", message);
+            return;
+        }
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.textContent = message;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 3500);
+    }
+
+    function setButtonLoading(isLoading, buttonEl) {
+        if (!buttonEl) return;
+        if (isLoading) {
+            buttonEl.disabled = true;
+            buttonEl.dataset.originalText = buttonEl.innerHTML;
+            const loaderText = (buttonEl.closest('#login-form')) ? _t('signing_in') : _t('loading');
+            buttonEl.innerHTML = `<div class="button-spinner"></div><span>${loaderText}</span>`;
+        } else {
+            buttonEl.disabled = false;
+            if (buttonEl.dataset.originalText) {
+                buttonEl.innerHTML = buttonEl.dataset.originalText;
+            }
+        }
     }
 
     function openSubItemEntryModal(mainItemCode, remainingMainItems) {
@@ -987,19 +1391,16 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 const itemDetails = findByKey(state.items, 'code', item.itemCode);
                 if (itemDetails && itemDetails.ParentItemCode) {
-                    // It's a sub-item
                     if (!groupedMap[itemDetails.ParentItemCode]) {
                         groupedMap[itemDetails.ParentItemCode] = { parentIndex: -1, parentItem: null, children: [] };
                     }
                     groupedMap[itemDetails.ParentItemCode].children.push({ item, index });
                 } else {
-                    // Standalone main item
                     standaloneList.push({ item, index });
                 }
             }
         });
 
-        // Convert Map to Array and sort
         const allGroups = [...Object.values(groupedMap), ...standaloneList.map(s => ({ parentIndex: s.index, parentItem: s.item, children: [], isStandalone: true }))];
         allGroups.sort((a, b) => {
             const idxA = a.parentIndex > -1 ? a.parentIndex : (a.children[0]?.index || 9999);
@@ -1010,7 +1411,6 @@ document.addEventListener('DOMContentLoaded', () => {
         allGroups.forEach(group => {
             if (!group.parentItem && group.children.length === 0) return;
 
-            // --- Render Parent/Placeholder Row ---
             if (group.parentItem) {
                 const parentItem = group.parentItem;
                 const parentIndex = group.parentIndex;
@@ -1049,7 +1449,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         case 'calculated': 
                             let calculatedValue;
                             if (isMainPlaceholder) {
-                                calculatedValue = currentItemCost; // Input is the total value
+                                calculatedValue = currentItemCost; 
                             } else {
                                 calculatedValue = currentItemQty * currentItemCost;
                             }
@@ -1065,7 +1465,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 tbody.appendChild(tr);
             }
 
-            // --- Render Children ---
             group.children.forEach(entry => {
                 const subItem = entry.item;
                 const subIndex = entry.index;
@@ -1101,7 +1500,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (totalizerFn) totalizerFn();
     };
     
-    // --- UPDATED TOTALIZER FUNCTIONS ---
     function updateReceiveGrandTotal() { 
         let grandTotal = 0; 
         (state.currentReceiveList || []).forEach(item => { 
@@ -1183,16 +1581,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // 2. Process groups
         Object.values(groupedList).forEach(group => {
             if (group.parent && group.parent.isMainItemPlaceholder) {
-                const totalBatchValue = parseFloat(group.parent.cost) || 0; // The lump sum input
+                const totalBatchValue = parseFloat(group.parent.cost) || 0; 
                 let totalBatchWeight = 0;
-                
-                // Calculate total weight from children
                 group.children.forEach(child => totalBatchWeight += (parseFloat(child.quantity) || 0));
-                
-                // Calculate Unit Cost (Price per KG)
                 const derivedUnitCost = totalBatchWeight > 0 ? (totalBatchValue / totalBatchWeight) : 0;
-                
-                // Assign unit cost to all children and add them to processed list
                 group.children.forEach(child => {
                     const childCopy = { ...child };
                     childCopy.cost = derivedUnitCost;
@@ -1204,349 +1596,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         return processedList;
-    }
-
-    // --- RENDERERS ---
-    function renderReceiveListTable() { renderDynamicListTable('table-receive-list', state.currentReceiveList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated' } ], 'no_items_selected_toast', updateReceiveGrandTotal); }
-    function renderTransferListTable() { renderDynamicListTable('table-transfer-list', state.currentTransferList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'available_stock', branchSelectId: 'transfer-from-branch' }, { type: 'number_input', key: 'quantity', maxKey: true, branchSelectId: 'transfer-from-branch' } ], 'no_items_selected_toast', updateTransferGrandTotal); }
-    function renderPOListTable() { renderDynamicListTable('table-po-list', state.currentPOList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated' } ], 'no_items_selected_toast', updatePOGrandTotal); }
-    function renderPOEditListTable() { renderDynamicListTable('table-edit-po-list', state.currentEditingPOList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated' } ], 'no_items_selected_toast', updatePOEditGrandTotal); }
-    function renderReturnListTable() { renderDynamicListTable('table-return-list', state.currentReturnList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'available_stock', branchSelectId: 'return-branch' }, { type: 'number_input', key: 'quantity', maxKey: true, branchSelectId: 'return-branch' }, { type: 'cost_input', key: 'cost' } ], 'no_items_selected_toast', updateReturnGrandTotal); }
-
-    function renderAdjustmentListTable() {
-        const tbody = document.getElementById('table-adjustment-list').querySelector('tbody');
-        tbody.innerHTML = '';
-        if (!state.currentAdjustmentList || state.currentAdjustmentList.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">${_t('no_items_for_adjustment')}</td></tr>`;
-            return;
-        }
-        const stock = calculateStockLevels();
-        const branchCode = document.getElementById('adjustment-branch').value;
-
-        state.currentAdjustmentList.forEach((item, index) => {
-            const systemQty = (branchCode && stock[branchCode]?.[item.itemCode]?.quantity) || 0;
-            const physicalCount = typeof item.physicalCount !== 'undefined' ? item.physicalCount : '';
-            const adjustment = physicalCount - systemQty;
-            item.physicalCount = physicalCount;
-
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${item.itemCode}</td>
-                <td>${item.itemName}</td>
-                <td>${systemQty.toFixed(2)}</td>
-                <td><input type="number" class="table-input" value="${physicalCount}" min="0" step="0.01" data-index="${index}" data-field="physicalCount"></td>
-                <td style="font-weight: bold; color: ${adjustment > 0 ? 'var(--secondary-color)' : (adjustment < 0 ? 'var(--danger-color)' : 'inherit')}">${adjustment.toFixed(2)}</td>
-                <td><button class="danger small" data-index="${index}">X</button></td>
-            `;
-            tbody.appendChild(tr);
-        });
-    }
-
-    function renderItemCentricStockView(itemsToRender = state.items, selectedBranches = []) {
-        const container = document.getElementById('item-centric-stock-container');
-        if (!container) return;
-        const stockByBranch = calculateStockLevels();
-        
-        let branchesToDisplay = getVisibleBranchesForCurrentUser();
-        if (selectedBranches.length > 0 && userCan('viewAllBranches')) {
-            branchesToDisplay = state.branches.filter(b => selectedBranches.includes(b.branchCode));
-        }
-    
-        const itemsWithChildren = {};
-        itemsToRender.forEach(item => {
-            if (item.ParentItemCode) {
-                if (!itemsWithChildren[item.ParentItemCode]) {
-                    itemsWithChildren[item.ParentItemCode] = [];
-                }
-                itemsWithChildren[item.ParentItemCode].push(item);
-            }
-        });
-    
-        let tableHTML = `<table id="table-stock-levels-by-item"><thead><tr><th>${_t('table_h_code')}</th><th>${_t('table_h_name')}</th>`;
-        branchesToDisplay.forEach(b => { tableHTML += `<th>${b.branchName}</th>` });
-        tableHTML += `<th>${_t('table_h_total')}</th></tr></thead><tbody>`;
-    
-        const renderedItems = new Set();
-    
-        itemsToRender.forEach(item => {
-            if (renderedItems.has(item.code)) return;
-            if (!item.ParentItemCode) {
-                tableHTML += renderStockRow(item, false);
-                renderedItems.add(item.code);
-                if (itemsWithChildren[item.code]) {
-                    itemsWithChildren[item.code].forEach(child => {
-                        tableHTML += renderStockRow(child, true);
-                        renderedItems.add(child.code);
-                    });
-                }
-            }
-        });
-    
-        function renderStockRow(item, isSubItem) {
-            let rowHtml = `<tr class="${isSubItem ? 'sub-item-row' : ''}"><td>${item.code}</td><td>${item.name}</td>`;
-            let total = 0;
-            branchesToDisplay.forEach(branch => {
-                const qty = stockByBranch[branch.branchCode]?.[item.code]?.quantity || 0;
-                total += qty;
-                rowHtml += `<td>${qty > 0 ? qty.toFixed(2) : '-'}</td>`;
-            });
-            rowHtml += `<td><strong>${total.toFixed(2)}</strong></td></tr>`;
-            return rowHtml;
-        }
-    
-        tableHTML += `</tbody></table>`;
-        container.innerHTML = tableHTML;
-    }
-
-
-    function renderItemInquiry(searchTerm) {
-        const resultsContainer = document.getElementById('item-inquiry-results');
-        if (!searchTerm) {
-            resultsContainer.innerHTML = '';
-            return;
-        }
-        const stockByBranch = calculateStockLevels();
-        const filteredItems = state.items.filter(i => i.name.toLowerCase().includes(searchTerm) || i.code.toLowerCase().includes(searchTerm));
-        let html = '';
-        const branchesToDisplay = getVisibleBranchesForCurrentUser();
-        filteredItems.slice(0, 10).forEach(item => {
-            html += `<h4>${item.name} (${item.code})</h4><table><thead><tr><th>${_t('branch')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_value')}</th></tr></thead><tbody>`;
-            let found = false;
-            let totalQty = 0;
-            let totalValue = 0;
-            branchesToDisplay.forEach(branch => {
-                const itemStock = stockByBranch[branch.branchCode]?.[item.code];
-                if (itemStock && itemStock.quantity > 0) {
-                    const value = itemStock.quantity * itemStock.avgCost;
-                    html += `<tr><td>${branch.branchName} (${branch.branchCode || ''})</td><td>${itemStock.quantity.toFixed(2)}</td><td>${value.toFixed(2)} EGP</td></tr>`;
-                    totalQty += itemStock.quantity;
-                    totalValue += value;
-                    found = true;
-                }
-            });
-            if (!found) {
-                html += `<tr><td colspan="3">${_t('no_stock_for_item')}</td></tr>`;
-            } else {
-                html += `<tr style="font-weight:bold; background-color: var(--bg-color);"><td>${_t('table_h_total')}</td><td>${totalQty.toFixed(2)}</td><td>${totalValue.toFixed(2)} EGP</td></tr>`
-            }
-            html += `</tbody></table><hr>`;
-        });
-        resultsContainer.innerHTML = html;
-    }
-
-    // --- BACKUP FUNCTIONS (RESTORED) ---
-    async function loadAndRenderBackups() {
-        const container = document.getElementById('backup-list-container');
-        container.innerHTML = `<table><tbody><tr><td><div class="spinner" style="width:30px;height:30px;border-width:3px;"></div></td><td>${_t('loading_backups')}</td></tr></tbody></table>`;
-        const result = await postData('listBackups', {}, null);
-        if (result && result.data) {
-            state.backups = result.data;
-            if (state.backups.length === 0) {
-                container.innerHTML = `<p>${_t('no_backups_found')}</p>`;
-                return;
-            }
-            let tableHtml = `<table id="table-backups"><thead><tr><th>${_t('backup_name')}</th><th>${_t('date_created')}</th><th>${_t('actions')}</th></tr></thead><tbody>`;
-            state.backups.forEach(backup => {
-                tableHtml += `
-                    <tr>
-                        <td>${backup.name}</td>
-                        <td>${new Date(backup.dateCreated).toLocaleString()}</td>
-                        <td>
-                            <div class="action-buttons">
-                                <a href="${backup.url}" target="_blank" rel="noopener noreferrer" class="secondary small" style="text-decoration: none;">${_t('open')}</a>
-                                <button class="danger small btn-restore" data-url="${backup.url}">${_t('restore')}</button>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-            });
-            tableHtml += '</tbody></table>';
-            container.innerHTML = tableHtml;
-        } else {
-            container.innerHTML = `<p>Could not load backup list. Please check permissions or try again.</p>`;
-        }
-    }
-    
-    async function loadAutoBackupSettings() {
-        const toggle = document.getElementById('auto-backup-toggle');
-        const frequencyContainer = document.getElementById('auto-backup-frequency-container');
-        const statusEl = document.getElementById('auto-backup-status');
-        
-        statusEl.textContent = 'Checking status...';
-        const result = await postData('getAutomaticBackupStatus', {}, null);
-        
-        if (result && result.data.enabled !== undefined) {
-            const isEnabled = result.data.enabled;
-            toggle.checked = isEnabled;
-            frequencyContainer.style.display = isEnabled ? 'block' : 'none';
-            statusEl.textContent = isEnabled 
-                ? 'Automatic backups are currently active.'
-                : 'Automatic backups are currently disabled.';
-        } else {
-            statusEl.textContent = 'Could not retrieve automatic backup status.';
-        }
-    }
-    
-    async function handleAutoBackupToggle() {
-        const toggle = document.getElementById('auto-backup-toggle');
-        const frequency = document.getElementById('auto-backup-frequency').value;
-        const frequencyContainer = document.getElementById('auto-backup-frequency-container');
-        const statusEl = document.getElementById('auto-backup-status');
-        
-        const isEnabled = toggle.checked;
-        frequencyContainer.style.display = isEnabled ? 'block' : 'none';
-        
-        statusEl.textContent = 'Updating settings...';
-        const result = await postData('setAutomaticBackup', { enabled: isEnabled, frequency: frequency }, toggle);
-
-        if (result) {
-            showToast(_t('auto_backup_updated_toast'), 'success');
-            statusEl.textContent = isEnabled
-                ? `Automatic backups are now enabled (${frequency}).`
-                : 'Automatic backups have been disabled.';
-        } else {
-            toggle.checked = !isEnabled;
-            frequencyContainer.style.display = toggle.checked ? 'block' : 'none';
-            statusEl.textContent = _t('auto_backup_failed_toast');
-        }
-    }
-
-    function openRestoreModal(backupFileId, backupFileName) {
-        const modal = document.getElementById('restore-modal');
-        const sheetListContainer = document.getElementById('restore-sheet-list');
-        const confirmInput = document.getElementById('restore-confirmation-input');
-        const confirmBtn = document.getElementById('btn-confirm-restore');
-    
-        document.getElementById('restore-filename-display').textContent = backupFileName;
-        confirmBtn.dataset.backupFileId = backupFileId;
-        
-        confirmInput.value = '';
-        confirmBtn.disabled = true;
-    
-        const coreSheets = [ 'Items', 'Suppliers', 'Branches', 'Transactions', 'Payments', 'PurchaseOrders', 'PurchaseOrderItems', 'Users', 'Permissions', 'Settlements', 'SettlementItems' ];
-        
-        sheetListContainer.innerHTML = '';
-        coreSheets.forEach(sheetName => {
-            sheetListContainer.innerHTML += `<div class="form-group-checkbox"><input type="checkbox" id="restore-sheet-${sheetName}" name="restoreSheet" value="${sheetName}"><label for="restore-sheet-${sheetName}">${sheetName}</label></div>`;
-        });
-        
-        const updateConfirmButtonState = () => {
-            const sheetsSelected = document.querySelectorAll('#restore-sheet-list input:checked').length > 0;
-            confirmBtn.disabled = !(confirmInput.value === 'RESTORE' && sheetsSelected);
-        };
-
-        confirmInput.addEventListener('input', updateConfirmButtonState);
-        sheetListContainer.addEventListener('change', updateConfirmButtonState);
-    
-        modal.classList.add('active');
-    }
-    
-    async function handleConfirmRestore(e) {
-        const btn = e.target;
-        const backupFileId = btn.dataset.backupFileId;
-        const selectedSheets = Array.from(document.querySelectorAll('#restore-sheet-list input:checked')).map(el => el.value);
-    
-        if (selectedSheets.length === 0) {
-            showToast(_t('restore_select_sheet_toast'), 'error');
-            return;
-        }
-    
-        const payload = {
-            backupFileId: backupFileId,
-            sheetsToRestore: selectedSheets
-        };
-    
-        const result = await postData('restoreFromBackup', payload, btn);
-    
-        if (result) {
-            showToast(result.data.message || _t('restore_completed_toast'), 'success');
-            closeModal();
-            await reloadDataAndRefreshUI();
-        }
-    }
-
-    // --- PAYMENT & MODAL HELPERS (RESTORED) ---
-    function renderInvoicesInModal() {
-        const modalInvoiceList = document.getElementById('modal-invoice-list');
-        const supplierCode = document.getElementById('payment-supplier-select').value;
-        const supplierFinancials = calculateSupplierFinancials();
-        const supplierInvoices = supplierFinancials[supplierCode]?.invoices;
-        modalInvoiceList.innerHTML = '';
-        if (!supplierInvoices || Object.keys(supplierInvoices).length === 0) {
-            modalInvoiceList.innerHTML = `<p>${_t('no_invoices_for_supplier')}</p>`;
-            return;
-        }
-        const unpaidInvoices = Object.values(supplierInvoices).filter(inv => inv.status !== 'Paid');
-        if (unpaidInvoices.length === 0) {
-            modalInvoiceList.innerHTML = `<p>${_t('no_unpaid_invoices')}</p>`;
-            return;
-        }
-        unpaidInvoices.sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(invoice => {
-            const isChecked = state.invoiceModalSelections.has(invoice.number);
-            const itemDiv = document.createElement('div');
-            itemDiv.className = 'modal-item';
-            const detailsText = _t('invoice_modal_details', { date: new Date(invoice.date).toLocaleDateString(), balance: invoice.balance.toFixed(2) });
-            itemDiv.innerHTML = `<input type="checkbox" id="modal-invoice-${invoice.number}" data-number="${invoice.number}" ${isChecked ? 'checked' : ''}><label for="modal-invoice-${invoice.number}"><strong>${_t('table_h_invoice_no')}: ${invoice.number}</strong><br><small style="color:var(--text-light-color)">${detailsText}</small></label>`;
-            modalInvoiceList.appendChild(itemDiv);
-        });
-    }
-
-    function handleModalCheckboxChange(e) {
-        if (e.target.type === 'checkbox') {
-            const itemCode = e.target.dataset.code;
-            if (e.target.checked) {
-                state.modalSelections.add(itemCode);
-            } else {
-                state.modalSelections.delete(itemCode);
-            }
-        }
-    }
-
-    function handleInvoiceModalCheckboxChange(e) {
-        if (e.target.type === 'checkbox') {
-            const invoiceNumber = e.target.dataset.number;
-            if (e.target.checked) {
-                state.invoiceModalSelections.add(invoiceNumber);
-            } else {
-                state.invoiceModalSelections.delete(invoiceNumber);
-            }
-        }
-    }
-
-    function renderPaymentList() {
-        const supplierCode = document.getElementById('payment-supplier-select').value;
-        const container = document.getElementById('payment-invoice-list-container');
-        if (!supplierCode) {
-            container.style.display = 'none';
-            return;
-        }
-        const supplierInvoices = calculateSupplierFinancials()[supplierCode]?.invoices;
-        const tableBody = document.getElementById('table-payment-list').querySelector('tbody');
-        tableBody.innerHTML = '';
-        let total = 0;
-        if (state.invoiceModalSelections.size === 0) {
-            container.style.display = 'none';
-            return;
-        }
-        state.invoiceModalSelections.forEach(invNum => {
-            const invoice = supplierInvoices[invNum];
-            if (!invoice) return;
-            const balance = invoice.balance;
-            total += balance;
-            const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${invoice.number}</td><td>${balance.toFixed(2)} EGP</td><td><input type="number" class="table-input payment-amount-input" data-invoice="${invoice.number}" value="${balance.toFixed(2)}" step="0.01" min="0" max="${balance.toFixed(2)}" style="max-width: 150px;"></td>`;
-            tableBody.appendChild(tr);
-        });
-        document.getElementById('payment-total-amount').textContent = `${total.toFixed(2)} EGP`;
-        container.style.display = 'block';
-    }
-
-    function handlePaymentInputChange() {
-        let total = 0;
-        document.querySelectorAll('.payment-amount-input').forEach(input => {
-            total += parseFloat(input.value) || 0;
-        });
-        document.getElementById('payment-total-amount').textContent = `${total.toFixed(2)} EGP`;
     }
 
     // --- FIX: Prevent Focus Loss by updating DOM directly instead of re-rendering ---
@@ -1699,6 +1748,265 @@ document.addEventListener('DOMContentLoaded', () => {
             tr.innerHTML = `<td>${new Date(first.date).toLocaleString()}</td><td>${typeDisplay}</td><td>${refNum}</td><td>${details}</td><td>${statusTag}</td><td><div class="action-buttons">${actionsHtml}</div></td>`;
             tbody.appendChild(tr);
         });
+    }
+
+    // --- RENDERER FUNCTIONS (Must be declared before attached) ---
+    function renderReceiveListTable() { renderDynamicListTable('table-receive-list', state.currentReceiveList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated' } ], 'no_items_selected_toast', updateReceiveGrandTotal); }
+    function renderTransferListTable() { renderDynamicListTable('table-transfer-list', state.currentTransferList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'available_stock', branchSelectId: 'transfer-from-branch' }, { type: 'number_input', key: 'quantity', maxKey: true, branchSelectId: 'transfer-from-branch' } ], 'no_items_selected_toast', updateTransferGrandTotal); }
+    function renderPOListTable() { renderDynamicListTable('table-po-list', state.currentPOList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated' } ], 'no_items_selected_toast', updatePOGrandTotal); }
+    function renderPOEditListTable() { renderDynamicListTable('table-edit-po-list', state.currentEditingPOList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated' } ], 'no_items_selected_toast', updatePOEditGrandTotal); }
+    function renderReturnListTable() { renderDynamicListTable('table-return-list', state.currentReturnList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'available_stock', branchSelectId: 'return-branch' }, { type: 'number_input', key: 'quantity', maxKey: true, branchSelectId: 'return-branch' }, { type: 'cost_input', key: 'cost' } ], 'no_items_selected_toast', updateReturnGrandTotal); }
+
+    function renderAdjustmentListTable() {
+        const tbody = document.getElementById('table-adjustment-list').querySelector('tbody');
+        tbody.innerHTML = '';
+        if (!state.currentAdjustmentList || state.currentAdjustmentList.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">${_t('no_items_for_adjustment')}</td></tr>`;
+            return;
+        }
+        const stock = calculateStockLevels();
+        const branchCode = document.getElementById('adjustment-branch').value;
+
+        state.currentAdjustmentList.forEach((item, index) => {
+            const systemQty = (branchCode && stock[branchCode]?.[item.itemCode]?.quantity) || 0;
+            const physicalCount = typeof item.physicalCount !== 'undefined' ? item.physicalCount : '';
+            const adjustment = physicalCount - systemQty;
+            
+            item.physicalCount = physicalCount;
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${item.itemCode}</td>
+                <td>${item.itemName}</td>
+                <td>${systemQty.toFixed(2)}</td>
+                <td><input type="number" class="table-input" value="${physicalCount}" min="0" step="0.01" data-index="${index}" data-field="physicalCount"></td>
+                <td style="font-weight: bold; color: ${adjustment > 0 ? 'var(--secondary-color)' : (adjustment < 0 ? 'var(--danger-color)' : 'inherit')}">${adjustment.toFixed(2)}</td>
+                <td><button class="danger small" data-index="${index}">X</button></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function renderItemCentricStockView(itemsToRender = state.items, selectedBranches = []) {
+        const container = document.getElementById('item-centric-stock-container');
+        if (!container) return;
+        const stockByBranch = calculateStockLevels();
+        
+        let branchesToDisplay = getVisibleBranchesForCurrentUser();
+        if (selectedBranches.length > 0 && userCan('viewAllBranches')) {
+            branchesToDisplay = state.branches.filter(b => selectedBranches.includes(b.branchCode));
+        }
+    
+        const itemsWithChildren = {};
+        itemsToRender.forEach(item => {
+            if (item.ParentItemCode) {
+                if (!itemsWithChildren[item.ParentItemCode]) {
+                    itemsWithChildren[item.ParentItemCode] = [];
+                }
+                itemsWithChildren[item.ParentItemCode].push(item);
+            }
+        });
+    
+        let tableHTML = `<table id="table-stock-levels-by-item"><thead><tr><th>${_t('table_h_code')}</th><th>${_t('table_h_name')}</th>`;
+        branchesToDisplay.forEach(b => { tableHTML += `<th>${b.branchName}</th>` });
+        tableHTML += `<th>${_t('table_h_total')}</th></tr></thead><tbody>`;
+    
+        const renderedItems = new Set();
+    
+        itemsToRender.forEach(item => {
+            if (renderedItems.has(item.code)) return;
+            if (!item.ParentItemCode) {
+                tableHTML += renderStockRow(item, false);
+                renderedItems.add(item.code);
+                if (itemsWithChildren[item.code]) {
+                    itemsWithChildren[item.code].forEach(child => {
+                        tableHTML += renderStockRow(child, true);
+                        renderedItems.add(child.code);
+                    });
+                }
+            }
+        });
+    
+        function renderStockRow(item, isSubItem) {
+            let rowHtml = `<tr class="${isSubItem ? 'sub-item-row' : ''}"><td>${item.code}</td><td>${item.name}</td>`;
+            let total = 0;
+            branchesToDisplay.forEach(branch => {
+                const qty = stockByBranch[branch.branchCode]?.[item.code]?.quantity || 0;
+                total += qty;
+                rowHtml += `<td>${qty > 0 ? qty.toFixed(2) : '-'}</td>`;
+            });
+            rowHtml += `<td><strong>${total.toFixed(2)}</strong></td></tr>`;
+            return rowHtml;
+        }
+    
+        tableHTML += `</tbody></table>`;
+        container.innerHTML = tableHTML;
+    }
+
+    function renderItemInquiry(searchTerm) {
+        const resultsContainer = document.getElementById('item-inquiry-results');
+        if (!searchTerm) {
+            resultsContainer.innerHTML = '';
+            return;
+        }
+        const stockByBranch = calculateStockLevels();
+        const filteredItems = state.items.filter(i => i.name.toLowerCase().includes(searchTerm) || i.code.toLowerCase().includes(searchTerm));
+        let html = '';
+        const branchesToDisplay = getVisibleBranchesForCurrentUser();
+        filteredItems.slice(0, 10).forEach(item => {
+            html += `<h4>${item.name} (${item.code})</h4><table><thead><tr><th>${_t('branch')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_value')}</th></tr></thead><tbody>`;
+            let found = false;
+            let totalQty = 0;
+            let totalValue = 0;
+            branchesToDisplay.forEach(branch => {
+                const itemStock = stockByBranch[branch.branchCode]?.[item.code];
+                if (itemStock && itemStock.quantity > 0) {
+                    const value = itemStock.quantity * itemStock.avgCost;
+                    html += `<tr><td>${branch.branchName} (${branch.branchCode || ''})</td><td>${itemStock.quantity.toFixed(2)}</td><td>${value.toFixed(2)} EGP</td></tr>`;
+                    totalQty += itemStock.quantity;
+                    totalValue += value;
+                    found = true;
+                }
+            });
+            if (!found) {
+                html += `<tr><td colspan="3">${_t('no_stock_for_item')}</td></tr>`;
+            } else {
+                html += `<tr style="font-weight:bold; background-color: var(--bg-color);"><td>${_t('table_h_total')}</td><td>${totalQty.toFixed(2)}</td><td>${totalValue.toFixed(2)} EGP</td></tr>`
+            }
+            html += `</tbody></table><hr>`;
+        });
+        resultsContainer.innerHTML = html;
+    }
+    
+    // --- BACKUP FUNCTIONS (RESTORED) ---
+    async function loadAndRenderBackups() {
+        const container = document.getElementById('backup-list-container');
+        container.innerHTML = `<table><tbody><tr><td><div class="spinner" style="width:30px;height:30px;border-width:3px;"></div></td><td>${_t('loading_backups')}</td></tr></tbody></table>`;
+        const result = await postData('listBackups', {}, null);
+        if (result && result.data) {
+            state.backups = result.data;
+            if (state.backups.length === 0) {
+                container.innerHTML = `<p>${_t('no_backups_found')}</p>`;
+                return;
+            }
+            let tableHtml = `<table id="table-backups"><thead><tr><th>${_t('backup_name')}</th><th>${_t('date_created')}</th><th>${_t('actions')}</th></tr></thead><tbody>`;
+            state.backups.forEach(backup => {
+                tableHtml += `
+                    <tr>
+                        <td>${backup.name}</td>
+                        <td>${new Date(backup.dateCreated).toLocaleString()}</td>
+                        <td>
+                            <div class="action-buttons">
+                                <a href="${backup.url}" target="_blank" rel="noopener noreferrer" class="secondary small" style="text-decoration: none;">${_t('open')}</a>
+                                <button class="danger small btn-restore" data-url="${backup.url}">${_t('restore')}</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+            tableHtml += '</tbody></table>';
+            container.innerHTML = tableHtml;
+        } else {
+            container.innerHTML = `<p>Could not load backup list. Please check permissions or try again.</p>`;
+        }
+    }
+    
+    async function loadAutoBackupSettings() {
+        const toggle = document.getElementById('auto-backup-toggle');
+        const frequencyContainer = document.getElementById('auto-backup-frequency-container');
+        const statusEl = document.getElementById('auto-backup-status');
+        
+        statusEl.textContent = 'Checking status...';
+        const result = await postData('getAutomaticBackupStatus', {}, null);
+        
+        if (result && result.data.enabled !== undefined) {
+            const isEnabled = result.data.enabled;
+            toggle.checked = isEnabled;
+            frequencyContainer.style.display = isEnabled ? 'block' : 'none';
+            statusEl.textContent = isEnabled 
+                ? 'Automatic backups are currently active.'
+                : 'Automatic backups are currently disabled.';
+        } else {
+            statusEl.textContent = 'Could not retrieve automatic backup status.';
+        }
+    }
+    
+    async function handleAutoBackupToggle() {
+        const toggle = document.getElementById('auto-backup-toggle');
+        const frequency = document.getElementById('auto-backup-frequency').value;
+        const frequencyContainer = document.getElementById('auto-backup-frequency-container');
+        const statusEl = document.getElementById('auto-backup-status');
+        
+        const isEnabled = toggle.checked;
+        frequencyContainer.style.display = isEnabled ? 'block' : 'none';
+        
+        statusEl.textContent = 'Updating settings...';
+        const result = await postData('setAutomaticBackup', { enabled: isEnabled, frequency: frequency }, toggle);
+
+        if (result) {
+            showToast(_t('auto_backup_updated_toast'), 'success');
+            statusEl.textContent = isEnabled
+                ? `Automatic backups are now enabled (${frequency}).`
+                : 'Automatic backups have been disabled.';
+        } else {
+            toggle.checked = !isEnabled;
+            frequencyContainer.style.display = toggle.checked ? 'block' : 'none';
+            statusEl.textContent = _t('auto_backup_failed_toast');
+        }
+    }
+
+    function openRestoreModal(backupFileId, backupFileName) {
+        const modal = document.getElementById('restore-modal');
+        const sheetListContainer = document.getElementById('restore-sheet-list');
+        const confirmInput = document.getElementById('restore-confirmation-input');
+        const confirmBtn = document.getElementById('btn-confirm-restore');
+    
+        document.getElementById('restore-filename-display').textContent = backupFileName;
+        confirmBtn.dataset.backupFileId = backupFileId;
+        
+        confirmInput.value = '';
+        confirmBtn.disabled = true;
+    
+        const coreSheets = [ 'Items', 'Suppliers', 'Branches', 'Transactions', 'Payments', 'PurchaseOrders', 'PurchaseOrderItems', 'Users', 'Permissions', 'Settlements', 'SettlementItems' ];
+        
+        sheetListContainer.innerHTML = '';
+        coreSheets.forEach(sheetName => {
+            sheetListContainer.innerHTML += `<div class="form-group-checkbox"><input type="checkbox" id="restore-sheet-${sheetName}" name="restoreSheet" value="${sheetName}"><label for="restore-sheet-${sheetName}">${sheetName}</label></div>`;
+        });
+        
+        const updateConfirmButtonState = () => {
+            const sheetsSelected = document.querySelectorAll('#restore-sheet-list input:checked').length > 0;
+            confirmBtn.disabled = !(confirmInput.value === 'RESTORE' && sheetsSelected);
+        };
+
+        confirmInput.addEventListener('input', updateConfirmButtonState);
+        sheetListContainer.addEventListener('change', updateConfirmButtonState);
+    
+        modal.classList.add('active');
+    }
+    
+    async function handleConfirmRestore(e) {
+        const btn = e.target;
+        const backupFileId = btn.dataset.backupFileId;
+        const selectedSheets = Array.from(document.querySelectorAll('#restore-sheet-list input:checked')).map(el => el.value);
+    
+        if (selectedSheets.length === 0) {
+            showToast(_t('restore_select_sheet_toast'), 'error');
+            return;
+        }
+    
+        const payload = {
+            backupFileId: backupFileId,
+            sheetsToRestore: selectedSheets
+        };
+    
+        const result = await postData('restoreFromBackup', payload, btn);
+    
+        if (result) {
+            showToast(result.data.message || _t('restore_completed_toast'), 'success');
+            closeModal();
+            await reloadDataAndRefreshUI();
+        }
     }
 
     const refreshViewData = async (viewId) => {
