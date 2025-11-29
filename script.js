@@ -1292,6 +1292,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (totalSubQty > 0) {
+            // Check if existing placeholder exists
             const existingIndex = list.findIndex(i => i.itemCode === mainItem.code && i.isMainItemPlaceholder);
             
             if (existingIndex !== -1) {
@@ -1379,6 +1380,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Core Dynamic Table Renderer (Grouped View) ---
+    // FIXED: Properly associates children with parent placeholder using a map
     const renderDynamicListTable = (tbodyId, list, columnsConfig, emptyMessage, totalizerFn) => {
         const tbody = document.getElementById(tbodyId).querySelector('tbody');
         tbody.innerHTML = '';
@@ -1391,102 +1393,105 @@ document.addEventListener('DOMContentLoaded', () => {
         const stock = calculateStockLevels();
         const branchCode = document.getElementById(columnsConfig.find(c => c.branchSelectId)?.branchSelectId)?.value;
 
-        const groupedList = {};
-        
+        // Grouping Logic
+        const groupedMap = {}; // Key: ParentCode, Value: { parentIndex, parentItem, children: [] }
+        const standaloneList = []; // Array of { item, index }
+
         list.forEach((item, index) => {
-            const itemDetails = findByKey(state.items, 'code', item.itemCode);
-            
-            if (itemDetails && itemDetails.ParentItemCode) {
-                const parentCode = itemDetails.ParentItemCode;
-                if (!groupedList[parentCode]) {
-                    const parentPlaceholder = list.find(p => p.itemCode === parentCode && p.isMainItemPlaceholder);
-                    if (parentPlaceholder) {
-                        groupedList[parentCode] = { 
-                            parent: parentPlaceholder, 
-                            parentIndex: list.indexOf(parentPlaceholder),
-                            children: [] 
-                        };
-                    } else {
-                        if (!groupedList[item.itemCode]) groupedList[item.itemCode] = { parent: item, parentIndex: index, children: [] };
-                    }
-                }
-                if (groupedList[parentCode] && groupedList[parentCode].parent !== item) {
-                    groupedList[parentCode].children.push({ item, index });
+            if (item.isMainItemPlaceholder) {
+                if (!groupedMap[item.itemCode]) {
+                    groupedMap[item.itemCode] = { parentIndex: index, parentItem: item, children: [] };
+                } else {
+                    // Update existing (unlikely in sequential parse but safe)
+                    groupedMap[item.itemCode].parentIndex = index;
+                    groupedMap[item.itemCode].parentItem = item;
                 }
             } else {
-                if (!groupedList[item.itemCode]) {
-                    groupedList[item.itemCode] = { parent: item, parentIndex: index, children: [] };
+                const itemDetails = findByKey(state.items, 'code', item.itemCode);
+                if (itemDetails && itemDetails.ParentItemCode) {
+                    // It's a sub-item
+                    if (!groupedMap[itemDetails.ParentItemCode]) {
+                        // Create slot if parent hasn't been seen yet
+                        groupedMap[itemDetails.ParentItemCode] = { parentIndex: -1, parentItem: null, children: [] };
+                    }
+                    groupedMap[itemDetails.ParentItemCode].children.push({ item, index });
+                } else {
+                    // Standalone main item
+                    standaloneList.push({ item, index });
                 }
             }
         });
-        
-        const sortedGroups = Object.values(groupedList).sort((a, b) => a.parentIndex - b.parentIndex);
 
-        sortedGroups.forEach(group => {
-            const parentItem = group.parent;
-            const parentIndex = group.parentIndex;
-            const isMainPlaceholder = parentItem.isMainItemPlaceholder;
-            
-            let totalSubItemWeight = 0;
-            if (isMainPlaceholder) {
-                totalSubItemWeight = group.children.reduce((sum, entry) => sum + (parseFloat(entry.item.quantity) || 0), 0);
+        // Convert Map to Array and sort by first appearance
+        const allGroups = [...Object.values(groupedMap), ...standaloneList.map(s => ({ parentIndex: s.index, parentItem: s.item, children: [], isStandalone: true }))];
+        allGroups.sort((a, b) => {
+            // Logic to keep sort order roughly consistent
+            const idxA = a.parentIndex > -1 ? a.parentIndex : (a.children[0]?.index || 9999);
+            const idxB = b.parentIndex > -1 ? b.parentIndex : (b.children[0]?.index || 9999);
+            return idxA - idxB;
+        });
+
+        allGroups.forEach(group => {
+            if (!group.parentItem && group.children.length === 0) return;
+
+            // --- Render Parent/Placeholder Row ---
+            if (group.parentItem) {
+                const parentItem = group.parentItem;
+                const parentIndex = group.parentIndex;
+                const isMainPlaceholder = parentItem.isMainItemPlaceholder;
+                
+                let totalSubItemWeight = 0;
+                if (isMainPlaceholder) {
+                    totalSubItemWeight = group.children.reduce((sum, entry) => sum + (parseFloat(entry.item.quantity) || 0), 0);
+                }
+
+                const tr = document.createElement('tr');
+                if (isMainPlaceholder) tr.classList.add('main-item-group-header');
+
+                let cellsHtml = '';
+                let currentItem = parentItem;
+                
+                // For placeholders, use aggregated quantity
+                const currentItemQty = isMainPlaceholder ? totalSubItemWeight : (parseFloat(currentItem.quantity) || 0);
+                const currentItemCost = parseFloat(currentItem.cost) || 0;
+                
+                columnsConfig.forEach(col => {
+                    let content = '';
+                    switch (col.type) {
+                        case 'text': content = currentItem[col.key]; break;
+                        case 'number_input':
+                            // If it's a placeholder, make Qty Read-Only
+                            const readOnlyAttr = isMainPlaceholder ? 'readonly' : '';
+                            const valueDisplay = isMainPlaceholder ? currentItemQty.toFixed(2) : (currentItem.quantity || '');
+                            content = `<input type="number" class="table-input" value="${valueDisplay}" min="${col.min || 0.01}" ${col.maxKey ? `max="${(stock[branchCode]?.[currentItem.itemCode]?.quantity || 0)}"` : ''} step="0.01" data-index="${parentIndex}" data-field="${col.key}" ${readOnlyAttr}>`;
+                            break;
+                        case 'cost_input':
+                            if (isMainPlaceholder) {
+                                content = `<input type="number" class="table-input" value="${currentItemCost.toFixed(2)}" min="0" step="0.01" data-index="${parentIndex}" data-field="cost" title="Enter Total Batch Value here">`;
+                            } else {
+                                content = `<input type="number" class="table-input" value="${currentItemCost.toFixed(2)}" min="0" step="0.01" data-index="${parentIndex}" data-field="cost">`;
+                            }
+                            break;
+                        case 'calculated': 
+                            let calculatedValue;
+                            if (isMainPlaceholder) {
+                                calculatedValue = currentItemCost; // Input is the total value
+                            } else {
+                                calculatedValue = currentItemQty * currentItemCost;
+                            }
+                            content = `<span>${calculatedValue.toFixed(2)} EGP</span>`;
+                            break;
+                        case 'available_stock': content = (stock[branchCode]?.[currentItem.itemCode]?.quantity || 0).toFixed(2); break;
+                    }
+                    cellsHtml += `<td>${content}</td>`;
+                });
+                
+                cellsHtml += `<td>${!isMainPlaceholder ? `<button class="danger small" data-index="${parentIndex}">X</button>` : '---'}</td>`;
+                tr.innerHTML = cellsHtml;
+                tbody.appendChild(tr);
             }
 
-            const tr = document.createElement('tr');
-            if (isMainPlaceholder) tr.classList.add('main-item-group-header');
-
-            let cellsHtml = '';
-            let currentItem = parentItem;
-            
-            // For placeholders, use aggregated quantity
-            const currentItemQty = isMainPlaceholder ? totalSubItemWeight : (parseFloat(currentItem.quantity) || 0);
-            const currentItemCost = parseFloat(currentItem.cost) || 0;
-            
-            columnsConfig.forEach(col => {
-                let content = '';
-                
-                switch (col.type) {
-                    case 'text': content = currentItem[col.key]; break;
-                    
-                    case 'number_input':
-                        // If it's a placeholder, make Qty Read-Only
-                        const readOnlyAttr = isMainPlaceholder ? 'readonly' : '';
-                        const valueDisplay = isMainPlaceholder ? currentItemQty.toFixed(2) : (currentItem.quantity || '');
-
-                        content = `<input type="number" class="table-input" value="${valueDisplay}" min="${col.min || 0.01}" ${col.maxKey ? `max="${(stock[branchCode]?.[currentItem.itemCode]?.quantity || 0)}"` : ''} step="0.01" data-index="${parentIndex}" data-field="${col.key}" ${readOnlyAttr}>`;
-                        break;
-                        
-                    case 'cost_input':
-                        // FIX: If Main Placeholder, Input is TOTAL VALUE. If Sub Item, Cost is Hidden.
-                        if (isMainPlaceholder) {
-                            content = `<input type="number" class="table-input" value="${currentItemCost.toFixed(2)}" min="0" step="0.01" data-index="${parentIndex}" data-field="cost" title="Enter Total Batch Value here">`;
-                        } else if (findByKey(state.items, 'code', currentItem.itemCode)?.ParentItemCode) {
-                            content = '---'; 
-                        } else {
-                            content = `<input type="number" class="table-input" value="${currentItemCost.toFixed(2)}" min="0" step="0.01" data-index="${parentIndex}" data-field="cost">`;
-                        }
-                        break;
-                        
-                    case 'calculated': 
-                        // FIX: For Placeholder, Calculated = Input (Total Value). For Others, Qty * Cost.
-                        let calculatedValue;
-                        if (isMainPlaceholder) {
-                            calculatedValue = currentItemCost; // Input is the total value
-                        } else {
-                            calculatedValue = currentItemQty * currentItemCost;
-                        }
-                        content = `<span>${calculatedValue.toFixed(2)} EGP</span>`;
-                        break;
-                        
-                    case 'available_stock': content = (stock[branchCode]?.[currentItem.itemCode]?.quantity || 0).toFixed(2); break;
-                }
-                cellsHtml += `<td>${content}</td>`;
-            });
-            
-            cellsHtml += `<td>${!isMainPlaceholder ? `<button class="danger small" data-index="${parentIndex}">X</button>` : '---'}</td>`;
-            tr.innerHTML = cellsHtml;
-            tbody.appendChild(tr);
-
+            // --- Render Children ---
             group.children.forEach(entry => {
                 const subItem = entry.item;
                 const subIndex = entry.index;
@@ -1542,7 +1547,6 @@ document.addEventListener('DOMContentLoaded', () => {
    function updateTransferGrandTotal() { 
         let grandTotalQty = 0; 
         (state.currentTransferList || []).forEach(item => { 
-            // Transfers usually don't use Lump Sum logic, but simply sum quantities
             grandTotalQty += (parseFloat(item.quantity) || 0); 
         }); 
         document.getElementById('transfer-grand-total').textContent = grandTotalQty.toFixed(2); 
@@ -1563,9 +1567,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function updatePOEditGrandTotal() { 
         let grandTotal = 0; 
         (state.currentEditingPOList || []).forEach(item => { 
-            if(item.isMainItemPlaceholder) {
-                grandTotal += (parseFloat(item.cost) || 0);
-            } else if(!findByKey(state.items, 'code', item.itemCode)?.ParentItemCode) { 
+            const itemDetails = findByKey(state.items, 'code', item.itemCode);
+            if(itemDetails && !itemDetails.ParentItemCode) { 
                  grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); 
             }
         }); 
