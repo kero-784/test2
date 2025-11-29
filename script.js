@@ -732,78 +732,298 @@ document.addEventListener('DOMContentLoaded', () => {
         viewTransferModal.classList.add('active');
     }
 
-    // --- FIX: Ensure proper modal handling for sub-items ---
-    function confirmModalSelection() {
-        if (modalContext === 'invoices') {
-            renderPaymentList();
-            closeModal();
-            return;
+    function openEditModal(type, id) {
+        let record, formHtml;
+        formEditRecord.dataset.type = type;
+        formEditRecord.dataset.id = id;
+        switch (type) {
+            case 'item':
+                record = findByKey(state.items, 'code', id);
+                if (!record) return;
+                const isSubItem = !!record.ParentItemCode;
+                editModalTitle.textContent = _t('edit_item');
+                formHtml = `<div class="form-grid">
+                    <div class="form-group"><label>${_t('item_code')}</label><input type="text" value="${record.code}" readonly></div>
+                    <div class="form-group"><label for="edit-item-name">${_t('item_name')}</label><input type="text" id="edit-item-name" name="name" value="${record.name}" required></div>
+                    <div class="form-group span-full" id="edit-cost-group" style="display: ${isSubItem ? 'none' : 'block'};"><label for="edit-item-cost">${_t('default_cost')}</label><input type="number" id="edit-item-cost" name="cost" step="0.01" min="0" value="${record.cost}"></div>
+                    <div class="form-group-checkbox span-full"><input type="checkbox" id="edit-is-sub-item-toggle" ${isSubItem ? 'checked' : ''}><label for="edit-is-sub-item-toggle">${_t('is_sub_item')}</label></div>
+                    <div id="edit-sub-item-fields" class="form-grid span-full" style="display: ${isSubItem ? 'grid' : 'none'};">
+                        <div class="form-group"><label for="edit-parent-item-code">${_t('parent_item')}</label><select id="edit-parent-item-code" name="ParentItemCode"></select></div>
+                    </div>
+                </div>`;
+                editModalBody.innerHTML = formHtml;
+                
+                const mainItems = state.items.filter(i => !i.ParentItemCode && i.code !== record.code);
+                const parentSelect = document.getElementById('edit-parent-item-code');
+                populateOptions(parentSelect, mainItems, _t('select_parent_item'), 'code', 'name');
+                if (isSubItem) {
+                    parentSelect.value = record.ParentItemCode;
+                }
+
+                document.getElementById('edit-is-sub-item-toggle').addEventListener('change', (e) => {
+                    document.getElementById('edit-sub-item-fields').style.display = e.target.checked ? 'grid' : 'none';
+                    document.getElementById('edit-cost-group').style.display = e.target.checked ? 'none' : 'block';
+                    if (!e.target.checked) {
+                        parentSelect.value = '';
+                    } else {
+                         document.getElementById('edit-item-cost').value = '0';
+                    }
+                });
+                break;
+            case 'supplier':
+                record = findByKey(state.suppliers, 'supplierCode', id);
+                if (!record) return;
+                editModalTitle.textContent = _t('edit_supplier');
+                formHtml = `<div class="form-grid">
+                    <div class="form-group"><label>${_t('supplier_code')}</label><input type="text" value="${record.supplierCode}" readonly></div>
+                    <div class="form-group"><label for="edit-supplier-name">${_t('supplier_name')}</label><input type="text" id="edit-supplier-name" name="name" value="${record.name}" required></div>
+                </div>`;
+                editModalBody.innerHTML = formHtml;
+                break;
+            case 'branch':
+                record = findByKey(state.branches, 'branchCode', id);
+                if (!record) return;
+                editModalTitle.textContent = _t('edit_branch');
+                formHtml = `<div class="form-grid"><div class="form-group"><label>${_t('branch_code')}</label><input type="text" value="${record.branchCode}" readonly></div><div class="form-group"><label for="edit-branch-name">${_t('branch_name')}</label><input type="text" id="edit-branch-name" name="branchName" value="${record.branchName}" required></div></div>`;
+                editModalBody.innerHTML = formHtml;
+                break;
+            case 'user':
+                record = findByKey(state.allUsers, 'Username', id);
+                if (!record && id !== null) return;
+                editModalTitle.textContent = id ? _t('edit_user') : _t('add_new_user_title');
+                const isUserDisabled = record ? (record.isDisabled === true || String(record.isDisabled).toUpperCase() === 'TRUE') : false;
+                const currentUsername = record ? record.Username : '';
+                const currentName = record ? record.Name : '';
+                const currentRole = record ? record.RoleName : '';
+                const currentBranch = record ? record.AssignedBranchCode : '';
+
+                const roleOptions = state.allRoles.map(r => `<option value="${r.RoleName}" ${r.RoleName === currentRole ? 'selected' : ''}>${r.RoleName}</option>`).join('');
+                const branchOptions = state.branches.map(b => `<option value="${b.branchCode}" ${b.branchCode === currentBranch ? 'selected' : ''}>${b.branchName}</option>`).join('');
+                const passwordLabel = id ? _t('edit_user_password_label') : _t('edit_user_password_label_new');
+                
+                formHtml = `<div class="form-grid">
+                    <div class="form-group"><label>${_t('username')}</label><input type="text" id="edit-user-username" name="Username" value="${currentUsername}" ${id ? 'readonly' : 'required'}></div>
+                    <div class="form-group"><label for="edit-user-name">${_t('table_h_fullname')}</label><input type="text" id="edit-user-name" name="Name" value="${currentName}" required></div>
+                    <div class="form-group"><label for="edit-user-role">${_t('table_h_role')}</label><select id="edit-user-role" name="RoleName" required>${roleOptions}</select></div>
+                    <div class="form-group"><label for="edit-user-branch">${_t('branch')}</label><select id="edit-user-branch" name="AssignedBranchCode"><option value="">None</option>${branchOptions}</select></div>
+                    <div class="form-group span-full"><label for="edit-user-password">${passwordLabel}</label><input type="password" id="edit-user-password" name="LoginCode" ${!id ? 'required' : ''}></div>`;
+                if(id) {
+                    const btnText = isUserDisabled ? _t('toggle_user_enable') : _t('toggle_user_disable');
+                    const btnClass = isUserDisabled ? 'primary' : 'danger';
+                    formHtml += `<div class="form-group span-full"><button type="button" id="btn-toggle-user-status" class="${btnClass}">${btnText}</button></div>`;
+                }
+                formHtml += `</div>`;
+                editModalBody.innerHTML = formHtml;
+
+                const toggleBtn = document.getElementById('btn-toggle-user-status');
+                if (toggleBtn) {
+                    toggleBtn.addEventListener('click', async () => {
+                        const newStatus = !isUserDisabled;
+                        const confirmationText = newStatus ? _t('toggle_user_disable_confirm') : _t('toggle_user_enable_confirm');
+                        if (confirm(confirmationText)) {
+                            const result = await postData('updateUser', { Username: id, updates: { isDisabled: newStatus } }, toggleBtn);
+                            if (result) {
+                                showToast(newStatus ? _t('user_disabled_toast') : _t('user_enabled_toast'), 'success');
+                                closeModal();
+                                reloadDataAndRefreshUI();
+                            }
+                        }
+                    });
+                }
+                break;
+            case 'role':
+                record = findByKey(state.allRoles, 'RoleName', id);
+                if (!record) {
+                    showToast('Role data not found. Please refresh and try again.', 'error');
+                    return;
+                }
+                editModalTitle.textContent = _t('edit_permissions_for', {roleName: record.RoleName});
+
+                const permissionCategories = {
+                    'General Access': ['viewDashboard', 'viewActivityLog'],
+                    'User Management': ['manageUsers', 'opBackupRestore'],
+                    'Data Management': ['viewSetup', 'viewMasterData', 'createItem', 'editItem', 'createSupplier', 'editSupplier', 'createBranch', 'editBranch'],
+                    'Stock Operations': ['viewOperations', 'opReceive', 'opReceiveWithoutPO', 'opTransfer', 'opReturn', 'opStockAdjustment', 'opExtraction'],
+                    'Purchasing': ['viewPurchasing', 'opCreatePO'],
+                    'Financials': ['viewPayments', 'opRecordPayment', 'opFinancialAdjustment', 'opApproveFinancials', 'opEditInvoice'],
+                    'Reporting': ['viewReports', 'viewStockLevels', 'viewTransactionHistory', 'viewAllBranches'],
+                };
+                
+                formHtml = '<h3>Permissions</h3>';
+                for (const category in permissionCategories) {
+                    formHtml += `<h4 class="permission-category">${category}</h4><div class="form-grid permissions-grid">`;
+                    permissionCategories[category].forEach(key => {
+                        const isChecked = record[key] === true || String(record[key]).toUpperCase() === 'TRUE';
+                        formHtml += `<div class="form-group-checkbox"><input type="checkbox" id="edit-perm-${key}" name="${key}" ${isChecked ? 'checked' : ''}><label for="edit-perm-${key}">${key}</label></div>`;
+                    });
+                    formHtml += `</div>`;
+                }
+
+                formHtml += `<div class="form-group span-full" style="margin-top: 24px;"><button type="button" id="btn-delete-role" class="danger">${_t('delete_role')}</button></div>`;
+                editModalBody.innerHTML = formHtml;
+                break;
         }
+        editModal.classList.add('active');
+    }
 
-        const selectedCodes = Array.from(state.modalSelections);
-        if (selectedCodes.length === 0) {
-            closeModal();
-            return;
-        }
+    async function handleUpdateSubmit(e) {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        const type = formEditRecord.dataset.type;
+        const id = formEditRecord.dataset.id;
+        const formData = new FormData(formEditRecord);
+        let payload = {}, action;
 
-        const mainItemsToProcess = new Set();
-        const regularItemsToAdd = [];
-
-        selectedCodes.forEach(code => {
-            const item = findByKey(state.items, 'code', code);
-            if (!item) return;
-
-            // FIX: If Sub-Item, find Parent. If Main Item with Sub-Items, find Self.
-            if (item.ParentItemCode && modalContext !== 'po') {
-                mainItemsToProcess.add(item.ParentItemCode);
-            } else if (!item.ParentItemCode && state.items.some(sub => sub.ParentItemCode === item.code) && modalContext !== 'po') {
-                mainItemsToProcess.add(item.code);
+        if (type === 'item') {
+            action = 'updateData';
+            const updates = {};
+            for (let [key, value] of formData.entries()) {
+                updates[key] = value;
+            }
+            if (!document.getElementById('edit-is-sub-item-toggle').checked) {
+                updates.ParentItemCode = '';
             } else {
-                regularItemsToAdd.push(code);
+                updates.cost = 0; 
             }
-        });
-
-        addRegularItemsToList(regularItemsToAdd);
-
-        const mainItemCodes = Array.from(mainItemsToProcess);
-        if (mainItemCodes.length > 0) {
-            itemSelectorModal.classList.remove('active');
-            openSubItemEntryModal(mainItemCodes[0], mainItemCodes.slice(1));
+            payload = { type, id, updates };
+        } else if (type === 'user') {
+            action = id ? 'updateUser' : 'addUser';
+            payload = {};
+            for (let [key, value] of formData.entries()) {
+                 if (key === 'LoginCode' && value === '') continue;
+                 payload[key] = value;
+            }
+            if(id) {
+                payload = { Username: id, updates: {} };
+                for (let [key, value] of formData.entries()) {
+                    if (key === 'LoginCode' && value === '') continue;
+                    if (key !== 'Username') payload.updates[key] = value;
+                }
+            }
+        } else if (type === 'role') {
+            action = 'updateRolePermissions';
+            const updates = {};
+            const allPerms = Object.keys(findByKey(state.allRoles, 'RoleName', id) || {});
+            allPerms.forEach(key => {
+                if (key !== 'RoleName') {
+                    updates[key] = formData.has(key);
+                }
+            });
+            payload = { RoleName: id, updates: updates };
         } else {
+            action = 'updateData';
+            const updates = {};
+            for (let [key, value] of formData.entries()) {
+                updates[key] = value;
+            }
+            payload = { type, id, updates };
+        }
+        
+        const result = await postData(action, payload, btn);
+        if (result) {
+            const toastMessage = id ? _t('update_success_toast', {type: _t(type)}) : _t('add_success_toast', {type: _t(type)});
+            showToast(toastMessage, 'success');
             closeModal();
+            await reloadDataAndRefreshUI();
         }
     }
 
-    function addRegularItemsToList(itemCodes) {
-        const addToList = (currentList, newList, item) => {
-            if (currentList && currentList.some(i => i.itemCode === item.code)) return;
-            const newItem = { itemCode: item.code, itemName: item.name, quantity: '', cost: item.cost };
-            if (modalContext === 'adjustment') {
-                newItem.physicalCount = '';
-            }
-            newList.push(newItem);
-        };
+    function renderItemsInModal(filter = '') {
+        const modalItemList = document.getElementById('modal-item-list');
+        modalItemList.innerHTML = '';
+        const lowercasedFilter = filter.toLowerCase();
     
-        let list, renderer;
-        switch (modalContext) {
-            case 'receive': [list, renderer] = [state.currentReceiveList, renderReceiveListTable]; break;
-            case 'transfer': [list, renderer] = [state.currentTransferList, renderTransferListTable]; break;
-            case 'po': [list, renderer] = [state.currentPOList, renderPOListTable]; break;
-            case 'return': [list, renderer] = [state.currentReturnList, renderReturnListTable]; break;
-            case 'edit-po': [list, renderer] = [state.currentEditingPOList, renderPOEditListTable]; break;
-            case 'adjustment': [list, renderer] = [state.currentAdjustmentList, renderAdjustmentListTable]; break;
-            default: return;
+        let itemsToShow = state.items;
+        if (modalContext === 'po') {
+            itemsToShow = state.items.filter(i => !i.ParentItemCode);
         }
     
-        itemCodes.forEach(code => {
-            const item = findByKey(state.items, 'code', code);
-            if (item) addToList(list, list, item);
+        const filteredItems = itemsToShow.filter(item => 
+            item.name.toLowerCase().includes(lowercasedFilter) || 
+            item.code.toLowerCase().includes(lowercasedFilter)
+        );
+    
+        const itemTree = {};
+        filteredItems.forEach(item => {
+            if (item.ParentItemCode && modalContext !== 'po') {
+                if (!itemTree[item.ParentItemCode]) {
+                    const parent = findByKey(state.items, 'code', item.ParentItemCode);
+                    if (parent) { 
+                         itemTree[item.ParentItemCode] = { parent: parent, children: [] };
+                    }
+                }
+                if(itemTree[item.ParentItemCode]) {
+                    itemTree[item.ParentItemCode].children.push(item);
+                }
+            } else if (!item.ParentItemCode) {
+                 if (!itemTree[item.code]) {
+                    itemTree[item.code] = { parent: item, children: [] };
+                }
+            }
         });
     
-        renderer();
+        Object.values(itemTree).forEach(node => {
+            if (!node.parent) return; 
+            const isChecked = state.modalSelections.has(node.parent.code);
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'modal-item-container';
+            const hasSubItems = state.items.some(sub => sub.ParentItemCode === node.parent.code);
+
+            let checkboxHtml = `<input type="checkbox" id="modal-item-${node.parent.code}" data-code="${node.parent.code}" ${isChecked ? 'checked' : ''}>`;
+            if (hasSubItems && modalContext !== 'po') {
+                checkboxHtml = `<div class="modal-checkbox-placeholder"></div>`; 
+            }
+
+            let itemHtml = `
+                <div class="modal-item">
+                    ${checkboxHtml}
+                    <label for="modal-item-${node.parent.code}">
+                        <strong>${node.parent.name}</strong><br>
+                        <small style="color:var(--text-light-color)">${_t('table_h_code')}: ${node.parent.code}</small>
+                    </label>`;
+            
+            if (hasSubItems && modalContext !== 'po') {
+                itemHtml += `<button class="secondary small btn-show-cuts" data-parent-code="${node.parent.code}">${_t('show_cuts')}</button>`;
+            }
+    
+            itemHtml += `</div><div class="sub-item-list" id="sub-items-for-${node.parent.code}" style="display:none;"></div>`;
+            itemDiv.innerHTML = itemHtml;
+            modalItemList.appendChild(itemDiv);
+        });
+    
+        document.querySelectorAll('.btn-show-cuts').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const parentCode = e.target.dataset.parentCode;
+                const subItemList = document.getElementById(`sub-items-for-${parentCode}`);
+                if (subItemList.style.display === 'none') {
+                    renderSubItemsInModal(parentCode, subItemList);
+                    subItemList.style.display = 'block';
+                } else {
+                    subItemList.style.display = 'none';
+                }
+            });
+        });
+    }
+    
+    function renderSubItemsInModal(parentCode, container) {
+        const subItems = state.items.filter(i => i.ParentItemCode === parentCode);
+        let subItemsHtml = '';
+        subItems.forEach(sub => {
+            const isChecked = state.modalSelections.has(sub.code);
+            subItemsHtml += `
+                <div class="modal-item sub-item-row">
+                    <input type="checkbox" id="modal-item-${sub.code}" data-code="${sub.code}" ${isChecked ? 'checked' : ''}>
+                    <label for="modal-item-${sub.code}">
+                        <strong>${sub.name}</strong><br>
+                        <small style="color:var(--text-light-color)">${_t('table_h_code')}: ${sub.code}</small>
+                    </label>
+                </div>
+            `;
+        });
+        container.innerHTML = subItemsHtml;
     }
 
-    // --- RESTORED MISSING FUNCTIONS ---
     function renderInvoicesInModal() {
         const modalInvoiceList = document.getElementById('modal-invoice-list');
         const supplierCode = document.getElementById('payment-supplier-select').value;
@@ -887,7 +1107,75 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('payment-total-amount').textContent = `${total.toFixed(2)} EGP`;
     }
 
-    // --- END RESTORED FUNCTIONS ---
+    function confirmModalSelection() {
+        if (modalContext === 'invoices') {
+            renderPaymentList();
+            closeModal();
+            return;
+        }
+
+        const selectedCodes = Array.from(state.modalSelections);
+        if (selectedCodes.length === 0) {
+            closeModal();
+            return;
+        }
+
+        const mainItemsToProcess = new Set();
+        const regularItemsToAdd = [];
+
+        selectedCodes.forEach(code => {
+            const item = findByKey(state.items, 'code', code);
+            if (!item) return;
+
+            // FIX: If Sub-Item, find Parent. If Main Item with Sub-Items, find Self.
+            if (item.ParentItemCode && modalContext !== 'po') {
+                mainItemsToProcess.add(item.ParentItemCode);
+            } else if (!item.ParentItemCode && state.items.some(sub => sub.ParentItemCode === item.code) && modalContext !== 'po') {
+                mainItemsToProcess.add(item.code);
+            } else {
+                regularItemsToAdd.push(code);
+            }
+        });
+
+        addRegularItemsToList(regularItemsToAdd);
+
+        const mainItemCodes = Array.from(mainItemsToProcess);
+        if (mainItemCodes.length > 0) {
+            itemSelectorModal.classList.remove('active');
+            openSubItemEntryModal(mainItemCodes[0], mainItemCodes.slice(1));
+        } else {
+            closeModal();
+        }
+    }
+
+    function addRegularItemsToList(itemCodes) {
+        const addToList = (currentList, newList, item) => {
+            if (currentList && currentList.some(i => i.itemCode === item.code)) return;
+            const newItem = { itemCode: item.code, itemName: item.name, quantity: '', cost: item.cost };
+            if (modalContext === 'adjustment') {
+                newItem.physicalCount = '';
+            }
+            newList.push(newItem);
+        };
+    
+        let list, renderer;
+        switch (modalContext) {
+            case 'receive': [list, renderer] = [state.currentReceiveList, renderReceiveListTable]; break;
+            case 'transfer': [list, renderer] = [state.currentTransferList, renderTransferListTable]; break;
+            case 'po': [list, renderer] = [state.currentPOList, renderPOListTable]; break;
+            case 'return': [list, renderer] = [state.currentReturnList, renderReturnListTable]; break;
+            case 'edit-po': [list, renderer] = [state.currentEditingPOList, renderPOEditListTable]; break;
+            case 'adjustment': [list, renderer] = [state.currentAdjustmentList, renderAdjustmentListTable]; break;
+            default: return;
+        }
+    
+        itemCodes.forEach(code => {
+            const item = findByKey(state.items, 'code', code);
+            if (item) addToList(list, list, item);
+        });
+    
+        renderer();
+    }
     
     function showToast(message, type = 'success') {
         if (type === 'error') Logger.error(`User Toast: ${message}`);
@@ -932,8 +1220,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 <tbody>
         `;
         subItems.forEach(sub => {
-            // FIX: If items were already selected in the first modal, pre-fill them?
-            // For now, start empty to be safe, or check list
             tableHtml += `<tr><td>${sub.name} (${sub.code})</td><td><input type="number" class="table-input sub-item-qty-input" data-item-code="${sub.code}" step="0.01" min="0"></td></tr>`;
         });
         tableHtml += `</tbody><tfoot><tr><td style="text-align: right;"><strong>${_t('total_sub_item_weight')}:</strong></td><td id="total-sub-item-weight">0.00</td></tr></tfoot></table>`;
@@ -1156,28 +1442,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     let content = '';
                     switch (col.type) {
                         case 'text': content = currentItem[col.key]; break;
-                        
                         case 'number_input':
                             // If it's a placeholder, make Qty Read-Only
                             const readOnlyAttr = isMainPlaceholder ? 'readonly' : '';
                             const valueDisplay = isMainPlaceholder ? currentItemQty.toFixed(2) : (currentItem.quantity || '');
-
                             content = `<input type="number" class="table-input" value="${valueDisplay}" min="${col.min || 0.01}" ${col.maxKey ? `max="${(stock[branchCode]?.[currentItem.itemCode]?.quantity || 0)}"` : ''} step="0.01" data-index="${parentIndex}" data-field="${col.key}" ${readOnlyAttr}>`;
                             break;
-                            
                         case 'cost_input':
-                            // FIX: If Main Placeholder, Input is TOTAL VALUE. If Sub Item, Cost is Hidden.
                             if (isMainPlaceholder) {
                                 content = `<input type="number" class="table-input" value="${currentItemCost.toFixed(2)}" min="0" step="0.01" data-index="${parentIndex}" data-field="cost" title="Enter Total Batch Value here">`;
-                            } else if (findByKey(state.items, 'code', currentItem.itemCode)?.ParentItemCode) {
-                                content = '---'; 
                             } else {
                                 content = `<input type="number" class="table-input" value="${currentItemCost.toFixed(2)}" min="0" step="0.01" data-index="${parentIndex}" data-field="cost">`;
                             }
                             break;
-                            
                         case 'calculated': 
-                            // FIX: For Placeholder, Calculated = Input (Total Value). For Others, Qty * Cost.
                             let calculatedValue;
                             if (isMainPlaceholder) {
                                 calculatedValue = currentItemCost; // Input is the total value
@@ -1186,7 +1464,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                             content = `<span>${calculatedValue.toFixed(2)} EGP</span>`;
                             break;
-                            
                         case 'available_stock': content = (stock[branchCode]?.[currentItem.itemCode]?.quantity || 0).toFixed(2); break;
                     }
                     cellsHtml += `<td>${content}</td>`;
@@ -1210,7 +1487,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     switch (col.type) {
                         case 'text': subContent = subItem[col.key]; break;
                         case 'number_input': 
-                            // Sub-item Qty is Editable. It updates the Parent.
                             const subAvailableStock = (branchCode && stock[branchCode]?.[subItem.itemCode]?.quantity || 0);
                             subContent = `<input type="number" class="table-input" value="${subItem[col.key] || ''}" min="${col.min || 0}" step="0.01" data-index="${subIndex}" data-field="${col.key}" ${col.maxKey ? `max="${subAvailableStock}"` : ''}>`;
                             break;
@@ -1239,12 +1515,9 @@ document.addEventListener('DOMContentLoaded', () => {
         let grandTotal = 0; 
         (state.currentReceiveList || []).forEach(item => { 
             const itemDetails = findByKey(state.items, 'code', item.itemCode);
-            
             if(item.isMainItemPlaceholder) {
-                // If it's a placeholder, cost = Total Batch Value
                 grandTotal += (parseFloat(item.cost) || 0);
             } else if(itemDetails && !itemDetails.ParentItemCode) { 
-                // Standalone Main Item
                 grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); 
             } 
         }); 
@@ -1254,7 +1527,6 @@ document.addEventListener('DOMContentLoaded', () => {
    function updateTransferGrandTotal() { 
         let grandTotalQty = 0; 
         (state.currentTransferList || []).forEach(item => { 
-            // Transfers usually don't use Lump Sum logic, but simply sum quantities
             grandTotalQty += (parseFloat(item.quantity) || 0); 
         }); 
         document.getElementById('transfer-grand-total').textContent = grandTotalQty.toFixed(2); 
@@ -1312,7 +1584,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!groupedList[item.itemCode]) groupedList[item.itemCode] = { parent: item, children: [] };
                     else groupedList[item.itemCode].parent = item;
                 } else {
-                    // Standalone main items are pushed directly
                     processedList.push(item);
                 }
             }
@@ -1362,8 +1633,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (listName === 'currentPOList') updatePOGrandTotal();
             if (listName === 'currentEditingPOList') updatePOEditGrandTotal();
             if (listName === 'currentReturnList') updateReturnGrandTotal();
-
-            // DO NOT CALL rendererFn() here. It kills focus.
         }
     };
 
@@ -1388,7 +1657,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    // --- FIX: Define renderTransactionHistory BEFORE it is called in refreshViewData ---
     function renderTransactionHistory(filters = {}) {
         const tbody = document.getElementById('table-transaction-history').querySelector('tbody');
         tbody.innerHTML = '';
@@ -1629,6 +1897,136 @@ document.addEventListener('DOMContentLoaded', () => {
         applyUserUIConstraints();
         applyTranslations();
     };
+
+    async function loadAndRenderBackups() {
+        const container = document.getElementById('backup-list-container');
+        container.innerHTML = `<table><tbody><tr><td><div class="spinner" style="width:30px;height:30px;border-width:3px;"></div></td><td>${_t('loading_backups')}</td></tr></tbody></table>`;
+        const result = await postData('listBackups', {}, null);
+        if (result && result.data) {
+            state.backups = result.data;
+            if (state.backups.length === 0) {
+                container.innerHTML = `<p>${_t('no_backups_found')}</p>`;
+                return;
+            }
+            let tableHtml = `<table id="table-backups"><thead><tr><th>${_t('backup_name')}</th><th>${_t('date_created')}</th><th>${_t('actions')}</th></tr></thead><tbody>`;
+            state.backups.forEach(backup => {
+                tableHtml += `
+                    <tr>
+                        <td>${backup.name}</td>
+                        <td>${new Date(backup.dateCreated).toLocaleString()}</td>
+                        <td>
+                            <div class="action-buttons">
+                                <a href="${backup.url}" target="_blank" rel="noopener noreferrer" class="secondary small" style="text-decoration: none;">${_t('open')}</a>
+                                <button class="danger small btn-restore" data-url="${backup.url}">${_t('restore')}</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+            tableHtml += '</tbody></table>';
+            container.innerHTML = tableHtml;
+        } else {
+            container.innerHTML = `<p>Could not load backup list. Please check permissions or try again.</p>`;
+        }
+    }
+    
+    async function loadAutoBackupSettings() {
+        const toggle = document.getElementById('auto-backup-toggle');
+        const frequencyContainer = document.getElementById('auto-backup-frequency-container');
+        const statusEl = document.getElementById('auto-backup-status');
+        
+        statusEl.textContent = 'Checking status...';
+        const result = await postData('getAutomaticBackupStatus', {}, null);
+        
+        if (result && result.data.enabled !== undefined) {
+            const isEnabled = result.data.enabled;
+            toggle.checked = isEnabled;
+            frequencyContainer.style.display = isEnabled ? 'block' : 'none';
+            statusEl.textContent = isEnabled 
+                ? 'Automatic backups are currently active.'
+                : 'Automatic backups are currently disabled.';
+        } else {
+            statusEl.textContent = 'Could not retrieve automatic backup status.';
+        }
+    }
+    
+    async function handleAutoBackupToggle() {
+        const toggle = document.getElementById('auto-backup-toggle');
+        const frequency = document.getElementById('auto-backup-frequency').value;
+        const frequencyContainer = document.getElementById('auto-backup-frequency-container');
+        const statusEl = document.getElementById('auto-backup-status');
+        
+        const isEnabled = toggle.checked;
+        frequencyContainer.style.display = isEnabled ? 'block' : 'none';
+        
+        statusEl.textContent = 'Updating settings...';
+        const result = await postData('setAutomaticBackup', { enabled: isEnabled, frequency: frequency }, toggle);
+
+        if (result) {
+            showToast(_t('auto_backup_updated_toast'), 'success');
+            statusEl.textContent = isEnabled
+                ? `Automatic backups are now enabled (${frequency}).`
+                : 'Automatic backups have been disabled.';
+        } else {
+            toggle.checked = !isEnabled;
+            frequencyContainer.style.display = toggle.checked ? 'block' : 'none';
+            statusEl.textContent = _t('auto_backup_failed_toast');
+        }
+    }
+
+    function openRestoreModal(backupFileId, backupFileName) {
+        const modal = document.getElementById('restore-modal');
+        const sheetListContainer = document.getElementById('restore-sheet-list');
+        const confirmInput = document.getElementById('restore-confirmation-input');
+        const confirmBtn = document.getElementById('btn-confirm-restore');
+    
+        document.getElementById('restore-filename-display').textContent = backupFileName;
+        confirmBtn.dataset.backupFileId = backupFileId;
+        
+        confirmInput.value = '';
+        confirmBtn.disabled = true;
+    
+        const coreSheets = [ 'Items', 'Suppliers', 'Branches', 'Transactions', 'Payments', 'PurchaseOrders', 'PurchaseOrderItems', 'Users', 'Permissions', 'Settlements', 'SettlementItems' ];
+        
+        sheetListContainer.innerHTML = '';
+        coreSheets.forEach(sheetName => {
+            sheetListContainer.innerHTML += `<div class="form-group-checkbox"><input type="checkbox" id="restore-sheet-${sheetName}" name="restoreSheet" value="${sheetName}"><label for="restore-sheet-${sheetName}">${sheetName}</label></div>`;
+        });
+        
+        const updateConfirmButtonState = () => {
+            const sheetsSelected = document.querySelectorAll('#restore-sheet-list input:checked').length > 0;
+            confirmBtn.disabled = !(confirmInput.value === 'RESTORE' && sheetsSelected);
+        };
+
+        confirmInput.addEventListener('input', updateConfirmButtonState);
+        sheetListContainer.addEventListener('change', updateConfirmButtonState);
+    
+        modal.classList.add('active');
+    }
+    
+    async function handleConfirmRestore(e) {
+        const btn = e.target;
+        const backupFileId = btn.dataset.backupFileId;
+        const selectedSheets = Array.from(document.querySelectorAll('#restore-sheet-list input:checked')).map(el => el.value);
+    
+        if (selectedSheets.length === 0) {
+            showToast(_t('restore_select_sheet_toast'), 'error');
+            return;
+        }
+    
+        const payload = {
+            backupFileId: backupFileId,
+            sheetsToRestore: selectedSheets
+        };
+    
+        const result = await postData('restoreFromBackup', payload, btn);
+    
+        if (result) {
+            showToast(result.data.message || _t('restore_completed_toast'), 'success');
+            closeModal();
+            await reloadDataAndRefreshUI();
+        }
+    }
 
     async function reloadDataAndRefreshUI() { 
         Logger.info('Reloading data...'); 
