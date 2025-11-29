@@ -11,7 +11,7 @@ window.printReport = function(elementId) {
 
 document.addEventListener('DOMContentLoaded', () => {
     // !!! IMPORTANT: PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxNl3q7o74F4Ci-nf2Ec84lrHbq4_g6Na4KSkKZNQa5_xXXdF0PhWFY5E0C4iyxEIoe/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwSM8G9AqHy6Nnhwcpit7xRJbKMkY93ACaHA3_3pzwZlNaF6ORzVL-Ev10FF7HQiu9M/exec';
 
     const Logger = {
         info: (message, ...args) => console.log(`[StockWise INFO] ${message}`, ...args),
@@ -1301,7 +1301,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     itemCode: mainItem.code,
                     itemName: mainItem.name,
                     quantity: totalSubQty,
-                    cost: mainItem.cost,
+                    cost: mainItem.cost, // NOTE: This will be interpreted as TOTAL VALUE later
                     isMainItemPlaceholder: true 
                 });
             }
@@ -1438,6 +1438,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let cellsHtml = '';
             let currentItem = parentItem;
             
+            // For placeholders, use aggregated quantity
             const currentItemQty = isMainPlaceholder ? totalSubItemWeight : (parseFloat(currentItem.quantity) || 0);
             const currentItemCost = parseFloat(currentItem.cost) || 0;
             
@@ -1448,6 +1449,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     case 'text': content = currentItem[col.key]; break;
                     
                     case 'number_input':
+                        // If it's a placeholder, make Qty Read-Only
                         const readOnlyAttr = isMainPlaceholder ? 'readonly' : '';
                         const valueDisplay = isMainPlaceholder ? currentItemQty.toFixed(2) : (currentItem.quantity || '');
 
@@ -1455,8 +1457,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         break;
                         
                     case 'cost_input':
+                        // FIX: If Main Placeholder, Input is TOTAL VALUE. If Sub Item, Cost is Hidden.
                         if (isMainPlaceholder) {
-                            content = `<input type="number" class="table-input" value="${currentItemCost.toFixed(2)}" min="0" step="0.01" data-index="${parentIndex}" data-field="cost">`;
+                            content = `<input type="number" class="table-input" value="${currentItemCost.toFixed(2)}" min="0" step="0.01" data-index="${parentIndex}" data-field="cost" title="Enter Total Batch Value here">`;
                         } else if (findByKey(state.items, 'code', currentItem.itemCode)?.ParentItemCode) {
                             content = '---'; 
                         } else {
@@ -1465,7 +1468,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         break;
                         
                     case 'calculated': 
-                        const calculatedValue = currentItemQty * currentItemCost;
+                        // FIX: For Placeholder, Calculated = Input (Total Value). For Others, Qty * Cost.
+                        let calculatedValue;
+                        if (isMainPlaceholder) {
+                            calculatedValue = currentItemCost; // Input is the total value
+                        } else {
+                            calculatedValue = currentItemQty * currentItemCost;
+                        }
                         content = `<span>${calculatedValue.toFixed(2)} EGP</span>`;
                         break;
                         
@@ -1513,6 +1522,119 @@ document.addEventListener('DOMContentLoaded', () => {
         if (totalizerFn) totalizerFn();
     };
     
+    // --- UPDATED TOTALIZER FUNCTIONS ---
+    function updateReceiveGrandTotal() { 
+        let grandTotal = 0; 
+        (state.currentReceiveList || []).forEach(item => { 
+            const itemDetails = findByKey(state.items, 'code', item.itemCode);
+            
+            if(item.isMainItemPlaceholder) {
+                // If it's a placeholder, cost = Total Batch Value
+                grandTotal += (parseFloat(item.cost) || 0);
+            } else if(itemDetails && !itemDetails.ParentItemCode) { 
+                // Standalone Main Item
+                grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); 
+            } 
+        }); 
+        document.getElementById('receive-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; 
+    }
+    
+   function updateTransferGrandTotal() { 
+        let grandTotalQty = 0; 
+        (state.currentTransferList || []).forEach(item => { 
+            // Transfers usually don't use Lump Sum logic, but simply sum quantities
+            grandTotalQty += (parseFloat(item.quantity) || 0); 
+        }); 
+        document.getElementById('transfer-grand-total').textContent = grandTotalQty.toFixed(2); 
+    }
+    
+    function updatePOGrandTotal() { 
+        let grandTotal = 0; 
+        (state.currentPOList || []).forEach(item => { 
+            if(item.isMainItemPlaceholder) {
+                grandTotal += (parseFloat(item.cost) || 0);
+            } else if(!findByKey(state.items, 'code', item.itemCode)?.ParentItemCode) { 
+                grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); 
+            } 
+        }); 
+        document.getElementById('po-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; 
+    }
+    
+    function updatePOEditGrandTotal() { 
+        let grandTotal = 0; 
+        (state.currentEditingPOList || []).forEach(item => { 
+            if(item.isMainItemPlaceholder) {
+                grandTotal += (parseFloat(item.cost) || 0);
+            } else if(!findByKey(state.items, 'code', item.itemCode)?.ParentItemCode) { 
+                 grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); 
+            }
+        }); 
+        document.getElementById('edit-po-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; 
+    }
+    
+    function updateReturnGrandTotal() { 
+        let grandTotal = 0; 
+        (state.currentReturnList || []).forEach(item => { 
+            if(item.isMainItemPlaceholder) {
+                grandTotal += (parseFloat(item.cost) || 0);
+            } else if(!findByKey(state.items, 'code', item.itemCode)?.ParentItemCode) { 
+                grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); 
+            } 
+        }); 
+        document.getElementById('return-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; 
+    }
+    
+    // --- HELPER TO DISTRIBUTE COSTS BEFORE SUBMISSION ---
+    function prepareListForSubmission(list) {
+        const processedList = [];
+        const groupedList = {};
+
+        // 1. Group items to find placeholders and their children
+        list.forEach(item => {
+            const itemDetails = findByKey(state.items, 'code', item.itemCode);
+            if (itemDetails && itemDetails.ParentItemCode) {
+                const parentCode = itemDetails.ParentItemCode;
+                if (!groupedList[parentCode]) groupedList[parentCode] = { parent: null, children: [] };
+                groupedList[parentCode].children.push(item);
+            } else {
+                if (item.isMainItemPlaceholder) {
+                    if (!groupedList[item.itemCode]) groupedList[item.itemCode] = { parent: item, children: [] };
+                    else groupedList[item.itemCode].parent = item;
+                } else {
+                    // Standalone main items are pushed directly
+                    processedList.push(item);
+                }
+            }
+        });
+
+        // 2. Process groups
+        Object.values(groupedList).forEach(group => {
+            if (group.parent && group.parent.isMainItemPlaceholder) {
+                const totalBatchValue = parseFloat(group.parent.cost) || 0; // The lump sum input
+                let totalBatchWeight = 0;
+                
+                // Calculate total weight from children
+                group.children.forEach(child => totalBatchWeight += (parseFloat(child.quantity) || 0));
+                
+                // Calculate Unit Cost (Price per KG)
+                const derivedUnitCost = totalBatchWeight > 0 ? (totalBatchValue / totalBatchWeight) : 0;
+                
+                // Assign unit cost to all children and add them to processed list
+                group.children.forEach(child => {
+                    const childCopy = { ...child };
+                    childCopy.cost = derivedUnitCost;
+                    processedList.push(childCopy);
+                });
+            } else {
+                // Orphan children (shouldn't happen in normal flow, but just in case)
+                group.children.forEach(child => processedList.push(child));
+            }
+        });
+
+        return processedList;
+    }
+
+    // --- RENDERERS ---
     function renderReceiveListTable() { renderDynamicListTable('table-receive-list', state.currentReceiveList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated' } ], 'no_items_selected_toast', updateReceiveGrandTotal); }
     function renderTransferListTable() { renderDynamicListTable('table-transfer-list', state.currentTransferList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'available_stock', branchSelectId: 'transfer-from-branch' }, { type: 'number_input', key: 'quantity', maxKey: true, branchSelectId: 'transfer-from-branch' } ], 'no_items_selected_toast', updateTransferGrandTotal); }
     function renderPOListTable() { renderDynamicListTable('table-po-list', state.currentPOList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated' } ], 'no_items_selected_toast', updatePOGrandTotal); }
@@ -1639,418 +1761,6 @@ document.addEventListener('DOMContentLoaded', () => {
             html += `</tbody></table><hr>`;
         });
         resultsContainer.innerHTML = html;
-    }
-    
-    function renderSupplierStatement(supplierCode, startDateStr, endDateStr) {
-        const resultsContainer = document.getElementById('supplier-statement-results');
-        const exportBtn = document.getElementById('btn-export-supplier-statement');
-        const supplier = findByKey(state.suppliers, 'supplierCode', supplierCode);
-        if (!supplier) {
-            exportBtn.disabled = true;
-            return;
-        }
-        const financials = calculateSupplierFinancials();
-        const supplierData = financials[supplierCode];
-        if(!supplierData) {
-            resultsContainer.innerHTML = `<p>No financial data found for this supplier.</p>`;
-            exportBtn.disabled = true;
-            return;
-        }
-        const sDate = startDateStr ? new Date(startDateStr) : null;
-        if(sDate) sDate.setHours(0,0,0,0);
-        const eDate = endDateStr ? new Date(endDateStr) : null;
-        if (eDate) eDate.setHours(23, 59, 59, 999);
-        let openingBalance = 0;
-        if (sDate) {
-            supplierData.events.forEach(event => {
-                if (new Date(event.date) < sDate) {
-                    openingBalance += (event.debit || 0) - (event.credit || 0);
-                }
-            });
-        }
-        const filteredEvents = supplierData.events.filter(event => {
-            const eventDate = new Date(event.date);
-            return (!sDate || eventDate >= sDate) && (!eDate || eventDate <= eDate);
-        });
-        let balance = openingBalance;
-        let tableBodyHtml = '';
-        if (sDate) {
-            tableBodyHtml += `<tr style="background-color: var(--bg-color);"><td colspan="3"><strong>${_t('opening_balance_as_of', {date: sDate.toLocaleDateString()})}</strong></td><td>-</td><td>-</td><td><strong>${openingBalance.toFixed(2)} EGP</strong></td></tr>`;
-        }
-        filteredEvents.forEach(event => {
-            balance += (event.debit || 0) - (event.credit || 0);
-            tableBodyHtml += `<tr><td>${new Date(event.date).toLocaleDateString()}</td><td>${event.type}</td><td>${event.ref}</td><td>${event.debit > 0 ? event.debit.toFixed(2) : '-'}</td><td>${event.credit > 0 ? event.credit.toFixed(2) : '-'}</td><td>${balance.toFixed(2)} EGP</td></tr>`;
-        });
-        let dateHeader = _t('report_period_all_time');
-        if (sDate && eDate) {
-            dateHeader = _t('report_period_from_to', {startDate: sDate.toLocaleDateString(), endDate: eDate.toLocaleDateString()});
-        } else if (sDate) {
-            dateHeader = _t('report_period_from', {startDate: sDate.toLocaleDateString()});
-        } else if (eDate) {
-            dateHeader = _t('report_period_until', {endDate: eDate.toLocaleDateString()});
-        }
-        resultsContainer.innerHTML =`<div class="printable-document"><div class="printable-header"><div><h2>${_t('supplier_statement_title', {supplierName: supplier.name})}</h2><p style="margin:0; color: var(--text-light-color);">${_t('report_period_all_time')} ${dateHeader}</p></div><button class="secondary small no-print" onclick="printReport('supplier-statement-results')">${_t('view_print')}</button></div><p><strong>${_t('date_generated')}</strong> ${new Date().toLocaleString()}</p><div class="report-area"><table id="table-supplier-statement-report"><thead><tr><th>${_t('table_h_date')}</th><th>${_t('table_h_type')}</th><th>${_t('reference')}</th><th>${_t('table_h_debit')}</th><th>${_t('table_h_credit')}</th><th>${_t('table_h_balance')}</th></tr></thead><tbody>${tableBodyHtml}</tbody><tfoot><tr style="font-weight:bold; background-color: var(--bg-color);"><td colspan="5" style="text-align:right;">${_t('closing_balance')}</td><td>${balance.toFixed(2)} EGP</td></tr></tfoot></table></div><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`;
-        resultsContainer.style.display = 'block';
-        exportBtn.disabled = false;
-    }
-    
-    function renderPriceHistory(priceHistory) {
-        const container = document.getElementById('subview-price-history');
-        let html = `<h4>${_t('price_change_log')}</h4><table id="table-price-history"><thead><tr><th>${_t('table_h_date')}</th><th>${_t('table_h_old_cost')}</th><th>${_t('table_h_new_cost')}</th><th>${_t('table_h_change')}</th><th>${_t('table_h_source')}</th><th>${_t('table_h_updated_by')}</th></tr></thead><tbody>`;
-        if (!priceHistory || priceHistory.length === 0) {
-            html += `<tr><td colspan="6" style="text-align:center;">${_t('no_price_history')}</td></tr>`;
-        } else {
-            priceHistory.forEach(h => {
-                const oldCost = parseFloat(h.OldCost) || 0;
-                const newCost = parseFloat(h.NewCost) || 0;
-                const change = newCost - oldCost;
-                const changeClass = change > 0 ? 'danger' : (change < 0 ? 'success' : 'info');
-                const changeIcon = change > 0 ? '▲' : (change < 0 ? '▼' : '–');
-                html += `<tr><td>${new Date(h.Timestamp).toLocaleString()}</td><td>${oldCost.toFixed(2)}</td><td>${newCost.toFixed(2)}</td><td style="color:var(--${changeClass}-color);">${changeIcon} ${Math.abs(change).toFixed(2)}</td><td>${h.Source}</td><td>${h.UpdatedBy}</td></tr>`;
-            });
-        }
-        html += '</tbody></table>';
-        container.innerHTML = html;
-    }
-
-    function renderMovementHistory(movementHistory, itemCode) {
-        const container = document.getElementById('movement-history-table-container');
-        
-        const startDate = document.getElementById('history-filter-start-date').value;
-        const endDate = document.getElementById('history-filter-end-date').value;
-        const type = document.getElementById('history-filter-type').value;
-        const branch = document.getElementById('history-filter-branch').value;
-        
-        const sDate = startDate ? new Date(startDate) : null;
-        if(sDate) sDate.setHours(0,0,0,0);
-        const eDate = endDate ? new Date(endDate) : null;
-        if(eDate) eDate.setHours(23,59,59,999);
-
-        const filteredHistory = (movementHistory || []).filter(t => {
-            const eventDate = new Date(t.date);
-            const typeMatch = !type || t.type === type;
-            const branchMatch = !branch || t.fromBranchCode === branch || t.toBranchCode === branch || t.branchCode === branch;
-            const startDateMatch = !sDate || eventDate >= sDate;
-            const endDateMatch = !eDate || eventDate <= eDate;
-            return typeMatch && branchMatch && startDateMatch && endDateMatch;
-        });
-        
-        let html = `<table id="table-movement-history"><thead><tr><th>${_t('table_h_date')}</th><th>${_t('table_h_type')}</th><th>${_t('reference')}</th><th>${_t('table_h_details')}</th><th style="text-align:right;">${_t('table_h_qty_in')}</th><th style="text-align:right;">${_t('table_h_qty_out')}</th></tr></thead><tbody>`;
-        if (filteredHistory.length === 0) {
-            html += `<tr><td colspan="6" style="text-align:center;">${_t('no_movements_found')}</td></tr>`;
-        } else {
-            filteredHistory.forEach(t => {
-                let typeText = t.type.replace('_', ' ').toUpperCase();
-                let details = '', qtyIn = '-', qtyOut = '-';
-                const quantity = parseFloat(t.quantity) || 0;
-
-                switch (t.type) {
-                    case 'receive': 
-                        details = _t('movement_details_receive', {supplier: findByKey(state.suppliers, 'supplierCode', t.supplierCode)?.name || t.supplierCode, branch: findByKey(state.branches, 'branchCode', t.branchCode)?.branchName || t.branchCode});
-                        qtyIn = quantity.toFixed(2);
-                        break;
-                    case 'issue':
-                        details = `Consumed at: ${findByKey(state.branches, 'branchCode', t.fromBranchCode)?.branchName || t.fromBranchCode}`;
-                        qtyOut = quantity.toFixed(2);
-                        break;
-                    case 'transfer_out':
-                        details = _t('movement_details_transfer_out', {fromBranch: findByKey(state.branches, 'branchCode', t.fromBranchCode)?.branchName, toBranch: findByKey(state.branches, 'branchCode', t.toBranchCode)?.branchName});
-                        qtyOut = quantity.toFixed(2);
-                        break;
-                    case 'transfer_in':
-                        details = _t('movement_details_transfer_in', {toBranch: findByKey(state.branches, 'branchCode', t.toBranchCode)?.branchName, fromBranch: findByKey(state.branches, 'branchCode', t.fromBranchCode)?.branchName});
-                        qtyIn = quantity.toFixed(2);
-                        break;
-                    case 'return_out':
-                        details = _t('movement_details_return', {branch: findByKey(state.branches, 'branchCode', t.fromBranchCode)?.branchName, supplier: findByKey(state.suppliers, 'supplierCode', t.supplierCode)?.name});
-                        qtyOut = quantity.toFixed(2);
-                        break;
-                    case 'adjustment_in':
-                        details = _t('movement_details_adjustment', {branch: findByKey(state.branches, 'branchCode', t.fromBranchCode)?.branchName});
-                        qtyIn = quantity.toFixed(2);
-                        break;
-                    case 'adjustment_out':
-                        details = _t('movement_details_adjustment', {branch: findByKey(state.branches, 'branchCode', t.fromBranchCode)?.branchName});
-                        qtyOut = quantity.toFixed(2);
-                        break;
-                    case 'extraction_out':
-                        details = _t('movement_details_extraction_out', {branch: findByKey(state.branches, 'branchCode', t.fromBranchCode)?.branchName});
-                        qtyOut = quantity.toFixed(2);
-                        break;
-                    case 'extraction_in':
-                        details = _t('movement_details_extraction_in', {branch: findByKey(state.branches, 'branchCode', t.fromBranchCode)?.branchName});
-                        qtyIn = quantity.toFixed(2);
-                        break;
-                }
-                html += `<tr><td>${new Date(t.date).toLocaleString()}</td><td>${typeText}</td><td>${t.invoiceNumber || t.ref || t.batchId}</td><td>${details}</td><td style="text-align:right;">${qtyIn}</td><td style="text-align:right;">${qtyOut}</td></tr>`;
-            });
-        }
-        html += '</tbody></table>';
-        container.innerHTML = html;
-    }
-
-    function renderTransactionHistory(filters = {}) {
-        const tbody = document.getElementById('table-transaction-history').querySelector('tbody');
-        tbody.innerHTML = '';
-        
-        let allTx = [...state.transactions];
-        let allPo = [...state.purchaseOrders];
-
-        if (!userCan('viewAllBranches')) {
-            const branchCode = state.currentUser.AssignedBranchCode;
-            if (branchCode) {
-                allTx = allTx.filter(t => 
-                    String(t.branchCode) === branchCode || 
-                    String(t.fromBranchCode) === branchCode || 
-                    String(t.toBranchCode) === branchCode
-                );
-                allPo = []; 
-            }
-        }
-        
-        let allHistoryItems = [ ...allTx, ...allPo.map(po => ({...po, type: 'po', batchId: po.poId, ref: po.poId})) ];
-
-        const sDate = filters.startDate ? new Date(filters.startDate) : null;
-        if(sDate) sDate.setHours(0,0,0,0);
-        const eDate = filters.endDate ? new Date(filters.endDate) : null;
-        if(eDate) eDate.setHours(23,59,59,999);
-
-        if (sDate) allHistoryItems = allHistoryItems.filter(t => new Date(t.date) >= sDate);
-        if (eDate) allHistoryItems = allHistoryItems.filter(t => new Date(t.date) <= eDate);
-        if (filters.type) allHistoryItems = allHistoryItems.filter(t => String(t.type) === String(filters.type));
-        
-        // FIXED: Filter checks for 'from' and 'to' branches as well
-        if (filters.branch) {
-            allHistoryItems = allHistoryItems.filter(t => 
-                String(t.branchCode) === String(filters.branch) || 
-                String(t.fromBranchCode) === String(filters.branch) || 
-                String(t.toBranchCode) === String(filters.branch)
-            );
-        }
-
-        if (filters.searchTerm) {
-            const lowerFilter = filters.searchTerm.toLowerCase();
-            allHistoryItems = allHistoryItems.filter(t => {
-                const item = findByKey(state.items, 'code', t.itemCode);
-                return (t.ref && String(t.ref).toLowerCase().includes(lowerFilter)) ||
-                       (t.batchId && String(t.batchId).toLowerCase().includes(lowerFilter)) ||
-                       (t.invoiceNumber && String(t.invoiceNumber).toLowerCase().includes(lowerFilter)) ||
-                       (item && item.name.toLowerCase().includes(lowerFilter));
-            });
-        }
-
-        const grouped = {};
-        allHistoryItems.forEach(t => {
-            const key = t.batchId;
-            if (!key) return;
-            if (!grouped[key]) grouped[key] = { date: t.date, type: t.type, batchId: key, transactions: [] };
-            grouped[key].transactions.push(t);
-        });
-
-        Object.values(grouped).sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(group => {
-            const first = group.transactions[0];
-            let details = '', statusTag = '', refNum = first.ref || first.batchId, typeDisplay = first.type.replace(/_/g, ' ').toUpperCase();
-            const canEditInvoice = userCan('opEditInvoice') && first.type === 'receive' && (first.isApproved !== true && String(first.isApproved).toUpperCase() !== 'TRUE');
-
-            let actionsHtml = `<button class="secondary small btn-view-tx" data-batch-id="${group.batchId}" data-type="${first.type}">${_t('view_print')}</button>`;
-            if(canEditInvoice){
-                actionsHtml += `<button class="secondary small btn-edit-invoice" data-batch-id="${group.batchId}">${_t('edit')}</button>`;
-            }
-
-            switch(first.type) {
-                case 'receive':
-                    details = `${_t('receive')} ${group.transactions.length} ${_t('items')} from <strong>${findByKey(state.suppliers, 'supplierCode', first.supplierCode)?.name || 'N/A'}</strong> to <strong>${findByKey(state.branches, 'branchCode', first.branchCode)?.branchName || 'N/A'}</strong>`;
-                    refNum = first.invoiceNumber;
-                    statusTag = first.isApproved === true || String(first.isApproved).toUpperCase() === 'TRUE' ? `<span class="status-tag status-approved">${_t('status_approved')}</span>` : `<span class="status-tag status-pendingapproval">${_t('status_pending')}</span>`;
-                    break;
-                case 'return_out':
-                    details = `${_t('return')} ${group.transactions.length} ${_t('items')} from <strong>${findByKey(state.branches, 'branchCode', first.fromBranchCode)?.branchName || 'N/A'}</strong> to <strong>${findByKey(state.suppliers, 'supplierCode', first.supplierCode)?.name || 'N/A'}</strong>`;
-                    typeDisplay = _t('return_to_supplier');
-                    break;
-                case 'issue':
-                    details = `Consumed ${group.transactions.length} items at <strong>${findByKey(state.branches, 'branchCode', first.fromBranchCode)?.branchName || 'N/A'}</strong>`;
-                    break;
-                case 'transfer_out':
-                case 'transfer_in':
-                     details = `${_t('transfer')} ${group.transactions.length} ${_t('items')} from <strong>${findByKey(state.branches, 'branchCode', first.fromBranchCode)?.branchName || 'N/A'}</strong> to <strong>${findByKey(state.branches, 'branchCode', first.toBranchCode)?.branchName || 'N/A'}</strong>`;
-                     typeDisplay = _t('transfer');
-                     statusTag = `<span class="status-tag status-${(first.Status || '').toLowerCase().replace(/ /g,'')}">${_t('status_' + (first.Status || '').toLowerCase().replace(/ /g,''))}</span>`;
-                     break;
-                case 'po':
-                    typeDisplay = _t('po');
-                    details = `${_t('create_po')} for <strong>${findByKey(state.suppliers, 'supplierCode', first.supplierCode)?.name || 'N/A'}</strong>`;
-                    statusTag = `<span class="status-tag status-${(first.Status || 'pending').toLowerCase().replace(/ /g,'')}">${_t('status_' + (first.Status || 'pending').toLowerCase().replace(/ /g,''))}</span>`;
-                    break;
-                case 'adjustment_in':
-                case 'adjustment_out':
-                     typeDisplay = _t('stock_adjustment');
-                     details = `${_t('adjustments')} ${group.transactions.length} ${_t('items')} at <strong>${findByKey(state.branches, 'branchCode', first.fromBranchCode)?.branchName || 'N/A'}</strong>`;
-                     break;
-                case 'extraction_in':
-                case 'extraction_out':
-                    typeDisplay = _t('extraction');
-                    const mainItemTx = group.transactions.find(t => t.type === 'extraction_out');
-                    const mainItem = mainItemTx ? findByKey(state.items, 'code', mainItemTx.itemCode) : null;
-                    details = mainItem ? `Extraction from ${mainItem.name} at <strong>${findByKey(state.branches, 'branchCode', first.fromBranchCode)?.branchName || 'N/A'}</strong>` : 'Extraction';
-                    break;
-            }
-            
-            const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${new Date(first.date).toLocaleString()}</td><td>${typeDisplay}</td><td>${refNum}</td><td>${details}</td><td>${statusTag}</td><td><div class="action-buttons">${actionsHtml}</div></td>`;
-            tbody.appendChild(tr);
-        });
-    }
-
-    function renderActivityLog() {
-        const tbody = document.getElementById('table-activity-log').querySelector('tbody');
-        tbody.innerHTML = '';
-        if (!state.activityLog || state.activityLog.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;">No activity logged.</td></tr>`;
-            return;
-        }
-        state.activityLog.slice().reverse().forEach(log => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${new Date(log.Timestamp).toLocaleString()}</td><td>${log.User || 'N/A'}</td><td>${log.Action}</td><td>${log.Description}</td>`;
-            tbody.appendChild(tr);
-        });
-    }
-    
-    function generateGroupedItemsHtml(data, headers) {
-        let itemsHtml = '';
-        const groupedItems = {};
-        let grandTotal = 0;
-    
-        data.items.forEach(item => {
-            const fullItem = findByKey(state.items, 'code', item.itemCode) || { ParentItemCode: null };
-            const parentCode = fullItem.ParentItemCode || item.itemCode; 
-            
-            if (!groupedItems[parentCode]) {
-                 const parentItem = findByKey(state.items, 'code', parentCode);
-                 groupedItems[parentCode] = {
-                    parent: parentItem,
-                    children: [],
-                    totalValue: 0,
-                    totalWeight: 0,
-                    mainItemData: null 
-                };
-            }
-    
-            if(fullItem.ParentItemCode) { 
-                groupedItems[parentCode].children.push(item);
-                groupedItems[parentCode].totalWeight += (parseFloat(item.quantity) || 0);
-            } else { 
-                 if(item.isMainItemPlaceholder) {
-                     groupedItems[parentCode].mainItemData = item;
-                 } else {
-                     groupedItems[parentCode].mainItemData = item;
-                     groupedItems[parentCode].totalWeight = (parseFloat(item.quantity) || 0);
-                     groupedItems[parentCode].totalValue = groupedItems[parentCode].totalWeight * (parseFloat(item.cost) || 0);
-                 }
-            }
-        });
-    
-        for (const key in groupedItems) {
-            const group = groupedItems[key];
-            
-            if (group.children.length > 0) {
-                 const mainData = group.mainItemData || { cost: 0 };
-                 
-                 group.totalValue = group.totalWeight * (parseFloat(mainData.cost) || 0);
-                 
-                itemsHtml += `<tr class="main-item-group-header"><td colspan="${headers.length}"><strong>${group.parent.name} (${group.parent.code}) - Total Weight: ${group.totalWeight.toFixed(2)} KG</strong></td></tr>`;
-                 
-                 group.children.forEach(item => {
-                    const fullItem = findByKey(state.items, 'code', item.itemCode);
-                    itemsHtml += `<tr class="sub-item-row">`;
-                    headers.forEach(header => {
-                        switch (header) {
-                            case 'code': itemsHtml += `<td>${item.itemCode}</td>`; break;
-                            case 'name': itemsHtml += `<td>${item.itemName || fullItem.name}</td>`; break;
-                            case 'qty': itemsHtml += `<td>${(parseFloat(item.quantity) || 0).toFixed(2)}</td>`; break;
-                            case 'cost': itemsHtml += `<td>---</td>`; break;
-                            case 'total': itemsHtml += `<td>---</td>`; break;
-                        }
-                    });
-                    itemsHtml += `</tr>`;
-                });
-                
-                if (headers.includes('total')) {
-                    itemsHtml += `<tr class="main-item-group-footer"><td colspan="${headers.length - 1}" style="text-align:right;font-weight:bold;">${_t('main_item_total')}</td><td style="font-weight:bold;">${group.totalValue.toFixed(2)} EGP</td></tr>`;
-                }
-                grandTotal += group.totalValue;
-            } else if (group.mainItemData) { 
-                const item = group.mainItemData;
-                const itemTotal = (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0);
-                itemsHtml += `<tr>`;
-                headers.forEach(header => {
-                    switch (header) {
-                        case 'code': itemsHtml += `<td>${item.itemCode}</td>`; break;
-                        case 'name': itemsHtml += `<td>${item.itemName}</td>`; break;
-                        case 'qty': itemsHtml += `<td>${(parseFloat(item.quantity) || 0).toFixed(2)}</td>`; break;
-                        case 'cost': itemsHtml += `<td>${(parseFloat(item.cost) || 0).toFixed(2)} EGP</td>`; break;
-                        case 'total': itemsHtml += `<td>${itemTotal.toFixed(2)} EGP</td>`; break;
-                    }
-                });
-                itemsHtml += `</tr>`;
-                grandTotal += itemTotal;
-            }
-        }
-        return { html: itemsHtml, totalValue: grandTotal };
-    }
-
-   const generateReceiveDocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; const branch = findByKey(state.branches, 'branchCode', data.branchCode) || { branchName: 'DELETED' }; const headers = ['code', 'name', 'qty', 'cost', 'total']; const { html: itemsHtml, totalValue } = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>Goods Received Note</h2><p><strong>GRN No:</strong> ${data.batchId}</p><p><strong>${_t('table_h_invoice_no')}:</strong> ${data.invoiceNumber}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>${_t('supplier')}:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><p><strong>${_t('receive_stock')} at:</strong> ${branch.branchName} (${branch.branchCode || ''})</p><hr><h3>${_t('items_to_be_received')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item_name')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">${_t('grand_total')}</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>${_t('notes_optional')}:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Signature:</strong> _________________________</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
-    const generateTransferDocument = (data) => { const fromBranch = findByKey(state.branches, 'branchCode', data.fromBranchCode) || { branchName: 'DELETED' }; const toBranch = findByKey(state.branches, 'branchCode', data.toBranchCode) || { branchName: 'DELETED' }; const headers = ['code', 'name', 'qty']; const { html: itemsHtml } = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>${_t('internal_transfer')} Order</h2><p><strong>Order ID:</strong> ${data.batchId}</p><p><strong>${_t('reference')}:</strong> ${data.ref}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><hr><p><strong>${_t('from_branch')}:</strong> ${fromBranch.branchName} (${fromBranch.branchCode || ''})</p><p><strong>${_t('to_branch')}:</strong> ${toBranch.branchName} (${toBranch.branchCode || ''})</p><hr><h3>${_t('items_to_be_transferred')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item_name')}</th><th>${_t('table_h_qty')}</th></tr></thead><tbody>${itemsHtml}</tbody></table><hr><p><strong>${_t('notes_optional')}:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Sender:</strong> _________________</p><p><strong>Receiver:</strong> _________________</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
-    const generatePaymentVoucher = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; let invoicesHtml = ''; data.payments.forEach(p => { invoicesHtml += `<tr><td>${p.invoiceNumber}</td><td>${p.amount.toFixed(2)} EGP</td></tr>`; }); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>Payment Voucher</h2><p><strong>Voucher ID:</strong> ${data.payments[0].paymentId}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><hr><p><strong>Paid To:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><p><strong>${_t('table_h_amount')}:</strong> ${data.totalAmount.toFixed(2)} EGP</p><p><strong>Method:</strong> ${data.method}</p><hr><h3>Payment Allocation</h3><table><thead><tr><th>${_t('table_h_invoice_no')}</th><th>${_t('table_h_amount_to_pay')}</th></tr></thead><tbody>${invoicesHtml}</tbody></table><br><p><strong>Signature:</strong> _________________</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
-    const generatePODocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; const headers = ['code', 'name', 'qty', 'cost', 'total']; const { html: itemsHtml, totalValue } = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>${_t('po')}</h2><p><strong>${_t('table_h_po_no')}:</strong> ${data.poId || data.batchId}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>${_t('supplier')}:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><hr><h3>${_t('items_to_order')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item_name')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">${_t('grand_total')}</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>${_t('notes_optional')}:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Authorized By:</strong> ${data.createdBy || state.currentUser.Name}</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
-    const generateReturnDocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; const branch = findByKey(state.branches, 'branchCode', data.fromBranchCode) || { branchName: 'DELETED' }; const headers = ['code', 'name', 'qty', 'cost', 'total']; const { html: itemsHtml, totalValue } = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>${_t('return_to_supplier')} Note</h2><p><strong>${_t('credit_note_ref')}:</strong> ${data.ref}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>Returned To:</strong> ${supplier.name}</p><p><strong>Returned From:</strong> ${branch.branchName}</p><hr><h3>${_t('items_to_return')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item_name')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">${_t('total_value')}</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>Reason:</strong> ${data.notes || 'N/A'}</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
-
-    function updateReceiveGrandTotal() { 
-        let grandTotal = 0; 
-        (state.currentReceiveList || []).forEach(item => { 
-            const itemDetails = findByKey(state.items, 'code', item.itemCode);
-            if(itemDetails && !itemDetails.ParentItemCode) { 
-                grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); 
-            } 
-        }); 
-        document.getElementById('receive-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; 
-    }
-    
-   function updateTransferGrandTotal() { 
-        let grandTotalQty = 0; 
-        (state.currentTransferList || []).forEach(item => { 
-            grandTotalQty += (parseFloat(item.quantity) || 0); 
-        }); 
-        document.getElementById('transfer-grand-total').textContent = grandTotalQty.toFixed(2); 
-    }
-    
-    function updatePOGrandTotal() { 
-        let grandTotal = 0; 
-        (state.currentPOList || []).forEach(item => { 
-            grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); 
-        }); 
-        document.getElementById('po-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; 
-    }
-    
-    function updatePOEditGrandTotal() { 
-        let grandTotal = 0; 
-        (state.currentEditingPOList || []).forEach(item => { 
-            const itemDetails = findByKey(state.items, 'code', item.itemCode);
-            if(itemDetails && !itemDetails.ParentItemCode) { 
-                 grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); 
-            }
-        }); 
-        document.getElementById('edit-po-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; 
-    }
-    
-    function updateReturnGrandTotal() { 
-        let grandTotal = 0; 
-        (state.currentReturnList || []).forEach(item => { 
-            const itemDetails = findByKey(state.items, 'code', item.itemCode); 
-            if(itemDetails && !itemDetails.ParentItemCode) { 
-                grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); 
-            } 
-        }); 
-        document.getElementById('return-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; 
     }
     
     async function loadAndRenderBackups() {
@@ -2183,8 +1893,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- UPDATED SUBMISSION HANDLER ---
     async function handleTransactionSubmit(payload, buttonEl) {
         const action = payload.type === 'po' ? 'addPurchaseOrder' : 'addTransactionBatch';
+        
+        // FIX: Pre-process items to distribute lump-sum costs
+        payload.items = prepareListForSubmission(payload.items);
+
         const result = await postData(action, payload, buttonEl);
         if (result) {
             const typeKey = payload.type.replace(/_/g,'');
@@ -2228,7 +1943,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     let newAvgCost;
                     if (current.quantity < 0) {
-                        newAvgCost = cost; 
+                        newAvgCost = cost; // Reset cost if stock was negative
                     } else {
                         newAvgCost = totalQty > 0 ? totalValue / totalQty : current.avgCost;
                     }
@@ -3511,15 +3226,25 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const stock = calculateStockLevels();
         
-        // FIX: Match against UPPERCASE system codes (since we cleaned upload headers)
+        // FIX: Match against UPPERCASE system codes AND NAMES
         const headers = Object.keys(state.uploadedSalesData[0]);
-        const systemBranchCodes = state.branches.map(b => b.branchCode); // Assume system codes are correct case, usually
         
-        // Find which cleaned headers match actual branch codes (case-insensitive check)
-        const branchCodesInFile = systemBranchCodes.filter(sysCode => headers.includes(sysCode.toUpperCase()));
+        // Create a mapping of [HEADER] -> [BRANCH_CODE]
+        // This handles "BR-001" and "CAIRO BRANCH" -> BR-001
+        const branchHeaderMap = {};
+        state.branches.forEach(b => {
+            if (headers.includes(b.branchCode.toUpperCase())) {
+                branchHeaderMap[b.branchCode.toUpperCase()] = b.branchCode;
+            }
+            if (headers.includes(b.branchName.toUpperCase())) {
+                branchHeaderMap[b.branchName.toUpperCase()] = b.branchCode;
+            }
+        });
         
-        if (branchCodesInFile.length === 0) {
-             resultsContainer.innerHTML = `<p class="login-error">Error: Sales file headers must match system Branch Codes (e.g., BR-001). No matches found.</p>`;
+        const branchHeadersFound = Object.keys(branchHeaderMap);
+        
+        if (branchHeadersFound.length === 0) {
+             resultsContainer.innerHTML = `<p class="login-error">Error: Sales file headers must match system Branch Codes or Names. No matches found.</p>`;
              exportBtn.disabled = true;
              return;
         }
@@ -3530,18 +3255,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const itemCode = String(row.itemCode).trim();
             if (!salesMap[itemCode]) salesMap[itemCode] = {};
             
-            // Merge/Sum sales data for each branch column
-            branchCodesInFile.forEach(branchCode => {
-                const qty = parseFloat(row[branchCode.toUpperCase()]) || 0;
-                if (!salesMap[itemCode][branchCode]) salesMap[itemCode][branchCode] = 0;
-                salesMap[itemCode][branchCode] += qty;
+            // Merge/Sum sales data for each matched branch header
+            branchHeadersFound.forEach(header => {
+                const targetBranchCode = branchHeaderMap[header];
+                const qty = parseFloat(row[header]) || 0;
+                
+                if (!salesMap[itemCode][targetBranchCode]) salesMap[itemCode][targetBranchCode] = 0;
+                salesMap[itemCode][targetBranchCode] += qty;
             });
         });
 
         let finalHtml = '';
         state.salesReportDataByBranch = {};
 
-        branchCodesInFile.forEach(branchCode => {
+        // Iterate through unique branch codes found
+        const uniqueBranchCodes = [...new Set(Object.values(branchHeaderMap))];
+
+        uniqueBranchCodes.forEach(branchCode => {
             const branch = findByKey(state.branches, 'branchCode', branchCode);
             if (!branch) return;
 
