@@ -1108,7 +1108,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('payment-total-amount').textContent = `${total.toFixed(2)} EGP`;
     }
 
-    function confirmModalSelection() {
+   function confirmModalSelection() {
         if (modalContext === 'invoices') {
             renderPaymentList();
             closeModal();
@@ -1121,24 +1121,36 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const mainItemsWithSubItems = selectedCodes.filter(code => {
+        // 1. Identify which Main Items are involved
+        const mainItemsToProcess = new Set();
+        const regularItemsToAdd = [];
+
+        selectedCodes.forEach(code => {
             const item = findByKey(state.items, 'code', code);
-            const hasSubItems = state.items.some(sub => sub.ParentItemCode === item.code);
-            return item && !item.ParentItemCode && hasSubItems;
+            if (!item) return;
+
+            if (item.ParentItemCode && modalContext !== 'po') {
+                // If it's a sub-item (and not PO), add its PARENT to the process list
+                mainItemsToProcess.add(item.ParentItemCode);
+            } else if (!item.ParentItemCode && state.items.some(sub => sub.ParentItemCode === item.code) && modalContext !== 'po') {
+                // If it's a main item that HAS sub-items, add ITSELF
+                mainItemsToProcess.add(item.code);
+            } else {
+                // Regular standalone item
+                regularItemsToAdd.push(code);
+            }
         });
-        
-        if (modalContext === 'po') {
-            addRegularItemsToList(selectedCodes);
-            closeModal();
-            return;
-        }
 
-        const regularItems = selectedCodes.filter(code => !mainItemsWithSubItems.includes(code));
-        
-        addRegularItemsToList(regularItems);
+        // 2. Add Regular Items immediately
+        addRegularItemsToList(regularItemsToAdd);
 
-        if (mainItemsWithSubItems.length > 0) {
-            openSubItemEntryModal(mainItemsWithSubItems[0], mainItemsWithSubItems.slice(1));
+        // 3. Trigger Entry Modal for Main Items (Lump Sum Logic)
+        const mainItemCodes = Array.from(mainItemsToProcess);
+        
+        if (mainItemCodes.length > 0) {
+            // Close selector, open Entry for the first Main Item
+            itemSelectorModal.classList.remove('active');
+            openSubItemEntryModal(mainItemCodes[0], mainItemCodes.slice(1));
         } else {
             closeModal();
         }
