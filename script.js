@@ -1,4 +1,3 @@
-// PART 1 OF 4: CORE SETUP & API
 window.printReport = function(elementId) {
     const reportContent = document.querySelector(`#${elementId} .printable-document`);
     if (reportContent) {
@@ -12,7 +11,7 @@ window.printReport = function(elementId) {
 
 document.addEventListener('DOMContentLoaded', () => {
     // !!! IMPORTANT: PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby7Gpjp1zJtjwDnDM5vuaQg_tJKmKejDAZoi-kimOSCMVlVBnCyT6CZmYrVU80y-Jv9/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxNl3q7o74F4Ci-nf2Ec84lrHbq4_g6Na4KSkKZNQa5_xXXdF0PhWFY5E0C4iyxEIoe/exec';
 
     const Logger = {
         info: (message, ...args) => console.log(`[StockWise INFO] ${message}`, ...args),
@@ -395,7 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
             'table_h_system_stock': 'System Stock',
             'table_h_sold_qty': 'Sold Qty',
             'table_h_expected_stock': 'Expected Stock',
-            'table_h_discrepancy': 'Discrepancy',
+            'table_h_discrepancy': 'Closing Stock',
             'file_upload_success': 'File uploaded successfully! {rows} rows of sales data loaded.',
             'file_upload_error': 'Error reading file. Make sure it is a valid .xlsx file with itemCode and branch codes as headers.',
             'no_sales_data_uploaded': 'No sales data has been uploaded yet.',
@@ -555,7 +554,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setButtonLoading(false, buttonEl);
         }
     }
-    // PART 2 OF 4: MODAL & UI LOGIC
+
     function showView(viewId, subViewId = null) {
         Logger.info(`Switching view to: ${viewId}` + (subViewId ? `/${subViewId}` : ''));
         
@@ -885,7 +884,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!document.getElementById('edit-is-sub-item-toggle').checked) {
                 updates.ParentItemCode = '';
             } else {
-                updates.cost = 0; // Ensure sub-items have 0 cost
+                updates.cost = 0; 
             }
             payload = { type, id, updates };
         } else if (type === 'user') {
@@ -1202,7 +1201,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
-    // PART 3 OF 4: VIEW RENDERING & DOCUMENT GENERATION
+
     function openSubItemEntryModal(mainItemCode, remainingMainItems) {
         const mainItem = findByKey(state.items, 'code', mainItemCode);
         const subItems = state.items.filter(i => i.ParentItemCode === mainItemCode);
@@ -1293,22 +1292,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (totalSubQty > 0) {
-            // Check if the main item already exists as a placeholder (during editing maybe?)
             const existingIndex = list.findIndex(i => i.itemCode === mainItem.code && i.isMainItemPlaceholder);
             
             if (existingIndex !== -1) {
-                 // Remove existing sub-items and update main placeholder (clean slate)
-                 // NOTE: We only want to remove sub-items belonging to this parent.
-                 // This requires a more complex removal loop, but for simplicity here,
-                 // we rely on the modal only ever managing one parent's sub-items at a time,
-                 // and simply appending/updating.
-                 
-                 // However, we rely on rendering using the 'isMainItemPlaceholder' flag for grouping.
-                 // We don't need to manually remove the old sub-items here if they are overwritten later.
-                 
                  list[existingIndex].quantity = totalSubQty;
             } else {
-                // Add new main placeholder
                 list.push({
                     itemCode: mainItem.code,
                     itemName: mainItem.name,
@@ -1318,7 +1306,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
             
-            // Add new sub-items
             list.push(...subItemsToAdd);
             renderer();
         }
@@ -1404,15 +1391,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const stock = calculateStockLevels();
         const branchCode = document.getElementById(columnsConfig.find(c => c.branchSelectId)?.branchSelectId)?.value;
 
-        // 1. Preprocess: Create grouped structure
         const groupedList = {};
         
-        // Use a standard array iterator for direct list iteration
         list.forEach((item, index) => {
             const itemDetails = findByKey(state.items, 'code', item.itemCode);
             
             if (itemDetails && itemDetails.ParentItemCode) {
-                // This is a sub-item. Find its main placeholder.
                 const parentCode = itemDetails.ParentItemCode;
                 if (!groupedList[parentCode]) {
                     const parentPlaceholder = list.find(p => p.itemCode === parentCode && p.isMainItemPlaceholder);
@@ -1423,7 +1407,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             children: [] 
                         };
                     } else {
-                        // Treat as a standalone item if parent placeholder doesn't exist (e.g., POs don't group sub items)
                         if (!groupedList[item.itemCode]) groupedList[item.itemCode] = { parent: item, parentIndex: index, children: [] };
                     }
                 }
@@ -1431,17 +1414,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     groupedList[parentCode].children.push({ item, index });
                 }
             } else {
-                // This is a Main Item or Standalone Item (or the placeholder)
                 if (!groupedList[item.itemCode]) {
                     groupedList[item.itemCode] = { parent: item, parentIndex: index, children: [] };
                 }
             }
         });
         
-        // Ensure consistent order by original index if possible (crucial for accurate index mapping)
         const sortedGroups = Object.values(groupedList).sort((a, b) => a.parentIndex - b.parentIndex);
 
-        // 2. Render rows
         sortedGroups.forEach(group => {
             const parentItem = group.parent;
             const parentIndex = group.parentIndex;
@@ -1449,18 +1429,15 @@ document.addEventListener('DOMContentLoaded', () => {
             
             let totalSubItemWeight = 0;
             if (isMainPlaceholder) {
-                // Aggregate sub-item quantities from the state (which was updated by input handler)
                 totalSubItemWeight = group.children.reduce((sum, entry) => sum + (parseFloat(entry.item.quantity) || 0), 0);
             }
 
-            // --- Render Parent/Placeholder Row ---
             const tr = document.createElement('tr');
             if (isMainPlaceholder) tr.classList.add('main-item-group-header');
 
             let cellsHtml = '';
             let currentItem = parentItem;
             
-            // If it's a placeholder, use aggregated weight for calculation display
             const currentItemQty = isMainPlaceholder ? totalSubItemWeight : (parseFloat(currentItem.quantity) || 0);
             const currentItemCost = parseFloat(currentItem.cost) || 0;
             
@@ -1481,14 +1458,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (isMainPlaceholder) {
                             content = `<input type="number" class="table-input" value="${currentItemCost.toFixed(2)}" min="0" step="0.01" data-index="${parentIndex}" data-field="cost">`;
                         } else if (findByKey(state.items, 'code', currentItem.itemCode)?.ParentItemCode) {
-                            content = '---'; // Sub items cost must be hidden
+                            content = '---'; 
                         } else {
                             content = `<input type="number" class="table-input" value="${currentItemCost.toFixed(2)}" min="0" step="0.01" data-index="${parentIndex}" data-field="cost">`;
                         }
                         break;
                         
                     case 'calculated': 
-                        // Cost calculation MUST use the aggregated/current quantity and the input cost
                         const calculatedValue = currentItemQty * currentItemCost;
                         content = `<span>${calculatedValue.toFixed(2)} EGP</span>`;
                         break;
@@ -1502,8 +1478,6 @@ document.addEventListener('DOMContentLoaded', () => {
             tr.innerHTML = cellsHtml;
             tbody.appendChild(tr);
 
-
-            // --- Render Sub-Item Rows (Children) ---
             group.children.forEach(entry => {
                 const subItem = entry.item;
                 const subIndex = entry.index;
@@ -1517,13 +1491,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         case 'text': subContent = subItem[col.key]; break;
                         case 'number_input': 
                             const subAvailableStock = (branchCode && stock[branchCode]?.[subItem.itemCode]?.quantity || 0);
-                            
-                            // Input quantity reflects the sub-item's individual quantity
                             subContent = `<input type="number" class="table-input" value="${subItem[col.key] || ''}" min="${col.min || 0}" step="0.01" data-index="${subIndex}" data-field="${col.key}" ${col.maxKey ? `max="${subAvailableStock}"` : ''}>`;
                             break;
                         case 'cost_input': 
                         case 'calculated': 
-                            // Sub items do not have cost/total columns displayed
                             subContent = '---'; 
                             break;
                         case 'available_stock': 
@@ -1828,7 +1799,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!userCan('viewAllBranches')) {
             const branchCode = state.currentUser.AssignedBranchCode;
             if (branchCode) {
-                allTx = allTx.filter(t => String(t.branchCode) === branchCode || String(t.fromBranchCode) === branchCode || String(t.toBranchCode) === branchCode);
+                allTx = allTx.filter(t => 
+                    String(t.branchCode) === branchCode || 
+                    String(t.fromBranchCode) === branchCode || 
+                    String(t.toBranchCode) === branchCode
+                );
                 allPo = []; 
             }
         }
@@ -1843,7 +1818,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (sDate) allHistoryItems = allHistoryItems.filter(t => new Date(t.date) >= sDate);
         if (eDate) allHistoryItems = allHistoryItems.filter(t => new Date(t.date) <= eDate);
         if (filters.type) allHistoryItems = allHistoryItems.filter(t => String(t.type) === String(filters.type));
-        if (filters.branch) allHistoryItems = allHistoryItems.filter(t => String(t.branchCode) === String(filters.branch) || String(t.fromBranchCode) === String(filters.branch) || String(t.toBranchCode) === String(filters.branch));
+        
+        // FIXED: Filter checks for 'from' and 'to' branches as well
+        if (filters.branch) {
+            allHistoryItems = allHistoryItems.filter(t => 
+                String(t.branchCode) === String(filters.branch) || 
+                String(t.fromBranchCode) === String(filters.branch) || 
+                String(t.toBranchCode) === String(filters.branch)
+            );
+        }
+
         if (filters.searchTerm) {
             const lowerFilter = filters.searchTerm.toLowerCase();
             allHistoryItems = allHistoryItems.filter(t => {
@@ -1931,7 +1915,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // Helper for document generation to group items
     function generateGroupedItemsHtml(data, headers) {
         let itemsHtml = '';
         const groupedItems = {};
@@ -1939,7 +1922,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
         data.items.forEach(item => {
             const fullItem = findByKey(state.items, 'code', item.itemCode) || { ParentItemCode: null };
-            // Group by parent code if it exists and we are not forcing ungrouping (like simple POs)
             const parentCode = fullItem.ParentItemCode || item.itemCode; 
             
             if (!groupedItems[parentCode]) {
@@ -1949,19 +1931,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     children: [],
                     totalValue: 0,
                     totalWeight: 0,
-                    mainItemData: null // Stores the placeholder if available, or the standalone item data
+                    mainItemData: null 
                 };
             }
     
-            if(fullItem.ParentItemCode) { // It's a sub-item
+            if(fullItem.ParentItemCode) { 
                 groupedItems[parentCode].children.push(item);
                 groupedItems[parentCode].totalWeight += (parseFloat(item.quantity) || 0);
-            } else { // It's a main item or standalone item
-                 // If it's a main item used as a placeholder (from grouping UI), use its data
+            } else { 
                  if(item.isMainItemPlaceholder) {
                      groupedItems[parentCode].mainItemData = item;
                  } else {
-                     // If it's a standalone item (common in POs or Transfers)
                      groupedItems[parentCode].mainItemData = item;
                      groupedItems[parentCode].totalWeight = (parseFloat(item.quantity) || 0);
                      groupedItems[parentCode].totalValue = groupedItems[parentCode].totalWeight * (parseFloat(item.cost) || 0);
@@ -1972,11 +1952,9 @@ document.addEventListener('DOMContentLoaded', () => {
         for (const key in groupedItems) {
             const group = groupedItems[key];
             
-            // If the group has children (it's a production output/grouping context)
             if (group.children.length > 0) {
                  const mainData = group.mainItemData || { cost: 0 };
                  
-                 // If the list contained both the main placeholder and children, calculate the total cost
                  group.totalValue = group.totalWeight * (parseFloat(mainData.cost) || 0);
                  
                 itemsHtml += `<tr class="main-item-group-header"><td colspan="${headers.length}"><strong>${group.parent.name} (${group.parent.code}) - Total Weight: ${group.totalWeight.toFixed(2)} KG</strong></td></tr>`;
@@ -1996,12 +1974,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     itemsHtml += `</tr>`;
                 });
                 
-                // Add footer for the entire group value if applicable
                 if (headers.includes('total')) {
                     itemsHtml += `<tr class="main-item-group-footer"><td colspan="${headers.length - 1}" style="text-align:right;font-weight:bold;">${_t('main_item_total')}</td><td style="font-weight:bold;">${group.totalValue.toFixed(2)} EGP</td></tr>`;
                 }
                 grandTotal += group.totalValue;
-            } else if (group.mainItemData) { // This is a standalone item (PO or Transfer item)
+            } else if (group.mainItemData) { 
                 const item = group.mainItemData;
                 const itemTotal = (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0);
                 itemsHtml += `<tr>`;
@@ -2026,11 +2003,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const generatePaymentVoucher = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; let invoicesHtml = ''; data.payments.forEach(p => { invoicesHtml += `<tr><td>${p.invoiceNumber}</td><td>${p.amount.toFixed(2)} EGP</td></tr>`; }); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>Payment Voucher</h2><p><strong>Voucher ID:</strong> ${data.payments[0].paymentId}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><hr><p><strong>Paid To:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><p><strong>${_t('table_h_amount')}:</strong> ${data.totalAmount.toFixed(2)} EGP</p><p><strong>Method:</strong> ${data.method}</p><hr><h3>Payment Allocation</h3><table><thead><tr><th>${_t('table_h_invoice_no')}</th><th>${_t('table_h_amount_to_pay')}</th></tr></thead><tbody>${invoicesHtml}</tbody></table><br><p><strong>Signature:</strong> _________________</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
     const generatePODocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; const headers = ['code', 'name', 'qty', 'cost', 'total']; const { html: itemsHtml, totalValue } = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>${_t('po')}</h2><p><strong>${_t('table_h_po_no')}:</strong> ${data.poId || data.batchId}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>${_t('supplier')}:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><hr><h3>${_t('items_to_order')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item_name')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">${_t('grand_total')}</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>${_t('notes_optional')}:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Authorized By:</strong> ${data.createdBy || state.currentUser.Name}</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
     const generateReturnDocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; const branch = findByKey(state.branches, 'branchCode', data.fromBranchCode) || { branchName: 'DELETED' }; const headers = ['code', 'name', 'qty', 'cost', 'total']; const { html: itemsHtml, totalValue } = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>${_t('return_to_supplier')} Note</h2><p><strong>${_t('credit_note_ref')}:</strong> ${data.ref}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>Returned To:</strong> ${supplier.name}</p><p><strong>Returned From:</strong> ${branch.branchName}</p><hr><h3>${_t('items_to_return')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item_name')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">${_t('total_value')}</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>Reason:</strong> ${data.notes || 'N/A'}</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
-// PART 4 OF 4: CALCULATION ENGINES, EVENT LISTENERS & INITIALIZATION
+
     function updateReceiveGrandTotal() { 
         let grandTotal = 0; 
         (state.currentReceiveList || []).forEach(item => { 
-            // Only non-sub-items contribute to the grand total cost
             const itemDetails = findByKey(state.items, 'code', item.itemCode);
             if(itemDetails && !itemDetails.ParentItemCode) { 
                 grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); 
@@ -2042,7 +2018,6 @@ document.addEventListener('DOMContentLoaded', () => {
    function updateTransferGrandTotal() { 
         let grandTotalQty = 0; 
         (state.currentTransferList || []).forEach(item => { 
-            // Sum of all quantities (main items and sub-items)
             grandTotalQty += (parseFloat(item.quantity) || 0); 
         }); 
         document.getElementById('transfer-grand-total').textContent = grandTotalQty.toFixed(2); 
@@ -2051,7 +2026,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function updatePOGrandTotal() { 
         let grandTotal = 0; 
         (state.currentPOList || []).forEach(item => { 
-            // POs should only contain main/standalone items at this stage, so calculate all
             grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); 
         }); 
         document.getElementById('po-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; 
@@ -2060,7 +2034,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function updatePOEditGrandTotal() { 
         let grandTotal = 0; 
         (state.currentEditingPOList || []).forEach(item => { 
-            // Assuming editing lists handle grouped/ungrouped data correctly based on context
             const itemDetails = findByKey(state.items, 'code', item.itemCode);
             if(itemDetails && !itemDetails.ParentItemCode) { 
                  grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); 
@@ -2072,7 +2045,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateReturnGrandTotal() { 
         let grandTotal = 0; 
         (state.currentReturnList || []).forEach(item => { 
-            // Only non-sub-items with a cost contribute to the return value
             const itemDetails = findByKey(state.items, 'code', item.itemCode); 
             if(itemDetails && !itemDetails.ParentItemCode) { 
                 grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); 
@@ -2249,10 +2221,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const processStockUpdate = (branchCode, qtyChange, cost) => {
                 if (!branchCode || !stock.hasOwnProperty(branchCode)) return;
                 const current = stock[branchCode][t.itemCode] || { quantity: 0, avgCost: parseFloat(item.cost) || 0, itemName: item.name };
+                
                 if(qtyChange > 0) {
                     const totalValue = (current.quantity * current.avgCost) + (qtyChange * cost);
                     const totalQty = current.quantity + qtyChange;
-                    const newAvgCost = totalQty > 0 ? totalValue / totalQty : current.avgCost;
+                    
+                    let newAvgCost;
+                    if (current.quantity < 0) {
+                        newAvgCost = cost; 
+                    } else {
+                        newAvgCost = totalQty > 0 ? totalValue / totalQty : current.avgCost;
+                    }
+                    
                     stock[branchCode][t.itemCode] = { itemCode: t.itemCode, quantity: totalQty, avgCost: newAvgCost, itemName: item.name };
                     if (!tempAvgCosts[branchCode]) tempAvgCosts[branchCode] = {};
                     tempAvgCosts[branchCode][t.itemCode] = newAvgCost;
@@ -2348,7 +2328,7 @@ document.addEventListener('DOMContentLoaded', () => {
             switch (t.type) {
                 case 'receive':
                 case 'adjustment_in':
-                case 'extraction_in': // New
+                case 'extraction_in': 
                     branchCode = t.branchCode || t.fromBranchCode;
                     costForUpdate = parseFloat(t.cost) || 0;
                     costForSnapshot = costForUpdate;
@@ -2362,7 +2342,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 case 'return_out':
                 case 'transfer_out':
                 case 'adjustment_out':
-                case 'extraction_out': // New
+                case 'extraction_out': 
                     branchCode = t.fromBranchCode;
                     costForUpdate = null; 
                     costForSnapshot = stock[branchCode]?.[t.itemCode]?.avgCost || parseFloat(item.cost) || 0;
@@ -3461,7 +3441,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function downloadSalesTemplate() {
         const header = { itemCode: "itemCode", itemName: "itemName" };
         state.branches.forEach(b => {
-            header[b.branchCode] = ''; // Using branch code as header key, value is empty for template
+            header[b.branchCode] = ''; 
         });
     
         const templateData = state.items.map(item => {
@@ -3470,7 +3450,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 itemName: item.name
             };
             state.branches.forEach(b => {
-                row[b.branchCode] = ''; // Initialize with empty string
+                row[b.branchCode] = ''; 
             });
             return row;
         });
@@ -3492,17 +3472,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
                 const jsonData = XLSX.utils.sheet_to_json(firstSheet);
 
-                if (!jsonData[0] || !jsonData[0].hasOwnProperty('itemCode')) {
+                // FIX: Clean headers (Trim and Uppercase)
+                const cleanedData = jsonData.map(row => {
+                    const newRow = {};
+                    Object.keys(row).forEach(key => {
+                        newRow[key.trim().toUpperCase()] = row[key]; 
+                    });
+                    // Ensure itemCode is present even if casing differed in original
+                    const itemCodeKey = Object.keys(newRow).find(k => k === 'ITEMCODE');
+                    if(itemCodeKey) newRow.itemCode = newRow[itemCodeKey];
+                    
+                    return newRow;
+                });
+
+                if (!cleanedData[0] || !cleanedData[0].hasOwnProperty('itemCode')) {
                     throw new Error("Invalid format: 'itemCode' column missing.");
                 }
 
-                state.uploadedSalesData = jsonData;
-                showToast(_t('file_upload_success', { rows: jsonData.length }), 'success');
-                
-                // CRITICAL FIX FOR SALES REPORT BRANCH DATA: 
-                // We need to trigger the report logic to detect branches based on the uploaded keys
-                // If the report generation relies on detecting 'BR-' prefixes, ensure the user input matches.
-                // Since our system uses BR-XX codes, we warn if the file headers don't look right.
+                state.uploadedSalesData = cleanedData;
+                showToast(_t('file_upload_success', { rows: cleanedData.length }), 'success');
 
             } catch (err) {
                 showToast(_t('file_upload_error'), 'error');
@@ -3523,33 +3511,48 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const stock = calculateStockLevels();
         
-        // CRITICAL FIX: Identify branch columns in the uploaded file using known branch codes
+        // FIX: Match against UPPERCASE system codes (since we cleaned upload headers)
         const headers = Object.keys(state.uploadedSalesData[0]);
-        const systemBranchCodes = state.branches.map(b => b.branchCode);
+        const systemBranchCodes = state.branches.map(b => b.branchCode); // Assume system codes are correct case, usually
         
-        // Find which uploaded headers match actual branch codes
-        const branchCodesInFile = headers.filter(key => systemBranchCodes.includes(key));
+        // Find which cleaned headers match actual branch codes (case-insensitive check)
+        const branchCodesInFile = systemBranchCodes.filter(sysCode => headers.includes(sysCode.toUpperCase()));
         
         if (branchCodesInFile.length === 0) {
-             resultsContainer.innerHTML = `<p class="login-error">Error: Sales file headers (columns) must match system Branch Codes (e.g., BR-001). No valid branch columns found in the uploaded file.</p>`;
+             resultsContainer.innerHTML = `<p class="login-error">Error: Sales file headers must match system Branch Codes (e.g., BR-001). No matches found.</p>`;
              exportBtn.disabled = true;
              return;
         }
+
+        // FIX: Create Lookup Map for performance and duplicates
+        const salesMap = {};
+        state.uploadedSalesData.forEach(row => {
+            const itemCode = String(row.itemCode).trim();
+            if (!salesMap[itemCode]) salesMap[itemCode] = {};
+            
+            // Merge/Sum sales data for each branch column
+            branchCodesInFile.forEach(branchCode => {
+                const qty = parseFloat(row[branchCode.toUpperCase()]) || 0;
+                if (!salesMap[itemCode][branchCode]) salesMap[itemCode][branchCode] = 0;
+                salesMap[itemCode][branchCode] += qty;
+            });
+        });
 
         let finalHtml = '';
         state.salesReportDataByBranch = {};
 
         branchCodesInFile.forEach(branchCode => {
             const branch = findByKey(state.branches, 'branchCode', branchCode);
-            if (!branch) return; // Should be handled by the filter above, but safety check
+            if (!branch) return;
 
             const branchStock = stock[branchCode] || {};
             
             const reportData = state.items.map(item => {
                 const systemStock = branchStock[item.code]?.quantity || 0;
-                const salesRow = state.uploadedSalesData.find(s => String(s.itemCode) === String(item.code));
-                // Extract soldQty using the precise header key (which is the branchCode)
-                const soldQty = salesRow && salesRow[branchCode] ? (parseFloat(salesRow[branchCode]) || 0) : 0;
+                
+                // FIX: Instant Lookup from Map
+                const soldQty = salesMap[item.code] ? (salesMap[item.code][branchCode] || 0) : 0;
+                
                 const expectedStock = systemStock - soldQty;
                 return { code: item.code, name: item.name, systemStock, soldQty, expectedStock, discrepancy: expectedStock };
             });
@@ -3563,7 +3566,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 </tr></thead><tbody>`;
 
             reportData.forEach(row => {
-                 // Only show rows with stock or sales activity
                  if (row.systemStock > 0 || row.soldQty > 0 || row.discrepancy !== 0) {
                     const discrepancyClass = row.discrepancy !== 0 ? 'status-rejected' : '';
                     tableHtml += `<tr class="${discrepancyClass}">
@@ -3625,14 +3627,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const result = await postData('performSettlement', payload, btn);
         if (result && result.data.newTransactions) {
-            // CRITICAL FIX: Add new transactions to local state for immediate recalculation
+            // FIX: Add new transactions to local state for immediate recalculation
             state.transactions = [...state.transactions, ...result.data.newTransactions]; 
             state.settlements.push(result.data.settlementRecord);
-            result.data.settlementItems.forEach(si => state.settlementItems.push(si));
+            if(result.data.settlementItems) result.data.settlementItems.forEach(si => state.settlementItems.push(si));
             
             showToast(_t('settlement_complete'), 'success');
             closeModal();
-            // Refresh the current view to show updated stock
+            
             const currentView = document.querySelector('.nav-item a.active')?.dataset.view || 'dashboard';
             refreshViewData(currentView); 
         }
