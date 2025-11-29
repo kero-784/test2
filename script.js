@@ -57,7 +57,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     let modalContext = null;
 
-    // --- INTERNATIONALIZATION (i18n) ---
     const translations = {
         'en': {
             'packing_stock': 'Packing Stock',
@@ -438,7 +437,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return p === true || String(p).toUpperCase() === 'TRUE';
     };
 
-    // --- DOM ELEMENT REFERENCES ---
     const loginContainer = document.getElementById('login-container');
     const loginForm = document.getElementById('login-form');
     const loginUsernameInput = document.getElementById('login-username');
@@ -733,7 +731,6 @@ document.addEventListener('DOMContentLoaded', () => {
         viewTransferModal.classList.add('active');
     }
 
-    // --- FIX: Ensure proper modal handling for sub-items ---
     function confirmModalSelection() {
         if (modalContext === 'invoices') {
             renderPaymentList();
@@ -754,7 +751,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const item = findByKey(state.items, 'code', code);
             if (!item) return;
 
-            // FIX: If Sub-Item, find Parent. If Main Item with Sub-Items, find Self.
             if (item.ParentItemCode && modalContext !== 'po') {
                 mainItemsToProcess.add(item.ParentItemCode);
             } else if (!item.ParentItemCode && state.items.some(sub => sub.ParentItemCode === item.code) && modalContext !== 'po') {
@@ -803,6 +799,35 @@ document.addEventListener('DOMContentLoaded', () => {
     
         renderer();
     }
+    
+    function showToast(message, type = 'success') {
+        if (type === 'error') Logger.error(`User Toast: ${message}`);
+        const container = document.getElementById('toast-container');
+        if (!container) {
+            console.error("Toast container not found! Message:", message);
+            return;
+        }
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.textContent = message;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 3500);
+    }
+
+    function setButtonLoading(isLoading, buttonEl) {
+        if (!buttonEl) return;
+        if (isLoading) {
+            buttonEl.disabled = true;
+            buttonEl.dataset.originalText = buttonEl.innerHTML;
+            const loaderText = (buttonEl.closest('#login-form')) ? _t('signing_in') : _t('loading');
+            buttonEl.innerHTML = `<div class="button-spinner"></div><span>${loaderText}</span>`;
+        } else {
+            buttonEl.disabled = false;
+            if (buttonEl.dataset.originalText) {
+                buttonEl.innerHTML = buttonEl.dataset.originalText;
+            }
+        }
+    }
 
     function openSubItemEntryModal(mainItemCode, remainingMainItems) {
         const mainItem = findByKey(state.items, 'code', mainItemCode);
@@ -814,13 +839,30 @@ document.addEventListener('DOMContentLoaded', () => {
         const modalBody = document.getElementById('sub-item-entry-modal-body');
         let tableHtml = `
             <table id="sub-item-entry-table">
-                <thead><tr><th>${_t('table_h_name')}</th><th>${_t('table_h_quantity')}</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>${_t('table_h_name')}</th>
+                        <th>${_t('table_h_quantity')}</th>
+                    </tr>
+                </thead>
                 <tbody>
         `;
         subItems.forEach(sub => {
-            tableHtml += `<tr><td>${sub.name} (${sub.code})</td><td><input type="number" class="table-input sub-item-qty-input" data-item-code="${sub.code}" step="0.01" min="0"></td></tr>`;
+            tableHtml += `
+                <tr>
+                    <td>${sub.name} (${sub.code})</td>
+                    <td><input type="number" class="table-input sub-item-qty-input" data-item-code="${sub.code}" step="0.01" min="0"></td>
+                </tr>
+            `;
         });
-        tableHtml += `</tbody><tfoot><tr><td style="text-align: right;"><strong>${_t('total_sub_item_weight')}:</strong></td><td id="total-sub-item-weight">0.00</td></tr></tfoot></table>`;
+        tableHtml += `</tbody>
+            <tfoot>
+                <tr>
+                    <td style="text-align: right;"><strong>${_t('total_sub_item_weight')}:</strong></td>
+                    <td id="total-sub-item-weight">0.00</td>
+                </tr>
+            </tfoot>
+        </table>`;
         modalBody.innerHTML = tableHtml;
     
         const table = modalBody.querySelector('#sub-item-entry-table');
@@ -833,6 +875,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     
         const confirmBtn = document.getElementById('btn-confirm-sub-item-entry');
+        
         const newConfirmBtn = confirmBtn.cloneNode(true);
         confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
 
@@ -875,22 +918,24 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Ensure placeholder exists
-        const existingIndex = list.findIndex(i => i.itemCode === mainItem.code && i.isMainItemPlaceholder);
-        if (existingIndex !== -1) {
-             list[existingIndex].quantity = totalSubQty;
-        } else if (totalSubQty > 0) { // Only add if sub items exist
-            list.push({
-                itemCode: mainItem.code,
-                itemName: mainItem.name,
-                quantity: totalSubQty,
-                cost: 0, // Default cost 0 until user enters it
-                isMainItemPlaceholder: true 
-            });
+        if (totalSubQty > 0) {
+            const existingIndex = list.findIndex(i => i.itemCode === mainItem.code && i.isMainItemPlaceholder);
+            
+            if (existingIndex !== -1) {
+                 list[existingIndex].quantity = totalSubQty;
+            } else {
+                list.push({
+                    itemCode: mainItem.code,
+                    itemName: mainItem.name,
+                    quantity: totalSubQty,
+                    cost: 0, 
+                    isMainItemPlaceholder: true 
+                });
+            }
+            
+            list.push(...subItemsToAdd);
+            renderer();
         }
-        
-        list.push(...subItemsToAdd);
-        renderer();
 
         subItemEntryModal.classList.remove('active');
 
@@ -960,8 +1005,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- Core Dynamic Table Renderer (Grouped View) ---
-    // FIXED: Properly associates children with parent placeholder using a map
     const renderDynamicListTable = (tbodyId, list, columnsConfig, emptyMessage, totalizerFn) => {
         const tbody = document.getElementById(tbodyId).querySelector('tbody');
         tbody.innerHTML = '';
@@ -974,39 +1017,32 @@ document.addEventListener('DOMContentLoaded', () => {
         const stock = calculateStockLevels();
         const branchCode = document.getElementById(columnsConfig.find(c => c.branchSelectId)?.branchSelectId)?.value;
 
-        // Grouping Logic
-        const groupedMap = {}; // Key: ParentCode, Value: { parentIndex, parentItem, children: [] }
-        const standaloneList = []; // Array of { item, index }
+        const groupedMap = {}; 
+        const standaloneList = []; 
 
         list.forEach((item, index) => {
             if (item.isMainItemPlaceholder) {
                 if (!groupedMap[item.itemCode]) {
                     groupedMap[item.itemCode] = { parentIndex: index, parentItem: item, children: [] };
                 } else {
-                    // Update existing (unlikely in sequential parse but safe)
                     groupedMap[item.itemCode].parentIndex = index;
                     groupedMap[item.itemCode].parentItem = item;
                 }
             } else {
                 const itemDetails = findByKey(state.items, 'code', item.itemCode);
                 if (itemDetails && itemDetails.ParentItemCode) {
-                    // It's a sub-item
                     if (!groupedMap[itemDetails.ParentItemCode]) {
-                        // Create slot if parent hasn't been seen yet
                         groupedMap[itemDetails.ParentItemCode] = { parentIndex: -1, parentItem: null, children: [] };
                     }
                     groupedMap[itemDetails.ParentItemCode].children.push({ item, index });
                 } else {
-                    // Standalone main item
                     standaloneList.push({ item, index });
                 }
             }
         });
 
-        // Convert Map to Array and sort by first appearance
         const allGroups = [...Object.values(groupedMap), ...standaloneList.map(s => ({ parentIndex: s.index, parentItem: s.item, children: [], isStandalone: true }))];
         allGroups.sort((a, b) => {
-            // Logic to keep sort order roughly consistent
             const idxA = a.parentIndex > -1 ? a.parentIndex : (a.children[0]?.index || 9999);
             const idxB = b.parentIndex > -1 ? b.parentIndex : (b.children[0]?.index || 9999);
             return idxA - idxB;
@@ -1015,7 +1051,6 @@ document.addEventListener('DOMContentLoaded', () => {
         allGroups.forEach(group => {
             if (!group.parentItem && group.children.length === 0) return;
 
-            // --- Render Parent/Placeholder Row ---
             if (group.parentItem) {
                 const parentItem = group.parentItem;
                 const parentIndex = group.parentIndex;
@@ -1032,7 +1067,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 let cellsHtml = '';
                 let currentItem = parentItem;
                 
-                // For placeholders, use aggregated quantity
                 const currentItemQty = isMainPlaceholder ? totalSubItemWeight : (parseFloat(currentItem.quantity) || 0);
                 const currentItemCost = parseFloat(currentItem.cost) || 0;
                 
@@ -1041,7 +1075,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     switch (col.type) {
                         case 'text': content = currentItem[col.key]; break;
                         case 'number_input':
-                            // If it's a placeholder, make Qty Read-Only
                             const readOnlyAttr = isMainPlaceholder ? 'readonly' : '';
                             const valueDisplay = isMainPlaceholder ? currentItemQty.toFixed(2) : (currentItem.quantity || '');
                             content = `<input type="number" class="table-input" value="${valueDisplay}" min="${col.min || 0.01}" ${col.maxKey ? `max="${(stock[branchCode]?.[currentItem.itemCode]?.quantity || 0)}"` : ''} step="0.01" data-index="${parentIndex}" data-field="${col.key}" ${readOnlyAttr}>`;
@@ -1056,7 +1089,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         case 'calculated': 
                             let calculatedValue;
                             if (isMainPlaceholder) {
-                                calculatedValue = currentItemCost; // Input is the total value
+                                calculatedValue = currentItemCost; 
                             } else {
                                 calculatedValue = currentItemQty * currentItemCost;
                             }
@@ -1072,7 +1105,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 tbody.appendChild(tr);
             }
 
-            // --- Render Children ---
             group.children.forEach(entry => {
                 const subItem = entry.item;
                 const subIndex = entry.index;
@@ -1108,17 +1140,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (totalizerFn) totalizerFn();
     };
     
-    // --- UPDATED TOTALIZER FUNCTIONS ---
     function updateReceiveGrandTotal() { 
         let grandTotal = 0; 
         (state.currentReceiveList || []).forEach(item => { 
             const itemDetails = findByKey(state.items, 'code', item.itemCode);
-            
             if(item.isMainItemPlaceholder) {
-                // If it's a placeholder, cost = Total Batch Value
                 grandTotal += (parseFloat(item.cost) || 0);
             } else if(itemDetails && !itemDetails.ParentItemCode) { 
-                // Standalone Main Item
                 grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0); 
             } 
         }); 
@@ -1128,7 +1156,6 @@ document.addEventListener('DOMContentLoaded', () => {
    function updateTransferGrandTotal() { 
         let grandTotalQty = 0; 
         (state.currentTransferList || []).forEach(item => { 
-            // Transfers usually don't use Lump Sum logic, but simply sum quantities
             grandTotalQty += (parseFloat(item.quantity) || 0); 
         }); 
         document.getElementById('transfer-grand-total').textContent = grandTotalQty.toFixed(2); 
@@ -1169,12 +1196,10 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('return-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; 
     }
     
-    // --- HELPER TO DISTRIBUTE COSTS BEFORE SUBMISSION ---
     function prepareListForSubmission(list) {
         const processedList = [];
         const groupedList = {};
 
-        // 1. Group items to find placeholders and their children
         list.forEach(item => {
             const itemDetails = findByKey(state.items, 'code', item.itemCode);
             if (itemDetails && itemDetails.ParentItemCode) {
@@ -1186,32 +1211,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!groupedList[item.itemCode]) groupedList[item.itemCode] = { parent: item, children: [] };
                     else groupedList[item.itemCode].parent = item;
                 } else {
-                    // Standalone main items are pushed directly
                     processedList.push(item);
                 }
             }
         });
 
-        // 2. Process groups
         Object.values(groupedList).forEach(group => {
             if (group.parent && group.parent.isMainItemPlaceholder) {
-                const totalBatchValue = parseFloat(group.parent.cost) || 0; // The lump sum input
+                const totalBatchValue = parseFloat(group.parent.cost) || 0; 
                 let totalBatchWeight = 0;
-                
-                // Calculate total weight from children
                 group.children.forEach(child => totalBatchWeight += (parseFloat(child.quantity) || 0));
-                
-                // Calculate Unit Cost (Price per KG)
                 const derivedUnitCost = totalBatchWeight > 0 ? (totalBatchValue / totalBatchWeight) : 0;
-                
-                // Assign unit cost to all children and add them to processed list
                 group.children.forEach(child => {
                     const childCopy = { ...child };
                     childCopy.cost = derivedUnitCost;
                     processedList.push(childCopy);
                 });
             } else {
-                // Orphan children (shouldn't happen in normal flow, but just in case)
                 group.children.forEach(child => processedList.push(child));
             }
         });
@@ -1219,7 +1235,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return processedList;
     }
 
-    // --- RENDERERS ---
     function renderReceiveListTable() { renderDynamicListTable('table-receive-list', state.currentReceiveList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated' } ], 'no_items_selected_toast', updateReceiveGrandTotal); }
     function renderTransferListTable() { renderDynamicListTable('table-transfer-list', state.currentTransferList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'available_stock', branchSelectId: 'transfer-from-branch' }, { type: 'number_input', key: 'quantity', maxKey: true, branchSelectId: 'transfer-from-branch' } ], 'no_items_selected_toast', updateTransferGrandTotal); }
     function renderPOListTable() { renderDynamicListTable('table-po-list', state.currentPOList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated' } ], 'no_items_selected_toast', updatePOGrandTotal); }
@@ -1240,7 +1255,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const systemQty = (branchCode && stock[branchCode]?.[item.itemCode]?.quantity) || 0;
             const physicalCount = typeof item.physicalCount !== 'undefined' ? item.physicalCount : '';
             const adjustment = physicalCount - systemQty;
-            
             item.physicalCount = physicalCount;
 
             const tr = document.createElement('tr');
@@ -1312,7 +1326,6 @@ document.addEventListener('DOMContentLoaded', () => {
         container.innerHTML = tableHTML;
     }
 
-
     function renderItemInquiry(searchTerm) {
         const resultsContainer = document.getElementById('item-inquiry-results');
         if (!searchTerm) {
@@ -1348,7 +1361,137 @@ document.addEventListener('DOMContentLoaded', () => {
         resultsContainer.innerHTML = html;
     }
     
-    // --- FIX: Prevent Focus Loss by updating DOM directly instead of re-rendering ---
+    // --- BACKUP FUNCTIONS ---
+    async function loadAndRenderBackups() {
+        const container = document.getElementById('backup-list-container');
+        container.innerHTML = `<table><tbody><tr><td><div class="spinner" style="width:30px;height:30px;border-width:3px;"></div></td><td>${_t('loading_backups')}</td></tr></tbody></table>`;
+        const result = await postData('listBackups', {}, null);
+        if (result && result.data) {
+            state.backups = result.data;
+            if (state.backups.length === 0) {
+                container.innerHTML = `<p>${_t('no_backups_found')}</p>`;
+                return;
+            }
+            let tableHtml = `<table id="table-backups"><thead><tr><th>${_t('backup_name')}</th><th>${_t('date_created')}</th><th>${_t('actions')}</th></tr></thead><tbody>`;
+            state.backups.forEach(backup => {
+                tableHtml += `
+                    <tr>
+                        <td>${backup.name}</td>
+                        <td>${new Date(backup.dateCreated).toLocaleString()}</td>
+                        <td>
+                            <div class="action-buttons">
+                                <a href="${backup.url}" target="_blank" rel="noopener noreferrer" class="secondary small" style="text-decoration: none;">${_t('open')}</a>
+                                <button class="danger small btn-restore" data-url="${backup.url}">${_t('restore')}</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+            tableHtml += '</tbody></table>';
+            container.innerHTML = tableHtml;
+        } else {
+            container.innerHTML = `<p>Could not load backup list. Please check permissions or try again.</p>`;
+        }
+    }
+    
+    async function loadAutoBackupSettings() {
+        const toggle = document.getElementById('auto-backup-toggle');
+        const frequencyContainer = document.getElementById('auto-backup-frequency-container');
+        const statusEl = document.getElementById('auto-backup-status');
+        
+        statusEl.textContent = 'Checking status...';
+        const result = await postData('getAutomaticBackupStatus', {}, null);
+        
+        if (result && result.data.enabled !== undefined) {
+            const isEnabled = result.data.enabled;
+            toggle.checked = isEnabled;
+            frequencyContainer.style.display = isEnabled ? 'block' : 'none';
+            statusEl.textContent = isEnabled 
+                ? 'Automatic backups are currently active.'
+                : 'Automatic backups are currently disabled.';
+        } else {
+            statusEl.textContent = 'Could not retrieve automatic backup status.';
+        }
+    }
+    
+    async function handleAutoBackupToggle() {
+        const toggle = document.getElementById('auto-backup-toggle');
+        const frequency = document.getElementById('auto-backup-frequency').value;
+        const frequencyContainer = document.getElementById('auto-backup-frequency-container');
+        const statusEl = document.getElementById('auto-backup-status');
+        
+        const isEnabled = toggle.checked;
+        frequencyContainer.style.display = isEnabled ? 'block' : 'none';
+        
+        statusEl.textContent = 'Updating settings...';
+        const result = await postData('setAutomaticBackup', { enabled: isEnabled, frequency: frequency }, toggle);
+
+        if (result) {
+            showToast(_t('auto_backup_updated_toast'), 'success');
+            statusEl.textContent = isEnabled
+                ? `Automatic backups are now enabled (${frequency}).`
+                : 'Automatic backups have been disabled.';
+        } else {
+            toggle.checked = !isEnabled;
+            frequencyContainer.style.display = toggle.checked ? 'block' : 'none';
+            statusEl.textContent = _t('auto_backup_failed_toast');
+        }
+    }
+
+    function openRestoreModal(backupFileId, backupFileName) {
+        const modal = document.getElementById('restore-modal');
+        const sheetListContainer = document.getElementById('restore-sheet-list');
+        const confirmInput = document.getElementById('restore-confirmation-input');
+        const confirmBtn = document.getElementById('btn-confirm-restore');
+    
+        document.getElementById('restore-filename-display').textContent = backupFileName;
+        confirmBtn.dataset.backupFileId = backupFileId;
+        
+        confirmInput.value = '';
+        confirmBtn.disabled = true;
+    
+        const coreSheets = [ 'Items', 'Suppliers', 'Branches', 'Transactions', 'Payments', 'PurchaseOrders', 'PurchaseOrderItems', 'Users', 'Permissions', 'Settlements', 'SettlementItems' ];
+        
+        sheetListContainer.innerHTML = '';
+        coreSheets.forEach(sheetName => {
+            sheetListContainer.innerHTML += `<div class="form-group-checkbox"><input type="checkbox" id="restore-sheet-${sheetName}" name="restoreSheet" value="${sheetName}"><label for="restore-sheet-${sheetName}">${sheetName}</label></div>`;
+        });
+        
+        const updateConfirmButtonState = () => {
+            const sheetsSelected = document.querySelectorAll('#restore-sheet-list input:checked').length > 0;
+            confirmBtn.disabled = !(confirmInput.value === 'RESTORE' && sheetsSelected);
+        };
+
+        confirmInput.addEventListener('input', updateConfirmButtonState);
+        sheetListContainer.addEventListener('change', updateConfirmButtonState);
+    
+        modal.classList.add('active');
+    }
+    
+    async function handleConfirmRestore(e) {
+        const btn = e.target;
+        const backupFileId = btn.dataset.backupFileId;
+        const selectedSheets = Array.from(document.querySelectorAll('#restore-sheet-list input:checked')).map(el => el.value);
+    
+        if (selectedSheets.length === 0) {
+            showToast(_t('restore_select_sheet_toast'), 'error');
+            return;
+        }
+    
+        const payload = {
+            backupFileId: backupFileId,
+            sheetsToRestore: selectedSheets
+        };
+    
+        const result = await postData('restoreFromBackup', payload, btn);
+    
+        if (result) {
+            showToast(result.data.message || _t('restore_completed_toast'), 'success');
+            closeModal();
+            await reloadDataAndRefreshUI();
+        }
+    }
+
     const handleTableInputUpdate = (e, listName, rendererFn) => {
         if (e.target.classList.contains('table-input')) {
             const index = parseInt(e.target.dataset.index);
@@ -1365,8 +1508,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (listName === 'currentPOList') updatePOGrandTotal();
             if (listName === 'currentEditingPOList') updatePOEditGrandTotal();
             if (listName === 'currentReturnList') updateReturnGrandTotal();
-
-            // DO NOT CALL rendererFn() here. It kills focus.
         }
     };
 
@@ -1374,7 +1515,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const btn = e.target.closest('button');
         if (btn && btn.classList.contains('danger') && btn.dataset.index) {
             state[listName].splice(parseInt(btn.dataset.index), 1);
-            rendererFn(); // Safe to re-render here
+            rendererFn(); 
         }
     };
 
@@ -1391,7 +1532,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    // --- FIX: Define renderTransactionHistory BEFORE it is called in refreshViewData ---
     function renderTransactionHistory(filters = {}) {
         const tbody = document.getElementById('table-transaction-history').querySelector('tbody');
         tbody.innerHTML = '';
@@ -1678,141 +1818,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function renderPurchaseOrdersViewer() {
-        const tbody = document.getElementById('table-po-viewer').querySelector('tbody');
-        tbody.innerHTML = '';
-        (state.purchaseOrders || []).slice().reverse().forEach(po => {
-            const supplier = findByKey(state.suppliers, 'supplierCode', po.supplierCode);
-            const items = (state.purchaseOrderItems || []).filter(item => item.poId === po.poId);
-            const tr = document.createElement('tr');
-            const canEditPO = po.Status === 'Pending Approval' && userCan('opCreatePO');
-            tr.innerHTML = `
-                <td>${po.poId}</td>
-                <td>${new Date(po.date).toLocaleDateString()}</td>
-                <td>${supplier?.name || po.supplierCode}</td>
-                <td>${items.length}</td>
-                <td>${(parseFloat(po.totalValue) || 0).toFixed(2)} EGP</td>
-                <td><span class="status-tag status-${(po.Status || 'pending').toLowerCase().replace(/ /g,'')}">${po.Status}</span></td>
-                <td><div class="action-buttons">
-                    <button class="secondary small btn-view-tx" data-batch-id="${po.poId}" data-type="po">${_t('view_print')}</button>
-                    ${canEditPO ? `<button class="secondary small btn-edit-po" data-po-id="${po.poId}">${_t('edit')}</button>` : ''}
-                </div></td>
-            `;
-            tbody.appendChild(tr);
-        });
-    }
-
-    function renderPendingFinancials() {
-        const tbody = document.getElementById('table-pending-financial-approval').querySelector('tbody');
-        tbody.innerHTML = '';
-        
-        const pendingPOs = (state.purchaseOrders || []).filter(po => po.Status === 'Pending Approval');
-        
-        const pendingReceivesGroups = {};
-        (state.transactions || []).filter(t => t.type === 'receive' && (t.isApproved === false || String(t.isApproved).toUpperCase() === 'FALSE')).forEach(t => {
-            if (!pendingReceivesGroups[t.batchId]) {
-                pendingReceivesGroups[t.batchId] = {
-                    date: t.date,
-                    txType: 'receive',
-                    ref: t.invoiceNumber,
-                    batchId: t.batchId,
-                    details: `GRN from ${findByKey(state.suppliers, 'supplierCode', t.supplierCode)?.name || 'N/A'}`,
-                    totalValue: 0
-                };
-            }
-            pendingReceivesGroups[t.batchId].totalValue += (parseFloat(t.quantity) || 0) * (parseFloat(t.cost) || 0);
-        });
-
-        let allPending = [
-            ...pendingPOs.map(po => ({...po, txType: 'po', ref: po.poId, value: po.totalValue, details: `PO for ${findByKey(state.suppliers, 'supplierCode', po.supplierCode)?.name || 'N/A'}`})),
-            ...Object.values(pendingReceivesGroups).map(rcv => ({...rcv, value: rcv.totalValue}))
-        ];
-
-        if (allPending.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">${_t('no_pending_financial_approval')}</td></tr>`;
-            return;
-        }
-
-        allPending.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(item => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${new Date(item.date).toLocaleDateString()}</td>
-                <td>${_t(item.txType)}</td>
-                <td>${item.ref}</td>
-                <td>${item.details}</td>
-                <td>${(parseFloat(item.value) || 0).toFixed(2)} EGP</td>
-                <td>
-                    <div class="action-buttons">
-                        <button class="primary small btn-approve-financial" data-id="${item.txType === 'po' ? item.poId : item.batchId}" data-type="${item.txType}">${_t('approve')}</button>
-                        <button class="danger small btn-reject-financial" data-id="${item.txType === 'po' ? item.poId : item.batchId}" data-type="${item.txType}">${_t('reject')}</button>
-                    </div>
-                </td>
-            `;
-            tbody.appendChild(tr);
-        });
-    }
-    
-    function renderPendingTransfers() {
-        const container = document.getElementById('pending-transfers-card');
-        const tbody = document.getElementById('table-pending-transfers').querySelector('tbody');
-        tbody.innerHTML = '';
-        const groupedTransfers = {};
-        (state.transactions || []).filter(t => t.type === 'transfer_out' && t.Status === 'In Transit').forEach(t => {
-            if (!groupedTransfers[t.batchId]) groupedTransfers[t.batchId] = { ...t, items: [] };
-            groupedTransfers[t.batchId].items.push(t);
-        });
-        const visibleTransfers = Object.values(groupedTransfers).filter(t => userCan('viewAllBranches') || t.toBranchCode === state.currentUser.AssignedBranchCode);
-        
-        if (visibleTransfers.length === 0) {
-            container.style.display = 'none'; return;
-        }
-
-        tbody.innerHTML = '';
-        visibleTransfers.forEach(t => {
-            const tr = document.createElement('tr');
-            const fromBranch = findByKey(state.branches, 'branchCode', t.fromBranchCode)?.branchName || t.fromBranchCode;
-            tr.innerHTML = `<td>${new Date(t.date).toLocaleString()}</td><td>${fromBranch}</td><td>${t.ref}</td><td>${t.items.length}</td><td><button class="primary small btn-receive-transfer" data-batch-id="${t.batchId}">${_t('view_confirm')}</button></td>`;
-            tbody.appendChild(tr);
-        });
-        container.style.display = 'block';
-    }
-
-    function renderInTransitReport() {
-        const tbody = document.getElementById('table-in-transit').querySelector('tbody');
-        tbody.innerHTML = '';
-        const groupedTransfers = {};
-        (state.transactions || []).filter(t => t.type === 'transfer_out').forEach(t => {
-            if (!groupedTransfers[t.batchId]) groupedTransfers[t.batchId] = { ...t, items: [] };
-            groupedTransfers[t.batchId].items.push(t);
-        });
-        const visibleTransfers = Object.values(groupedTransfers).filter(t => userCan('viewAllBranches') || t.toBranchCode === state.currentUser.AssignedBranchCode || t.fromBranchCode === state.currentUser.AssignedBranchCode);
-        
-        visibleTransfers.forEach(t => {
-            const tr = document.createElement('tr');
-            const fromBranch = findByKey(state.branches, 'branchCode', t.fromBranchCode)?.branchName || t.fromBranchCode;
-            const toBranch = findByKey(state.branches, 'branchCode', t.toBranchCode)?.branchName || t.toBranchCode;
-            const canManage = (userCan('viewAllBranches') || t.fromBranchCode === state.currentUser.AssignedBranchCode) && t.Status === 'In Transit';
-            const actions = canManage ? `<div class="action-buttons"><button class="secondary small btn-edit-transfer" data-batch-id="${t.batchId}">${_t('edit')}</button><button class="danger small btn-cancel-transfer" data-batch-id="${t.batchId}">${_t('cancel')}</button></div>` : 'N/A';
-            tr.innerHTML = `<td>${new Date(t.date).toLocaleString()}</td><td>${fromBranch}</td><td>${toBranch}</td><td>${t.ref}</td><td>${t.items.length}</td><td><span class="status-tag status-${t.Status.toLowerCase().replace(/ /g,'')}">${_t('status_' + t.Status.toLowerCase().replace(/ /g, ''))}</span></td><td>${actions}</td>`;
-            tbody.appendChild(tr);
-        });
-    }
-    
-    function setupSearch(inputId, renderFn, dataKey, searchKeys) {
-        const searchInput = document.getElementById(inputId);
-        if (!searchInput) return;
-        searchInput.addEventListener('input', e => {
-            const searchTerm = e.target.value.toLowerCase();
-            const dataToFilter = state[dataKey] || [];
-            if (inputId === 'stock-levels-search') {
-                const selectedBranches = Array.from(document.getElementById('stock-levels-branch-filter').selectedOptions).map(opt => opt.value);
-                renderFn(searchTerm ? dataToFilter.filter(item => searchKeys.some(key => item[key] && String(item[key]).toLowerCase().includes(searchTerm))) : dataToFilter, selectedBranches);
-            } else {
-                 renderFn(searchTerm ? dataToFilter.filter(item => searchKeys.some(key => item[key] && String(item[key]).toLowerCase().includes(searchTerm))) : dataToFilter);
-            }
-        });
-    }
-    
     function attachSubNavListeners() { document.querySelectorAll('.sub-nav').forEach(nav => { if(nav.closest('#history-modal')) return; nav.addEventListener('click', e => { if (!e.target.classList.contains('sub-nav-item')) return; const subviewId = e.target.dataset.subview; const parentView = e.target.closest('.view'); if (!parentView) return; const currentActive = parentView.querySelector('.sub-nav-item.active'); if(currentActive) currentActive.classList.remove('active'); e.target.classList.add('active'); parentView.querySelectorAll('.sub-view').forEach(view => view.classList.remove('active')); const subViewToShow = parentView.querySelector(`#subview-${subviewId}`); if (subViewToShow) subViewToShow.classList.add('active'); refreshViewData(parentView.id.replace('view-','')); }); }); }
     
     function attachEventListeners() {
