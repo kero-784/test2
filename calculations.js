@@ -33,7 +33,7 @@ export function calculateStockLevels() {
 
 export function calculateSupplierFinancials() {
     const fins = {}; 
-    (state.suppliers||[]).forEach(s => fins[s.supplierCode] = { invoices: {}, events: [], balance: 0, totalBilled: 0, totalPaid: 0 });
+    (state.suppliers||[]).forEach(s => fins[s.supplierCode] = { invoices: {}, events: [], balance: 0, totalBilled: 0, totalPaid: 0, supplierName: s.name });
     
     (state.transactions||[]).forEach(t => {
         if(!t.supplierCode || !fins[t.supplierCode]) return;
@@ -42,6 +42,8 @@ export function calculateSupplierFinancials() {
             fins[t.supplierCode].totalBilled += val;
             if(!fins[t.supplierCode].invoices[t.invoiceNumber]) fins[t.supplierCode].invoices[t.invoiceNumber] = { number: t.invoiceNumber, date: t.date, total: 0, paid: 0 };
             fins[t.supplierCode].invoices[t.invoiceNumber].total += val;
+            // Add event
+            fins[t.supplierCode].events.push({ date: t.date, type: 'Invoice', ref: t.invoiceNumber, debit: val, credit: 0 });
         }
     });
     
@@ -51,16 +53,18 @@ export function calculateSupplierFinancials() {
             if(p.method === 'OPENING BALANCE') {
                 fins[p.supplierCode].totalBilled += amt;
                 fins[p.supplierCode].invoices[p.invoiceNumber] = { number: p.invoiceNumber, date: p.date, total: amt, paid: 0 };
+                fins[p.supplierCode].events.push({ date: p.date, type: 'Opening Balance', ref: p.invoiceNumber, debit: amt, credit: 0 });
             } else {
                 fins[p.supplierCode].totalPaid += amt;
                 if(p.invoiceNumber && fins[p.supplierCode].invoices[p.invoiceNumber]) fins[p.supplierCode].invoices[p.invoiceNumber].paid += amt;
+                fins[p.supplierCode].events.push({ date: p.date, type: 'Payment', ref: p.paymentId || 'PAY', debit: 0, credit: amt });
             }
         }
     });
     
     Object.values(fins).forEach(s => {
         s.balance = s.totalBilled - s.totalPaid;
-        Object.values(s.invoices).forEach(i => { i.balance = i.total - i.paid; i.status = Math.abs(i.balance) < 0.01 ? 'Paid' : 'Unpaid'; });
+        s.events.sort((a,b) => new Date(a.date) - new Date(b.date));
     });
     return fins;
 }
@@ -70,7 +74,7 @@ export function prepareListForSubmission(list) {
     list.forEach(i => {
         if(i.isMainItemPlaceholder) map[i.itemCode] = { ph: i, kids: [] };
         else {
-            const p = findByKey(state.items, 'code', i.itemCode).ParentItemCode;
+            const p = findByKey(state.items, 'code', i.itemCode)?.ParentItemCode;
             if(p) { if(!map[p]) map[p] = { ph: null, kids: [] }; map[p].kids.push(i); }
             else processed.push(i);
         }
