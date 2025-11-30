@@ -1,5 +1,5 @@
 // utils.js
-import { state } from './state.js';
+import { state, setState } from './state.js';
 import { SCRIPT_URL, translations } from './config.js';
 
 export const Logger = {
@@ -43,7 +43,7 @@ export function setButtonLoading(isLoading, buttonEl) {
     if (isLoading) {
         buttonEl.disabled = true;
         buttonEl.dataset.originalText = buttonEl.innerHTML;
-        buttonEl.innerHTML = `<div class="button-spinner"></div><span>Loading...</span>`;
+        buttonEl.innerHTML = `<div class="button-spinner"></div><span>...</span>`;
     } else {
         buttonEl.disabled = false;
         if (buttonEl.dataset.originalText) {
@@ -58,6 +58,20 @@ export const generateId = (prefix) => `${prefix}-${Date.now()}`;
 
 export async function postData(action, data, buttonEl) {
     setButtonLoading(true, buttonEl);
+    
+    // --- FIX: Check SessionStorage if State is empty ---
+    if (!state.username) {
+        const savedUser = sessionStorage.getItem('meatUser');
+        const savedPass = sessionStorage.getItem('meatPass');
+        if (savedUser && savedPass) {
+            setState('username', savedUser);
+            setState('loginCode', savedPass);
+            // NOTE: currentUser object might still be null if we haven't re-fetched data, 
+            // but basic POST requests only need username/code for auth.
+        }
+    }
+    // --------------------------------------------------
+
     const { username, loginCode } = state;
     
     if (!username || !loginCode) {
@@ -112,18 +126,14 @@ export function formatDate(dateString) {
     return new Date(dateString).toLocaleDateString();
 }
 
-/**
- * Opens a modal to ask an Admin which branch/section they are operating as.
- * @param {Object} config - { fromBranch: true, toSection: true, etc. }
- * @returns {Promise} Resolves with the selected context object
- */
 export async function requestAdminContext(config) {
     const modal = document.getElementById('context-selector-modal');
-    
-    // Hide all groups first
     modal.querySelectorAll('.form-group').forEach(el => el.style.display = 'none');
     
-    // Populate and show required dropdowns based on config
+    if(config.branch) {
+        populateOptions(document.getElementById('context-branch-select'), state.branches, 'Select Branch', 'branchCode', 'branchName');
+        document.getElementById('context-modal-branch-group').style.display = 'block';
+    }
     if(config.fromBranch) {
         populateOptions(document.getElementById('context-from-branch-select'), state.branches, 'Select From Branch', 'branchCode', 'branchName');
         document.getElementById('context-modal-fromBranch-group').style.display = 'block';
@@ -131,10 +141,6 @@ export async function requestAdminContext(config) {
     if(config.toBranch) {
         populateOptions(document.getElementById('context-to-branch-select'), state.branches, 'Select To Branch', 'branchCode', 'branchName');
         document.getElementById('context-modal-toBranch-group').style.display = 'block';
-    }
-    if(config.branch) {
-        populateOptions(document.getElementById('context-branch-select'), state.branches, 'Select Branch', 'branchCode', 'branchName');
-        document.getElementById('context-modal-branch-group').style.display = 'block';
     }
     if(config.toSection) {
         populateOptions(document.getElementById('context-to-section-select'), state.sections, 'Select To Section', 'sectionCode', 'sectionName');
