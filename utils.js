@@ -4,14 +4,29 @@ export const Logger = {
     info: (m, ...a) => console.log(`[StockWise INFO] ${m}`, ...a),
     warn: (m, ...a) => console.warn(`[StockWise WARN] ${m}`, ...a),
     error: (m, ...a) => console.error(`[StockWise ERROR] ${m}`, ...a),
-    debug: (m, ...a) => { if (state.currentUser && state.currentUser.RoleName === 'Admin') showToast(`DEBUG: ${m}`, 'info'); }
+    debug: (m, ...a) => { if (state.currentUser?.RoleName === 'Admin') showToast(`DEBUG: ${m}`, 'info'); }
 };
 
 export const _t = (key, r) => { 
     let t = translations[state.currentLanguage]?.[key] || key; 
-    for(let k in r) t = t.replace(`{${k}}`, r[k]); 
+    if(r) {
+        for(let k in r) t = t.replaceAll(`{${k}}`, r[k]); 
+    }
     return t; 
 };
+
+export function printContent(content) {
+    const printWindow = window.open('', '', 'height=600,width=800');
+    if (!printWindow) { showToast('Popup blocked. Please allow popups.', 'error'); return; }
+    printWindow.document.write('<html><head><title>Print</title>');
+    printWindow.document.write('<link rel="stylesheet" href="style.css">'); 
+    printWindow.document.write('</head><body>');
+    printWindow.document.write(content);
+    printWindow.document.write('</body></html>');
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => printWindow.print(), 500);
+}
 
 export function applyTranslations() {
     document.documentElement.lang = state.currentLanguage;
@@ -45,6 +60,7 @@ export function setButtonLoading(l, b) {
 
 export function populateOptions(el, data, ph, valK, txtK, txtK2) { 
     if(!el) return; 
-    el.innerHTML = `<option value="">${ph}</option>`; 
-    (data||[]).forEach(i => el.innerHTML += `<option value="${i[valK]}">${i[txtK]}${txtK2 && i[txtK2] ? ' (' + i[txtK2] + ')' : ''}</option>`); 
+    let html = `<option value="">${ph}</option>`; 
+    (data||[]).forEach(i => html += `<option value="${i[valK]}">${i[txtK]}${txtK2 && i[txtK2] ? ' (' + i[txtK2] + ')' : ''}</option>`); 
+    el.innerHTML = html;
 }
