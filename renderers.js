@@ -1,7 +1,8 @@
 import { state } from './state.js';
-import { _t, findByKey } from './utils.js';
+import { _t, findByKey, showToast } from './utils.js';
 import { calculateStockLevels } from './calculations.js';
 
+// --- Totals ---
 export function updateReceiveGrandTotal() { 
     let grandTotal = 0; 
     (state.currentReceiveList || []).forEach(item => { 
@@ -10,12 +11,10 @@ export function updateReceiveGrandTotal() {
     }); 
     document.getElementById('receive-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; 
 }
-
 export function updateTransferGrandTotal() { 
     let t = 0; state.currentTransferList.forEach(i => t += (parseFloat(i.quantity) || 0)); 
     document.getElementById('transfer-grand-total').textContent = t.toFixed(2); 
 }
-
 export function updatePOGrandTotal() { 
     let t = 0; state.currentPOList.forEach(i => { 
         if(i.isMainItemPlaceholder) t+=parseFloat(i.cost)||0; 
@@ -23,7 +22,6 @@ export function updatePOGrandTotal() {
     }); 
     document.getElementById('po-grand-total').textContent = t.toFixed(2); 
 }
-
 export function updatePOEditGrandTotal() { 
     let t = 0; state.currentEditingPOList.forEach(i => { if(!findByKey(state.items,'code',i.itemCode)?.ParentItemCode) t+=(parseFloat(i.quantity)||0)*(parseFloat(i.cost)||0); }); document.getElementById('edit-po-grand-total').textContent = t.toFixed(2); 
 }
@@ -31,6 +29,7 @@ export function updateReturnGrandTotal() {
     let t = 0; state.currentReturnList.forEach(i => { if(!findByKey(state.items,'code',i.itemCode)?.ParentItemCode) t+=(parseFloat(i.quantity)||0)*(parseFloat(i.cost)||0); }); document.getElementById('return-grand-total').textContent = t.toFixed(2); 
 }
 
+// --- Table Renderer ---
 export const renderDynamicListTable = (tbodyId, list, columnsConfig, emptyMessage, totalizerFn) => {
     const tbody = document.getElementById(tbodyId).querySelector('tbody');
     tbody.innerHTML = '';
@@ -42,7 +41,6 @@ export const renderDynamicListTable = (tbodyId, list, columnsConfig, emptyMessag
 
     const stock = calculateStockLevels();
     const branchCode = document.getElementById(columnsConfig.find(c => c.branchSelectId)?.branchSelectId)?.value;
-
     const groupedMap = {}; const standaloneList = []; 
 
     list.forEach((item, index) => {
@@ -98,24 +96,19 @@ export const renderDynamicListTable = (tbodyId, list, columnsConfig, emptyMessag
     if(totalizerFn) totalizerFn();
 };
 
-export function renderReceiveListTable() { renderDynamicListTable('table-receive-list', state.currentReceiveList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated' } ], 'no_items_selected_toast', updateReceiveGrandTotal); }
-export function renderTransferListTable() { renderDynamicListTable('table-transfer-list', state.currentTransferList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'available_stock', branchSelectId: 'transfer-from-branch' }, { type: 'number_input', key: 'quantity', maxKey: true, branchSelectId: 'transfer-from-branch' } ], 'no_items_selected_toast', updateTransferGrandTotal); }
-export function renderPOListTable() { renderDynamicListTable('table-po-list', state.currentPOList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated' } ], 'no_items_selected_toast', updatePOGrandTotal); }
-export function renderPOEditListTable() { renderDynamicListTable('table-edit-po-list', state.currentEditingPOList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated' } ], 'no_items_selected_toast', updatePOEditGrandTotal); }
-export function renderReturnListTable() { renderDynamicListTable('table-return-list', state.currentReturnList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'available_stock', branchSelectId: 'return-branch' }, { type: 'number_input', key: 'quantity', maxKey: true, branchSelectId: 'return-branch' }, { type: 'cost_input', key: 'cost' } ], 'no_items_selected_toast', updateReturnGrandTotal); }
-
 export function renderTransactionHistory(filters = {}) {
     const tbody = document.getElementById('table-transaction-history').querySelector('tbody'); 
     tbody.innerHTML = '';
     let items = [...(state.transactions||[])];
-    
     if(filters.branch) items = items.filter(t => t.branchCode == filters.branch || t.fromBranchCode == filters.branch || t.toBranchCode == filters.branch);
     if(filters.type) items = items.filter(t => t.type == filters.type);
-    
     const groups = {}; items.forEach(t => { if(!groups[t.batchId]) groups[t.batchId] = []; groups[t.batchId].push(t); });
-    
     Object.values(groups).sort((a,b) => new Date(b[0].date) - new Date(a[0].date)).forEach(g => {
         const t = g[0];
         tbody.innerHTML += `<tr><td>${new Date(t.date).toLocaleString()}</td><td>${t.type}</td><td>${t.batchId}</td><td>${g.length} Items</td><td>${t.Status||''}</td><td><button class="secondary small btn-view-tx" data-batch-id="${t.batchId}" data-type="${t.type}">View</button></td></tr>`;
     });
 }
+
+export function renderItemsTable() { const tbody = document.getElementById('table-items').querySelector('tbody'); tbody.innerHTML = ''; (state.items||[]).forEach(i => tbody.innerHTML += `<tr><td>${i.code}</td><td>${i.name}</td><td>${i.ParentItemCode||''}</td><td>${i.cost}</td><td><button class="secondary small btn-edit" data-type="item" data-id="${i.code}">Edit</button></td></tr>`); }
+export function renderSuppliersTable() { const tbody = document.getElementById('table-suppliers').querySelector('tbody'); tbody.innerHTML = ''; (state.suppliers||[]).forEach(s => tbody.innerHTML += `<tr><td>${s.supplierCode}</td><td>${s.name}</td><td>-</td><td><button class="secondary small btn-edit" data-type="supplier" data-id="${s.supplierCode}">Edit</button></td></tr>`); }
+export function renderBranchesTable() { const tbody = document.getElementById('table-branches').querySelector('tbody'); tbody.innerHTML = ''; (state.branches||[]).forEach(b => tbody.innerHTML += `<tr><td>${b.branchCode}</td><td>${b.branchName}</td><td><button class="secondary small btn-edit" data-type="branch" data-id="${b.branchCode}">Edit</button></td></tr>`); }
