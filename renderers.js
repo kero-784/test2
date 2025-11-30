@@ -1,6 +1,6 @@
 import { state } from './state.js';
-import { _t, findByKey } from './utils.js';
-import { calculateStockLevels } from './calculations.js';
+import { _t, findByKey, printContent } from './utils.js'; // Ensure printContent is imported
+import { calculateStockLevels, prepareListForSubmission } from './calculations.js';
 
 // --- TOTALIZER FUNCTIONS ---
 export function updateReceiveGrandTotal() { 
@@ -121,7 +121,7 @@ export const renderDynamicListTable = (tbodyId, list, columnsConfig, emptyMessag
     if(totalizerFn) totalizerFn();
 };
 
-// --- SPECIFIC RENDERERS (ALL EXPORTED) ---
+// --- SPECIFIC RENDERERS ---
 export function renderReceiveListTable() { 
     renderDynamicListTable('table-receive-list', state.currentReceiveList, 
         [{ type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated' }], 
@@ -193,3 +193,36 @@ export function renderAdjustmentListTable() {
         tbody.innerHTML += `<tr><td>${item.itemCode}</td><td>${item.itemName}</td><td>${sys.toFixed(2)}</td><td><input type="number" class="table-input" value="${phys}" data-index="${idx}" data-field="physicalCount"></td><td>${adj.toFixed(2)}</td><td><button class="danger small" data-index="${idx}">X</button></td></tr>`;
     });
 }
+
+// --- DOCUMENT GENERATORS (MOVED HERE) ---
+const generateGroupedItemsHtml = (data, headers) => {
+    let itemsHtml = ''; let grandTotal = 0;
+    const groupedItems = {};
+    data.items.forEach(item => {
+        const fullItem = findByKey(state.items, 'code', item.itemCode) || { ParentItemCode: null };
+        const parentCode = fullItem.ParentItemCode || item.itemCode; 
+        if (!groupedItems[parentCode]) groupedItems[parentCode] = { parent: findByKey(state.items, 'code', parentCode), children: [], totalValue: 0, totalWeight: 0, mainItemData: null };
+        if(fullItem.ParentItemCode) { groupedItems[parentCode].children.push(item); groupedItems[parentCode].totalWeight += (parseFloat(item.quantity) || 0); }
+        else { if(item.isMainItemPlaceholder) groupedItems[parentCode].mainItemData = item; else { groupedItems[parentCode].mainItemData = item; groupedItems[parentCode].totalWeight = (parseFloat(item.quantity) || 0); groupedItems[parentCode].totalValue = groupedItems[parentCode].totalWeight * (parseFloat(item.cost) || 0); } }
+    });
+    for (const key in groupedItems) {
+        const group = groupedItems[key];
+        if (group.children.length > 0) {
+             const mainData = group.mainItemData || { cost: 0 };
+             group.totalValue = parseFloat(group.mainItemData ? group.mainItemData.cost : 0); // Lump sum cost is total
+             itemsHtml += `<tr class="main-item-group-header"><td colspan="${headers.length}"><strong>${group.parent?.name}</strong></td></tr>`;
+             group.children.forEach(item => itemsHtml += `<tr><td>${item.itemCode}</td><td>${item.itemName}</td><td>${item.quantity}</td><td>-</td><td>-</td></tr>`);
+             grandTotal += group.totalValue;
+        }
+    }
+    return { html: itemsHtml, totalValue: grandTotal };
+};
+
+export const generateTransferDocument = (d) => { printContent(`<div>Transfer ${d.batchId}</div>`); };
+export const generateReceiveDocument = (d) => { 
+    const { html, totalValue } = generateGroupedItemsHtml(d, ['code','name','qty','cost','total']);
+    printContent(`<div><h2>GRN ${d.batchId}</h2><table>${html}</table><h3>Total: ${totalValue}</h3></div>`); 
+};
+export const generatePODocument = (d) => { printContent(`<div>PO ${d.poId}</div>`); };
+export const generateReturnDocument = (d) => { printContent(`<div>Return ${d.batchId}</div>`); };
+export const generatePaymentVoucher = (d) => { printContent(`<div>Payment ${d.totalAmount}</div>`); };
