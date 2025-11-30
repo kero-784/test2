@@ -41,7 +41,6 @@ import {
 import { applyTranslations, _t, showToast, findByKey, populateOptions, generateId, setButtonLoading } from './utils.js';
 import { calculateStockLevels, prepareListForSubmission } from './calculations.js';
 
-// --- GLOBAL PRINT HELPER ---
 window.printReport = function(elementId) {
     const reportContent = document.querySelector(`#${elementId} .printable-document`);
     if (reportContent) {
@@ -51,8 +50,6 @@ window.printReport = function(elementId) {
         alert("Error: Report content not found.");
     }
 };
-
-// --- LOCAL RENDERERS & SUBMIT LOGIC ---
 
 function renderActivityLog() {
     const tbody = document.getElementById('table-activity-log').querySelector('tbody');
@@ -113,7 +110,6 @@ async function handleTransactionSubmit(payload, buttonEl) {
     }
 }
 
-// --- VIEW SWITCHER ---
 async function refreshViewData(viewId) {
     if (!state.currentUser) return;
     switch(viewId) {
@@ -163,7 +159,6 @@ async function refreshViewData(viewId) {
     applyTranslations();
 }
 
-// --- EVENT BINDING ---
 function attachEventListeners() {
     document.getElementById('btn-logout').onclick = () => location.reload();
     document.getElementById('global-refresh-button').onclick = reloadDataAndRefreshUI;
@@ -177,19 +172,16 @@ function attachEventListeners() {
         await handleTransactionSubmit(payload, e.target);
     };
     
-    // Attach Tables
     attachTableListeners('table-receive-list', 'currentReceiveList', renderReceiveListTable);
     attachTableListeners('table-transfer-list', 'currentTransferList', renderTransferListTable);
     attachTableListeners('table-po-list', 'currentPOList', renderPOListTable);
     
-    // Modals
     document.getElementById('btn-confirm-modal-selection').onclick = confirmModalSelection;
     document.getElementById('modal-item-list').addEventListener('change', handleModalCheckboxChange);
     document.getElementById('modal-search-items').addEventListener('input', (e) => {
         renderItemsInModal(e.target.value);
     });
     
-    // Main Nav
     document.querySelectorAll('#main-nav a').forEach(link => {
         link.addEventListener('click', e => {
             e.preventDefault();
@@ -201,7 +193,6 @@ function attachEventListeners() {
         });
     });
 
-    // Sub Nav
     document.querySelectorAll('.sub-nav-item').forEach(btn => {
         btn.addEventListener('click', e => {
              const parent = btn.closest('.view');
@@ -212,18 +203,16 @@ function attachEventListeners() {
         });
     });
 
-    // Main Content Click Delegation
     document.querySelector('.main-content').addEventListener('click', e => {
         if(e.target.classList.contains('btn-edit')) openEditModal(e.target.dataset.type, e.target.dataset.id);
         if(e.target.dataset.context) {
-             modalContext.value = e.target.dataset.context; // Mutate value, not reassign variable
+             modalContext.value = e.target.dataset.context; 
              state.modalSelections.clear();
              renderItemsInModal();
              openItemSelectorModal(e);
         }
     });
     
-    // Stock View Inputs
     document.getElementById('stock-levels-search')?.addEventListener('input', renderItemCentricStockView);
     document.getElementById('item-inquiry-search')?.addEventListener('input', renderItemInquiry);
 }
@@ -239,7 +228,6 @@ export function initializeAppUI() {
     document.querySelector('[data-view="dashboard"]').click();
 }
 
-// Init
 document.getElementById('login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const success = await attemptLogin(document.getElementById('login-username').value.trim(), document.getElementById('login-code').value);
