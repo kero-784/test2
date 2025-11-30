@@ -1,8 +1,6 @@
-
 import { state, SCRIPT_URL } from './state.js';
 import { Logger, showToast, setButtonLoading, _t } from './utils.js';
 
-// --- LOGIN ---
 export async function attemptLogin(u, c) {
     const loginForm = document.getElementById('login-form');
     const loginError = document.getElementById('login-error');
@@ -35,7 +33,7 @@ export async function attemptLogin(u, c) {
         const langSwitcher = document.getElementById('lang-switcher');
         if(langSwitcher) langSwitcher.value = savedLang;
         
-        return true; // Login success
+        return true; 
         
     } catch (err) {
         Logger.error('Login failed:', err); 
@@ -46,7 +44,6 @@ export async function attemptLogin(u, c) {
     }
 }
 
-// --- GENERIC POST ---
 export async function postData(action, data, btn) {
     setButtonLoading(true, btn);
     try {
@@ -70,7 +67,6 @@ export async function postData(action, data, btn) {
     }
 }
 
-// --- DATA RELOAD ---
 export async function reloadDataAndRefreshUI() {
     const btn = document.getElementById('global-refresh-button');
     if (!state.username) return;
