@@ -111,3 +111,43 @@ export function formatDate(dateString) {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString();
 }
+
+/**
+ * Opens a modal to ask an Admin which branch/section they are operating as.
+ * @param {Object} config - { fromBranch: true, toSection: true, etc. }
+ * @returns {Promise} Resolves with the selected context object
+ */
+export async function requestAdminContext(config) {
+    const modal = document.getElementById('context-selector-modal');
+    
+    // Hide all groups first
+    modal.querySelectorAll('.form-group').forEach(el => el.style.display = 'none');
+    
+    // Populate and show required dropdowns based on config
+    if(config.fromBranch) {
+        populateOptions(document.getElementById('context-from-branch-select'), state.branches, 'Select From Branch', 'branchCode', 'branchName');
+        document.getElementById('context-modal-fromBranch-group').style.display = 'block';
+    }
+    if(config.toBranch) {
+        populateOptions(document.getElementById('context-to-branch-select'), state.branches, 'Select To Branch', 'branchCode', 'branchName');
+        document.getElementById('context-modal-toBranch-group').style.display = 'block';
+    }
+    if(config.branch) {
+        populateOptions(document.getElementById('context-branch-select'), state.branches, 'Select Branch', 'branchCode', 'branchName');
+        document.getElementById('context-modal-branch-group').style.display = 'block';
+    }
+    if(config.toSection) {
+        populateOptions(document.getElementById('context-to-section-select'), state.sections, 'Select To Section', 'sectionCode', 'sectionName');
+        document.getElementById('context-modal-toSection-group').style.display = 'block';
+    }
+    if(config.fromSection) {
+        populateOptions(document.getElementById('context-from-section-select'), state.sections, 'Select From Section', 'sectionCode', 'sectionName');
+        document.getElementById('context-modal-fromSection-group').style.display = 'block';
+    }
+
+    modal.classList.add('active');
+    
+    return new Promise((resolve, reject) => {
+        state.adminContextPromise = { resolve, reject };
+    });
+}
