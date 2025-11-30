@@ -1,4 +1,3 @@
-
 window.printReport = function(elementId) {
     const reportContent = document.querySelector(`#${elementId} .printable-document`);
     if (reportContent) {
@@ -13,9 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // !!! IMPORTANT: PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwSM8G9AqHy6Nnhwcpit7xRJbKMkY93ACaHA3_3pzwZlNaF6ORzVL-Ev10FF7HQiu9M/exec';
 
-    // ==========================================
-    // 1. STATE & CONSTANTS
-    // ==========================================
+    // --- STATE & CONSTANTS ---
     const Logger = {
         info: (m, ...a) => console.log(`[StockWise INFO] ${m}`, ...a),
         warn: (m, ...a) => console.warn(`[StockWise WARN] ${m}`, ...a),
@@ -34,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     let modalContext = null;
 
-    // DOM Elements
+    // --- DOM ELEMENTS ---
     const loginContainer = document.getElementById('login-container');
     const loginForm = document.getElementById('login-form');
     const loginUsernameInput = document.getElementById('login-username');
@@ -45,7 +42,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnLogout = document.getElementById('btn-logout');
     const globalRefreshBtn = document.getElementById('global-refresh-button');
     const mainContent = document.querySelector('.main-content');
-
     // Modals
     const itemSelectorModal = document.getElementById('item-selector-modal');
     const invoiceSelectorModal = document.getElementById('invoice-selector-modal');
@@ -70,13 +66,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    const _t = (key, replacements = {}) => {
+    function _t(key, replacements = {}) {
         let text = translations[state.currentLanguage]?.[key] || translations['en'][key] || key;
         for (const placeholder in replacements) {
             text = text.replace(`{${placeholder}}`, replacements[placeholder]);
         }
         return text;
-    };
+    }
 
     function applyTranslations() {
         const lang = state.currentLanguage;
@@ -92,15 +88,30 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    const userCan = (permission) => {
+    function userCan(permission) {
         if (!state.currentUser || !state.currentUser.permissions) return false;
         const p = state.currentUser.permissions[permission];
         return p === true || String(p).toUpperCase() === 'TRUE';
-    };
-    const findByKey = (array, key, value) => (array || []).find(el => el && String(el[key]) === String(value));
-    const generateId = (prefix) => `${prefix}-${Date.now()}`;
-    const printContent = (content) => { document.getElementById('print-area').innerHTML = content; setTimeout(() => window.print(), 200); };
-    const exportToExcel = (tableId, filename, sheetName = 'Sheet1') => { try { const table = document.getElementById(tableId); if (!table) { showToast('Please generate a report first.', 'error'); return; } const wb = XLSX.utils.table_to_book(table, {sheet: sheetName}); XLSX.writeFile(wb, filename); showToast('Exporting to Excel...', 'success'); } catch (err) { showToast('Excel export failed.', 'error'); Logger.error('Export Error:', err); } };
+    }
+
+    function findByKey(array, key, value) {
+        return (array || []).find(el => el && String(el[key]) === String(value));
+    }
+
+    function generateId(prefix) {
+        return `${prefix}-${Date.now()}`;
+    }
+
+    function showToast(message, type = 'success') {
+        if (type === 'error') Logger.error(`User Toast: ${message}`);
+        const container = document.getElementById('toast-container');
+        if (!container) return;
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.textContent = message;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 3500);
+    }
 
     function setButtonLoading(isLoading, buttonEl) {
         if (!buttonEl) return;
@@ -117,45 +128,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function showToast(message, type = 'success') {
-        if (type === 'error') Logger.error(`User Toast: ${message}`);
-        const container = document.getElementById('toast-container');
-        if (!container) {
-            console.error("Toast container not found! Message:", message);
-            return;
-        }
-        const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
-        toast.textContent = message;
-        container.appendChild(toast);
-        setTimeout(() => toast.remove(), 3500);
-    }
-
     function populateOptions(el, data, ph, valueKey, textKey, textKey2) { 
         if (!el) { console.warn(`populateOptions failed: element is null for placeholder "${ph}"`); return; }
         el.innerHTML = `<option value="">${ph}</option>`; 
         (data || []).forEach(item => { 
             el.innerHTML += `<option value="${item[valueKey]}">${item[textKey]}${textKey2 && item[textKey2] ? ' (' + item[textKey2] + ')' : ''}</option>`;
         }); 
-    };
+    }
 
-    // ==========================================
-    // 2. API FUNCTIONS
-    // ==========================================
+    function getContextList() {
+        if(modalContext === 'receive') return state.currentReceiveList;
+        if(modalContext === 'transfer') return state.currentTransferList;
+        if(modalContext === 'po') return state.currentPOList;
+        return null;
+    }
+
+    // --- 2. API FUNCTIONS ---
     async function attemptLogin(username, loginCode) {
         if (!username || !loginCode) return;
         loginForm.style.display = 'none';
         loginError.textContent = '';
         loginLoader.style.display = 'flex';
         Logger.info(`Attempting to login...`);
-        if (!SCRIPT_URL || !SCRIPT_URL.includes('macros/s')) {
-            const errorMsg = 'SCRIPT_URL is not set or invalid in script.js.';
-            Logger.error(errorMsg);
-            loginError.textContent = errorMsg;
-            loginLoader.style.display = 'none';
-            loginForm.style.display = 'block';
-            return;
-        }
         try {
             const response = await fetch(`${SCRIPT_URL}?username=${encodeURIComponent(username)}&loginCode=${encodeURIComponent(loginCode)}`);
             if (!response.ok) throw new Error(`Network error: ${response.status} ${response.statusText}`);
@@ -195,10 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function postData(action, data, buttonEl) {
         setButtonLoading(true, buttonEl);
         Logger.debug(`POSTing action: ${action}`, data);
-        const {
-            username,
-            loginCode
-        } = state;
+        const { username, loginCode } = state;
         if (!username || !loginCode) {
             Logger.error("Authentication token missing. Cannot perform action.");
             showToast(_t('session_error_toast'), 'error');
@@ -210,12 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch(SCRIPT_URL, {
                 method: 'POST',
                 mode: 'cors',
-                body: JSON.stringify({
-                    username,
-                    loginCode,
-                    action,
-                    data
-                })
+                body: JSON.stringify({ username, loginCode, action, data })
             });
             const result = await response.json();
             if (result.status !== 'success') throw new Error(result.message || 'An unknown error occurred on the server.');
@@ -231,9 +217,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // ==========================================
-    // 3. CALCULATIONS
-    // ==========================================
+    // --- 3. CALCULATIONS & LOGIC ---
     function calculateStockLevels() {
         const stock = {};
         (state.branches || []).forEach(branch => { stock[branch.branchCode] = {}; });
@@ -283,7 +267,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         return stock;
-    };
+    }
 
     function calculateSupplierFinancials() {
         const financials = {};
@@ -327,224 +311,6 @@ document.addEventListener('DOMContentLoaded', () => {
             s.events = allEvents.sort((a,b) => new Date(a.date) - new Date(b.date));
         });
         financials.allInvoices = {}; Object.values(financials).forEach(s => { Object.assign(financials.allInvoices, s.invoices); }); return financials;
-    };
-
-    // ==========================================
-    // 4. BUSINESS LOGIC (Backup, Payment, Submit, Update)
-    // ==========================================
-    async function handleAutoBackupToggle() {
-        const toggle = document.getElementById('auto-backup-toggle');
-        const frequency = document.getElementById('auto-backup-frequency').value;
-        const frequencyContainer = document.getElementById('auto-backup-frequency-container');
-        const statusEl = document.getElementById('auto-backup-status');
-        const isEnabled = toggle.checked;
-        frequencyContainer.style.display = isEnabled ? 'block' : 'none';
-        statusEl.textContent = 'Updating settings...';
-        const result = await postData('setAutomaticBackup', { enabled: isEnabled, frequency: frequency }, toggle);
-        if (result) {
-            showToast(_t('auto_backup_updated_toast'), 'success');
-            statusEl.textContent = isEnabled ? `Automatic backups enabled (${frequency}).` : 'Automatic backups disabled.';
-        } else {
-            toggle.checked = !isEnabled;
-            frequencyContainer.style.display = toggle.checked ? 'block' : 'none';
-            statusEl.textContent = _t('auto_backup_failed_toast');
-        }
-    }
-
-    async function loadAutoBackupSettings() {
-        const toggle = document.getElementById('auto-backup-toggle');
-        const frequencyContainer = document.getElementById('auto-backup-frequency-container');
-        const statusEl = document.getElementById('auto-backup-status');
-        statusEl.textContent = 'Checking status...';
-        const result = await postData('getAutomaticBackupStatus', {}, null);
-        if (result && result.data.enabled !== undefined) {
-            const isEnabled = result.data.enabled;
-            toggle.checked = isEnabled;
-            frequencyContainer.style.display = isEnabled ? 'block' : 'none';
-            statusEl.textContent = isEnabled ? 'Automatic backups are currently active.' : 'Automatic backups are currently disabled.';
-        } else {
-            statusEl.textContent = 'Could not retrieve automatic backup status.';
-        }
-    }
-
-    async function loadAndRenderBackups() {
-        const container = document.getElementById('backup-list-container');
-        container.innerHTML = `<table><tbody><tr><td><div class="spinner" style="width:30px;height:30px;border-width:3px;"></div></td><td>${_t('loading_backups')}</td></tr></tbody></table>`;
-        const result = await postData('listBackups', {}, null);
-        if (result && result.data) {
-            state.backups = result.data;
-            if (state.backups.length === 0) {
-                container.innerHTML = `<p>${_t('no_backups_found')}</p>`;
-                return;
-            }
-            let tableHtml = `<table id="table-backups"><thead><tr><th>${_t('backup_name')}</th><th>${_t('date_created')}</th><th>${_t('actions')}</th></tr></thead><tbody>`;
-            state.backups.forEach(backup => {
-                tableHtml += `
-                    <tr>
-                        <td>${backup.name}</td>
-                        <td>${new Date(backup.dateCreated).toLocaleString()}</td>
-                        <td>
-                            <div class="action-buttons">
-                                <a href="${backup.url}" target="_blank" rel="noopener noreferrer" class="secondary small" style="text-decoration: none;">${_t('open')}</a>
-                                <button class="danger small btn-restore" data-url="${backup.url}">${_t('restore')}</button>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-            });
-            tableHtml += '</tbody></table>';
-            container.innerHTML = tableHtml;
-        } else {
-            container.innerHTML = `<p>Could not load backup list. Please check permissions or try again.</p>`;
-        }
-    }
-
-    function openRestoreModal(backupFileId, backupFileName) {
-        const modal = document.getElementById('restore-modal');
-        const sheetListContainer = document.getElementById('restore-sheet-list');
-        const confirmInput = document.getElementById('restore-confirmation-input');
-        const confirmBtn = document.getElementById('btn-confirm-restore');
-    
-        document.getElementById('restore-filename-display').textContent = backupFileName;
-        confirmBtn.dataset.backupFileId = backupFileId;
-        
-        confirmInput.value = '';
-        confirmBtn.disabled = true;
-    
-        const coreSheets = [ 'Items', 'Suppliers', 'Branches', 'Transactions', 'Payments', 'PurchaseOrders', 'PurchaseOrderItems', 'Users', 'Permissions', 'Settlements', 'SettlementItems' ];
-        
-        sheetListContainer.innerHTML = '';
-        coreSheets.forEach(sheetName => {
-            sheetListContainer.innerHTML += `<div class="form-group-checkbox"><input type="checkbox" id="restore-sheet-${sheetName}" name="restoreSheet" value="${sheetName}"><label for="restore-sheet-${sheetName}">${sheetName}</label></div>`;
-        });
-        
-        const updateConfirmButtonState = () => {
-            const sheetsSelected = document.querySelectorAll('#restore-sheet-list input:checked').length > 0;
-            confirmBtn.disabled = !(confirmInput.value === 'RESTORE' && sheetsSelected);
-        };
-
-        confirmInput.addEventListener('input', updateConfirmButtonState);
-        sheetListContainer.addEventListener('change', updateConfirmButtonState);
-    
-        modal.classList.add('active');
-    }
-    
-    async function handleConfirmRestore(e) {
-        const btn = e.target;
-        const backupFileId = btn.dataset.backupFileId;
-        const selectedSheets = Array.from(document.querySelectorAll('#restore-sheet-list input:checked')).map(el => el.value);
-    
-        if (selectedSheets.length === 0) {
-            showToast(_t('restore_select_sheet_toast'), 'error');
-            return;
-        }
-    
-        const payload = {
-            backupFileId: backupFileId,
-            sheetsToRestore: selectedSheets
-        };
-    
-        const result = await postData('restoreFromBackup', payload, btn);
-    
-        if (result) {
-            showToast(result.data.message || _t('restore_completed_toast'), 'success');
-            closeModal();
-            await reloadDataAndRefreshUI();
-        }
-    }
-
-    // --- MISSING FUNCTION ADDED HERE ---
-    async function handleUpdateSubmit(e) {
-        e.preventDefault();
-        const btn = e.target.querySelector('button[type="submit"]');
-        const type = formEditRecord.dataset.type;
-        const id = formEditRecord.dataset.id;
-        const formData = new FormData(formEditRecord);
-        let payload = {}, action;
-
-        if (type === 'item') {
-            action = 'updateData';
-            const updates = {};
-            for (let [key, value] of formData.entries()) {
-                updates[key] = value;
-            }
-            if (!document.getElementById('edit-is-sub-item-toggle').checked) {
-                updates.ParentItemCode = '';
-            } else {
-                updates.cost = 0; 
-            }
-            payload = { type, id, updates };
-        } else if (type === 'user') {
-            action = id ? 'updateUser' : 'addUser';
-            payload = {};
-            for (let [key, value] of formData.entries()) {
-                 if (key === 'LoginCode' && value === '') continue;
-                 payload[key] = value;
-            }
-            if(id) {
-                payload = { Username: id, updates: {} };
-                for (let [key, value] of formData.entries()) {
-                    if (key === 'LoginCode' && value === '') continue;
-                    if (key !== 'Username') payload.updates[key] = value;
-                }
-            }
-        } else if (type === 'role') {
-            action = 'updateRolePermissions';
-            const updates = {};
-            const allPerms = Object.keys(findByKey(state.allRoles, 'RoleName', id) || {});
-            allPerms.forEach(key => {
-                if (key !== 'RoleName') {
-                    updates[key] = formData.has(key);
-                }
-            });
-            payload = { RoleName: id, updates: updates };
-        } else {
-            action = 'updateData';
-            const updates = {};
-            for (let [key, value] of formData.entries()) {
-                updates[key] = value;
-            }
-            payload = { type, id, updates };
-        }
-        
-        const result = await postData(action, payload, btn);
-        if (result) {
-            const toastMessage = id ? _t('update_success_toast', {type: _t(type)}) : _t('add_success_toast', {type: _t(type)});
-            showToast(toastMessage, 'success');
-            closeModal();
-            await reloadDataAndRefreshUI();
-        }
-    }
-
-    function handlePaymentInputChange() {
-        let total = 0;
-        document.querySelectorAll('.payment-amount-input').forEach(input => {
-            total += parseFloat(input.value) || 0;
-        });
-        document.getElementById('payment-total-amount').textContent = `${total.toFixed(2)} EGP`;
-    }
-
-    async function handleTransactionSubmit(payload, buttonEl) {
-        const action = payload.type === 'po' ? 'addPurchaseOrder' : 'addTransactionBatch';
-        payload.items = prepareListForSubmission(payload.items); // Lump Sum Logic
-        const result = await postData(action, payload, buttonEl);
-        if (result) {
-            const typeKey = payload.type.replace(/_/g,'');
-            let message = _t('tx_processed_toast', { txType: _t(typeKey) });
-            if (payload.type === 'receive' || payload.type === 'po') {
-                 message = _t('tx_processed_approval_toast', { txType: _t(typeKey) });
-            }
-
-            if (payload.type === 'receive') { state.currentReceiveList = []; document.getElementById('form-receive-details').reset(); renderReceiveListTable(); }
-            else if (payload.type === 'transfer_out') { generateTransferDocument(result.data); state.currentTransferList = []; document.getElementById('form-transfer-details').reset(); document.getElementById('transfer-ref').value = generateId('TRN'); renderTransferListTable(); }
-            else if (payload.type === 'po') { state.currentPOList = []; document.getElementById('form-po-details').reset(); document.getElementById('po-ref').value = generateId('PO'); renderPOListTable(); }
-            else if (payload.type === 'return_out') { generateReturnDocument(result.data); state.currentReturnList = []; document.getElementById('form-return-details').reset(); renderReturnListTable(); }
-            else if (payload.type === 'stock_adjustment') { state.currentAdjustmentList = []; document.getElementById('form-adjustment-details').reset(); renderAdjustmentListTable(); }
-            else if (payload.type === 'extraction') { document.getElementById('form-extraction-details').reset(); renderExtractionPreview(); }
-            
-            showToast(message, 'success');
-            await reloadDataAndRefreshUI();
-        }
     }
 
     function prepareListForSubmission(list) {
@@ -579,9 +345,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return processedList;
     }
 
-    // ==========================================
-    // 5. TABLE RENDERERS & TOTALS
-    // ==========================================
+    // --- 4. RENDERERS ---
     function updateReceiveGrandTotal() { 
         let grandTotal = 0; 
         (state.currentReceiveList || []).forEach(item => { 
@@ -638,7 +402,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('return-grand-total').textContent = `${grandTotal.toFixed(2)} EGP`; 
     }
 
-    const renderDynamicListTable = (tbodyId, list, columnsConfig, emptyMessage, totalizerFn) => {
+    function renderDynamicListTable(tbodyId, list, columnsConfig, emptyMessage, totalizerFn) {
         const tbody = document.getElementById(tbodyId).querySelector('tbody');
         tbody.innerHTML = '';
         if (!list || list.length === 0) {
@@ -771,7 +535,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (totalizerFn) totalizerFn();
-    };
+    }
 
     function renderReceiveListTable() { renderDynamicListTable('table-receive-list', state.currentReceiveList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated' } ], 'no_items_selected_toast', updateReceiveGrandTotal); }
     function renderTransferListTable() { renderDynamicListTable('table-transfer-list', state.currentTransferList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'available_stock', branchSelectId: 'transfer-from-branch' }, { type: 'number_input', key: 'quantity', maxKey: true, branchSelectId: 'transfer-from-branch' } ], 'no_items_selected_toast', updateTransferGrandTotal); }
@@ -978,349 +742,100 @@ document.addEventListener('DOMContentLoaded', () => {
             tbody.appendChild(tr);
         });
     }
-
-    // ==========================================
-    // 6. DOCUMENT GENERATORS
-    // ==========================================
-    const generateGroupedItemsHtml = (data, headers) => {
-        let itemsHtml = '';
-        const groupedItems = {};
-        let grandTotal = 0;
     
-        data.items.forEach(item => {
-            const fullItem = findByKey(state.items, 'code', item.itemCode) || { ParentItemCode: null };
-            const parentCode = fullItem.ParentItemCode || item.itemCode; 
-            
-            if (!groupedItems[parentCode]) {
-                 const parentItem = findByKey(state.items, 'code', parentCode);
-                 groupedItems[parentCode] = {
-                    parent: parentItem,
-                    children: [],
-                    totalValue: 0,
-                    totalWeight: 0,
-                    mainItemData: null 
+    function renderUserManagementUI() {
+        const usersTbody = document.getElementById('table-users').querySelector('tbody');
+        usersTbody.innerHTML = '';
+        (state.allUsers || []).forEach(user => {
+            const tr = document.createElement('tr');
+            const assigned = findByKey(state.branches, 'branchCode', user.AssignedBranchCode);
+            const isDisabled = user.isDisabled === true || String(user.isDisabled).toUpperCase() === 'TRUE';
+            tr.innerHTML = `<td>${user.Username}</td><td>${user.Name}</td><td>${user.RoleName}</td><td>${assigned?.branchName || 'N/A'}</td><td><span class="status-tag ${isDisabled ? 'status-rejected' : 'status-approved'}">${isDisabled ? 'Disabled' : 'Active'}</span></td><td><button class="secondary small btn-edit" data-type="user" data-id="${user.Username}">${_t('edit')}</button></td>`;
+            usersTbody.appendChild(tr);
+        });
+        const rolesTbody = document.getElementById('table-roles').querySelector('tbody');
+        rolesTbody.innerHTML = '';
+        (state.allRoles || []).forEach(role => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${role.RoleName}</td><td><button class="secondary small btn-edit" data-type="role" data-id="${role.RoleName}">${_t('edit')}</button></td>`;
+            rolesTbody.appendChild(tr);
+        });
+    }
+
+    function renderPurchaseOrdersViewer() {
+        const tbody = document.getElementById('table-po-viewer').querySelector('tbody');
+        tbody.innerHTML = '';
+        (state.purchaseOrders || []).slice().reverse().forEach(po => {
+            const supplier = findByKey(state.suppliers, 'supplierCode', po.supplierCode);
+            const items = (state.purchaseOrderItems || []).filter(item => item.poId === po.poId);
+            const tr = document.createElement('tr');
+            const canEditPO = po.Status === 'Pending Approval' && userCan('opCreatePO');
+            tr.innerHTML = `
+                <td>${po.poId}</td>
+                <td>${new Date(po.date).toLocaleDateString()}</td>
+                <td>${supplier?.name || po.supplierCode}</td>
+                <td>${items.length}</td>
+                <td>${(parseFloat(po.totalValue) || 0).toFixed(2)} EGP</td>
+                <td><span class="status-tag status-${(po.Status || 'pending').toLowerCase().replace(/ /g,'')}">${po.Status}</span></td>
+                <td><div class="action-buttons">
+                    <button class="secondary small btn-view-tx" data-batch-id="${po.poId}" data-type="po">${_t('view_print')}</button>
+                    ${canEditPO ? `<button class="secondary small btn-edit-po" data-po-id="${po.poId}">${_t('edit')}</button>` : ''}
+                </div></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function renderPendingFinancials() {
+        const tbody = document.getElementById('table-pending-financial-approval').querySelector('tbody');
+        tbody.innerHTML = '';
+        
+        const pendingPOs = (state.purchaseOrders || []).filter(po => po.Status === 'Pending Approval');
+        
+        const pendingReceivesGroups = {};
+        (state.transactions || []).filter(t => t.type === 'receive' && (t.isApproved === false || String(t.isApproved).toUpperCase() === 'FALSE')).forEach(t => {
+            if (!pendingReceivesGroups[t.batchId]) {
+                pendingReceivesGroups[t.batchId] = {
+                    date: t.date,
+                    txType: 'receive',
+                    ref: t.invoiceNumber,
+                    batchId: t.batchId,
+                    details: `GRN from ${findByKey(state.suppliers, 'supplierCode', t.supplierCode)?.name || 'N/A'}`,
+                    totalValue: 0
                 };
             }
-    
-            if(fullItem.ParentItemCode) { 
-                groupedItems[parentCode].children.push(item);
-                groupedItems[parentCode].totalWeight += (parseFloat(item.quantity) || 0);
-            } else { 
-                 if(item.isMainItemPlaceholder) {
-                     groupedItems[parentCode].mainItemData = item;
-                 } else {
-                     groupedItems[parentCode].mainItemData = item;
-                     groupedItems[parentCode].totalWeight = (parseFloat(item.quantity) || 0);
-                     groupedItems[parentCode].totalValue = groupedItems[parentCode].totalWeight * (parseFloat(item.cost) || 0);
-                 }
-            }
+            pendingReceivesGroups[t.batchId].totalValue += (parseFloat(t.quantity) || 0) * (parseFloat(t.cost) || 0);
         });
-    
-        for (const key in groupedItems) {
-            const group = groupedItems[key];
-            
-            if (group.children.length > 0) {
-                 const mainData = group.mainItemData || { cost: 0 };
-                 
-                 group.totalValue = group.totalWeight * (parseFloat(mainData.cost) || 0);
-                 
-                itemsHtml += `<tr class="main-item-group-header"><td colspan="${headers.length}"><strong>${group.parent.name} (${group.parent.code}) - Total Weight: ${group.totalWeight.toFixed(2)} KG</strong></td></tr>`;
-                 
-                 group.children.forEach(item => {
-                    const fullItem = findByKey(state.items, 'code', item.itemCode);
-                    itemsHtml += `<tr class="sub-item-row">`;
-                    headers.forEach(header => {
-                        switch (header) {
-                            case 'code': itemsHtml += `<td>${item.itemCode}</td>`; break;
-                            case 'name': itemsHtml += `<td>${item.itemName || fullItem.name}</td>`; break;
-                            case 'qty': itemsHtml += `<td>${(parseFloat(item.quantity) || 0).toFixed(2)}</td>`; break;
-                            case 'cost': itemsHtml += `<td>---</td>`; break;
-                            case 'total': itemsHtml += `<td>---</td>`; break;
-                        }
-                    });
-                    itemsHtml += `</tr>`;
-                });
-                
-                if (headers.includes('total')) {
-                    itemsHtml += `<tr class="main-item-group-footer"><td colspan="${headers.length - 1}" style="text-align:right;font-weight:bold;">${_t('main_item_total')}</td><td style="font-weight:bold;">${group.totalValue.toFixed(2)} EGP</td></tr>`;
-                }
-                grandTotal += group.totalValue;
-            } else if (group.mainItemData) { 
-                const item = group.mainItemData;
-                const itemTotal = (parseFloat(item.quantity) || 0) * (parseFloat(item.cost) || 0);
-                itemsHtml += `<tr>`;
-                headers.forEach(header => {
-                    switch (header) {
-                        case 'code': itemsHtml += `<td>${item.itemCode}</td>`; break;
-                        case 'name': itemsHtml += `<td>${item.itemName}</td>`; break;
-                        case 'qty': itemsHtml += `<td>${(parseFloat(item.quantity) || 0).toFixed(2)}</td>`; break;
-                        case 'cost': itemsHtml += `<td>${(parseFloat(item.cost) || 0).toFixed(2)} EGP</td>`; break;
-                        case 'total': itemsHtml += `<td>${itemTotal.toFixed(2)} EGP</td>`; break;
-                    }
-                });
-                itemsHtml += `</tr>`;
-                grandTotal += itemTotal;
-            }
-        }
-        return { html: itemsHtml, totalValue: grandTotal };
-    };
 
-    const generateReceiveDocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; const branch = findByKey(state.branches, 'branchCode', data.branchCode) || { branchName: 'DELETED' }; const headers = ['code', 'name', 'qty', 'cost', 'total']; const { html: itemsHtml, totalValue } = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>Goods Received Note</h2><p><strong>GRN No:</strong> ${data.batchId}</p><p><strong>${_t('table_h_invoice_no')}:</strong> ${data.invoiceNumber}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>${_t('supplier')}:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><p><strong>${_t('receive_stock')} at:</strong> ${branch.branchName} (${branch.branchCode || ''})</p><hr><h3>${_t('items_to_be_received')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item_name')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">${_t('grand_total')}</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>${_t('notes_optional')}:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Signature:</strong> _________________________</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
-    const generateTransferDocument = (data) => { const fromBranch = findByKey(state.branches, 'branchCode', data.fromBranchCode) || { branchName: 'DELETED' }; const toBranch = findByKey(state.branches, 'branchCode', data.toBranchCode) || { branchName: 'DELETED' }; const headers = ['code', 'name', 'qty']; const { html: itemsHtml } = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>${_t('internal_transfer')} Order</h2><p><strong>Order ID:</strong> ${data.batchId}</p><p><strong>${_t('reference')}:</strong> ${data.ref}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><hr><p><strong>${_t('from_branch')}:</strong> ${fromBranch.branchName} (${fromBranch.branchCode || ''})</p><p><strong>${_t('to_branch')}:</strong> ${toBranch.branchName} (${toBranch.branchCode || ''})</p><hr><h3>${_t('items_to_be_transferred')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item_name')}</th><th>${_t('table_h_qty')}</th></tr></thead><tbody>${itemsHtml}</tbody></table><hr><p><strong>${_t('notes_optional')}:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Sender:</strong> _________________</p><p><strong>Receiver:</strong> _________________</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
-    const generatePaymentVoucher = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; let invoicesHtml = ''; data.payments.forEach(p => { invoicesHtml += `<tr><td>${p.invoiceNumber}</td><td>${p.amount.toFixed(2)} EGP</td></tr>`; }); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>Payment Voucher</h2><p><strong>Voucher ID:</strong> ${data.payments[0].paymentId}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><hr><p><strong>Paid To:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><p><strong>${_t('table_h_amount')}:</strong> ${data.totalAmount.toFixed(2)} EGP</p><p><strong>Method:</strong> ${data.method}</p><hr><h3>Payment Allocation</h3><table><thead><tr><th>${_t('table_h_invoice_no')}</th><th>${_t('table_h_amount_to_pay')}</th></tr></thead><tbody>${invoicesHtml}</tbody></table><br><p><strong>Signature:</strong> _________________</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
-    const generatePODocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; const headers = ['code', 'name', 'qty', 'cost', 'total']; const { html: itemsHtml, totalValue } = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>${_t('po')}</h2><p><strong>${_t('table_h_po_no')}:</strong> ${data.poId || data.batchId}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>${_t('supplier')}:</strong> ${supplier.name} (${supplier.supplierCode || ''})</p><hr><h3>${_t('items_to_order')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item_name')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">${_t('grand_total')}</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>${_t('notes_optional')}:</strong> ${data.notes || 'N/A'}</p><br><p><strong>Authorized By:</strong> ${data.createdBy || state.currentUser.Name}</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
-    const generateReturnDocument = (data) => { const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'DELETED' }; const branch = findByKey(state.branches, 'branchCode', data.fromBranchCode) || { branchName: 'DELETED' }; const headers = ['code', 'name', 'qty', 'cost', 'total']; const { html: itemsHtml, totalValue } = generateGroupedItemsHtml(data, headers); const content = `<div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}"><h2>${_t('return_to_supplier')} Note</h2><p><strong>${_t('credit_note_ref')}:</strong> ${data.ref}</p><p><strong>${_t('table_h_date')}:</strong> ${new Date(data.date).toLocaleString()}</p><p><strong>Returned To:</strong> ${supplier.name}</p><p><strong>Returned From:</strong> ${branch.branchName}</p><hr><h3>${_t('items_to_return')}</h3><table><thead><tr><th>${_t('table_h_code')}</th><th>${_t('item_name')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th></tr></thead><tbody>${itemsHtml}</tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;">${_t('total_value')}</td><td style="font-weight:bold;">${totalValue.toFixed(2)} EGP</td></tr></tfoot></table><hr><p><strong>Reason:</strong> ${data.notes || 'N/A'}</p><div class="printable-footer">تم انشاء هذا المستند بواسطة KERO SYSTEMS</div></div>`; printContent(content); };
+        let allPending = [
+            ...pendingPOs.map(po => ({...po, txType: 'po', ref: po.poId, value: po.totalValue, details: `PO for ${findByKey(state.suppliers, 'supplierCode', po.supplierCode)?.name || 'N/A'}`})),
+            ...Object.values(pendingReceivesGroups).map(rcv => ({...rcv, value: rcv.totalValue}))
+        ];
 
-
-    // ==========================================
-    // 7. UI & MODAL HANDLERS
-    // ==========================================
-    function handleModalCheckboxChange(e) { if(e.target.checked) state.modalSelections.add(e.target.dataset.code); else state.modalSelections.delete(e.target.dataset.code); }
-    function handleInvoiceModalCheckboxChange(e) { if(e.target.checked) state.invoiceModalSelections.add(e.target.dataset.number); else state.invoiceModalSelections.delete(e.target.dataset.number); }
-    function closeModal() { document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active')); }
-    function openInvoiceSelectorModal() { modalContext = 'invoices'; renderInvoicesInModal(); invoiceSelectorModal.classList.add('active'); }
-    function openItemSelectorModal(e) { modalContext = e.target.dataset.context; state.modalSelections.clear(); renderItemsInModal(); itemSelectorModal.classList.add('active'); }
-    function renderItemsInModal(filter = '') {
-        modalItemList.innerHTML = ''; const lcf = filter.toLowerCase();
-        state.items.forEach(item => {
-            if((modalContext === 'po' && item.ParentItemCode) || !item.name.toLowerCase().includes(lcf)) return;
-            modalItemList.innerHTML += `<div class="modal-item"><input type="checkbox" data-code="${item.code}" ${state.modalSelections.has(item.code)?'checked':''}> ${item.name}</div>`;
-        });
-    }
-    
-    function confirmModalSelection() {
-        if (modalContext === 'invoices') { renderPaymentList(); closeModal(); return; }
-        const selectedCodes = Array.from(state.modalSelections);
-        if (selectedCodes.length === 0) { closeModal(); return; }
-        
-        const mainItemsToProcess = new Set();
-        const regularItemsToAdd = [];
-        
-        selectedCodes.forEach(code => {
-            const item = findByKey(state.items, 'code', code);
-            if (item.ParentItemCode && modalContext !== 'po') mainItemsToProcess.add(item.ParentItemCode);
-            else if (!item.ParentItemCode && state.items.some(sub => sub.ParentItemCode === item.code) && modalContext !== 'po') mainItemsToProcess.add(item.code);
-            else regularItemsToAdd.push(code);
-        });
-        
-        regularItemsToAdd.forEach(c => {
-            const i = findByKey(state.items, 'code', c);
-            const list = getContextList();
-            if(list) list.push({ itemCode: i.code, itemName: i.name, quantity: 0, cost: i.cost });
-        });
-        
-        const mainItemCodes = Array.from(mainItemsToProcess);
-        if (mainItemCodes.length > 0) {
-            itemSelectorModal.classList.remove('active');
-            openSubItemEntryModal(mainItemCodes[0], mainItemCodes.slice(1));
-        } else {
-            closeModal();
-            renderContextTable();
-        }
-    }
-
-    function getContextList() {
-        if(modalContext === 'receive') return state.currentReceiveList;
-        if(modalContext === 'transfer') return state.currentTransferList;
-        if(modalContext === 'po') return state.currentPOList;
-        return null;
-    }
-
-    function renderContextTable() {
-        if(modalContext === 'receive') renderReceiveListTable();
-        if(modalContext === 'transfer') renderTransferListTable();
-        if(modalContext === 'po') renderPOListTable();
-    }
-
-    function openSubItemEntryModal(mainCode, remaining) {
-        const main = findByKey(state.items, 'code', mainCode);
-        const subs = state.items.filter(i => i.ParentItemCode === mainCode);
-        document.getElementById('sub-item-entry-modal-title').textContent = main.name;
-        const tbody = document.querySelector('#sub-item-entry-table tbody'); tbody.innerHTML = '';
-        subs.forEach(s => tbody.innerHTML += `<tr><td>${s.name}</td><td><input type="number" class="sub-item-qty-input" data-code="${s.code}"></td></tr>`);
-        
-        const btn = document.getElementById('btn-confirm-sub-item-entry');
-        const newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn);
-        newBtn.onclick = () => {
-            const list = getContextList();
-            let totalQty = 0;
-            document.querySelectorAll('.sub-item-qty-input').forEach(inp => {
-                const q = parseFloat(inp.value)||0; totalQty += q;
-                if(q > 0) list.push({ itemCode: inp.dataset.code, itemName: findByKey(state.items, 'code', inp.dataset.code).name, quantity: q, cost: 0 });
-            });
-            if(totalQty > 0) list.push({ itemCode: main.code, itemName: main.name, quantity: totalQty, cost: 0, isMainItemPlaceholder: true }); 
-            
-            subItemEntryModal.classList.remove('active');
-            if(remaining.length > 0) openSubItemEntryModal(remaining[0], remaining.slice(1));
-            else { closeModal(); renderContextTable(); }
-        };
-        subItemEntryModal.classList.add('active');
-    }
-
-    async function reloadDataAndRefreshUI() {
-        if (!state.username) return;
-        setButtonLoading(true, globalRefreshBtn);
-        try {
-            const res = await fetch(`${SCRIPT_URL}?username=${encodeURIComponent(state.username)}&loginCode=${encodeURIComponent(state.loginCode)}`);
-            if (!res.ok) throw new Error('Failed');
-            const data = await res.json();
-            if (data.status === 'error') throw new Error(data.message);
-            Object.keys(data).forEach(k => { if(k !== 'user') state[k] = data[k] || state[k]; });
-            updateUserBranchDisplay();
-            const currentView = document.querySelector('.nav-item a.active')?.dataset.view || 'dashboard';
-            await refreshViewData(currentView);
-            showToast(_t('data_refreshed_toast'), 'success');
-        } catch (err) { showToast(_t('data_refresh_fail_toast'), 'error'); } 
-        finally { setButtonLoading(false, globalRefreshBtn); }
-    }
-
-    function updateUserBranchDisplay() { document.getElementById('user-branch-display').textContent = state.currentUser?.AssignedBranchCode || ''; }
-    function attachSubNavListeners() { document.querySelectorAll('.sub-nav').forEach(nav => { if(nav.closest('#history-modal')) return; nav.addEventListener('click', e => { if (e.target.classList.contains('sub-nav-item')) { const subviewId = e.target.dataset.subview; const parentView = e.target.closest('.view'); parentView.querySelectorAll('.sub-nav-item').forEach(b => b.classList.remove('active')); e.target.classList.add('active'); parentView.querySelectorAll('.sub-view').forEach(v => v.classList.remove('active')); parentView.querySelector(`#subview-${subviewId}`).classList.add('active'); refreshViewData(parentView.id.replace('view-','')); } }); }); }
-
-    // ==========================================
-    // 8. VIEW LOGIC & REFRESH
-    // ==========================================
-    const refreshViewData = async (viewId) => {
-        if (!state.currentUser) return;
-        Logger.debug(`Refreshing view: ${viewId}`);
-        switch(viewId) {
-            case 'dashboard':
-                const stock = calculateStockLevels();
-                document.getElementById('dashboard-total-items').textContent = (state.items || []).length.toLocaleString();
-                document.getElementById('dashboard-total-suppliers').textContent = (state.suppliers || []).length;
-                document.getElementById('dashboard-total-branches').textContent = (state.branches || []).length;
-                let totalValue = 0;
-                Object.values(stock).forEach(bs => Object.values(bs).forEach(i => totalValue += i.quantity * i.avgCost));
-                document.getElementById('dashboard-total-value').textContent = `${totalValue.toFixed(2)} EGP`;
-                break;
-            case 'transaction-history': 
-                const txFilterBranch = document.getElementById('tx-filter-branch');
-                const txFilterSupplier = document.getElementById('tx-filter-supplier'); 
-                populateOptions(txFilterBranch, state.branches, _t('all_branches'), 'branchCode', 'branchName');
-                if (txFilterSupplier) populateOptions(txFilterSupplier, state.suppliers, 'All Suppliers', 'supplierCode', 'name');
-                const txTypes = ['receive', 'issue', 'transfer_out', 'transfer_in', 'return_out', 'po', 'adjustment_in', 'adjustment_out', 'extraction_in', 'extraction_out'];
-                const txTypeOptions = txTypes.map(t => ({'type': t, 'name': _t(t.replace(/_/g,''))}));
-                populateOptions(document.getElementById('tx-filter-type'), txTypeOptions, _t('all_types'), 'type', 'name');
-                renderTransactionHistory({ startDate: document.getElementById('tx-filter-start-date').value, endDate: document.getElementById('tx-filter-end-date').value, type: document.getElementById('tx-filter-type').value, branch: document.getElementById('tx-filter-branch').value, searchTerm: document.getElementById('transaction-search').value }); 
-                break;
-            case 'master-data':
-                renderItemsTable(); renderSuppliersTable(); renderBranchesTable();
-                const mainItems = (state.items || []).filter(i => !i.ParentItemCode);
-                populateOptions(document.getElementById('parent-item-code'), mainItems, _t('select_parent_item'), 'code', 'name');
-                break;
-            case 'backup': loadAndRenderBackups(); loadAutoBackupSettings(); break;
-            case 'operations':
-                populateOptions(document.getElementById('receive-supplier'), state.suppliers, _t('select_supplier'), 'supplierCode', 'name');
-                populateOptions(document.getElementById('receive-branch'), state.branches, _t('select_a_branch'), 'branchCode', 'branchName');
-                populateOptions(document.getElementById('transfer-from-branch'), state.branches, _t('select_a_branch'), 'branchCode', 'branchName');
-                populateOptions(document.getElementById('transfer-to-branch'), state.branches, _t('select_a_branch'), 'branchCode', 'branchName');
-                populateOptions(document.getElementById('return-supplier'), state.suppliers, _t('select_supplier'), 'supplierCode', 'name');
-                populateOptions(document.getElementById('return-branch'), state.branches, _t('select_a_branch'), 'branchCode', 'branchName');
-                populateOptions(document.getElementById('adjustment-branch'), state.branches, _t('select_a_branch'), 'branchCode', 'branchName');
-                populateOptions(document.getElementById('extraction-branch'), state.branches, _t('select_a_branch'), 'branchCode', 'branchName');
-                populateOptions(document.getElementById('extraction-main-item'), (state.items || []).filter(i => !i.ParentItemCode), _t('select_main_item_to_extract'), 'code', 'name');
-                populateOptions(document.getElementById('fin-adj-supplier'), state.suppliers, _t('select_supplier'), 'supplierCode', 'name');
-                populateOptions(document.getElementById('receive-po-select'), (state.purchaseOrders || []).filter(po => po.Status === 'Approved'), _t('select_a_po'), 'poId', 'poId', 'supplierCode');
-                renderReceiveListTable(); renderTransferListTable(); renderReturnListTable(); renderPendingTransfers(); renderInTransitReport(); renderAdjustmentListTable(); renderExtractionPreview();
-                break;
-            case 'purchasing':
-                 populateOptions(document.getElementById('po-supplier'), state.suppliers, _t('select_supplier'), 'supplierCode', 'name');
-                 renderPOListTable(); renderPurchaseOrdersViewer(); renderPendingFinancials();
-                 break;
-            case 'payments':
-                populateOptions(document.getElementById('payment-supplier-select'), state.suppliers, _t('select_supplier'), 'supplierCode', 'name');
-                renderPaymentList();
-                break;
-            case 'reports':
-                populateOptions(document.getElementById('supplier-statement-select'), state.suppliers, _t('select_a_supplier'), 'supplierCode', 'name');
-                renderSettlementHistory();
-                break;
-            case 'stock-levels':
-                 const branchFilterContainer = document.getElementById('stock-levels-branch-filter-container');
-                 if(branchFilterContainer) branchFilterContainer.style.display = 'none'; 
-                renderItemCentricStockView();
-                break;
-            case 'user-management':
-                const result = await postData('getAllUsersAndRoles', {}, null);
-                if (result) { state.allUsers = result.data.users; state.allRoles = result.data.roles; renderUserManagementUI(); }
-                break;
-            case 'activity-log': renderActivityLog(); break;
-        }
-        applyTranslations();
-    };
-
-    // ==========================================
-    // 9. ADDITIONAL FEATURE FUNCTIONS
-    // ==========================================
-    function renderItemCentricStockView(itemsToRender = state.items, selectedBranches = []) {
-        const container = document.getElementById('item-centric-stock-container'); if (!container) return;
-        const stockByBranch = calculateStockLevels();
-        let branchesToDisplay = getVisibleBranchesForCurrentUser();
-        if (selectedBranches.length > 0 && userCan('viewAllBranches')) branchesToDisplay = state.branches.filter(b => selectedBranches.includes(b.branchCode));
-        let tableHTML = `<table id="table-stock-levels-by-item"><thead><tr><th>${_t('table_h_code')}</th><th>${_t('table_h_name')}</th>`;
-        branchesToDisplay.forEach(b => { tableHTML += `<th>${b.branchName}</th>` });
-        tableHTML += `<th>${_t('table_h_total')}</th></tr></thead><tbody>`;
-        const renderedItems = new Set();
-        itemsToRender.forEach(item => {
-            if (renderedItems.has(item.code)) return;
-            if (!item.ParentItemCode) {
-                tableHTML += renderStockRow(item, false, branchesToDisplay, stockByBranch);
-                renderedItems.add(item.code);
-                state.items.filter(i => i.ParentItemCode === item.code).forEach(child => {
-                     tableHTML += renderStockRow(child, true, branchesToDisplay, stockByBranch);
-                     renderedItems.add(child.code);
-                });
-            }
-        });
-        tableHTML += `</tbody></table>`; container.innerHTML = tableHTML;
-    }
-    function renderStockRow(item, isSubItem, branchesToDisplay, stockByBranch) {
-        let rowHtml = `<tr class="${isSubItem ? 'sub-item-row' : ''}"><td>${item.code}</td><td>${item.name}</td>`;
-        let total = 0;
-        branchesToDisplay.forEach(branch => {
-            const qty = stockByBranch[branch.branchCode]?.[item.code]?.quantity || 0;
-            total += qty;
-            rowHtml += `<td>${qty > 0 ? qty.toFixed(2) : '-'}</td>`;
-        });
-        rowHtml += `<td><strong>${total.toFixed(2)}</strong></td></tr>`;
-        return rowHtml;
-    }
-    function getVisibleBranchesForCurrentUser() { if (!state.currentUser) return []; if (userCan('viewAllBranches')) { return state.branches; } if (state.currentUser.AssignedBranchCode) { return state.branches.filter(b => String(b.branchCode) === String(state.currentUser.AssignedBranchCode)); } return []; }
-    function renderItemInquiry(searchTerm) {
-        const resultsContainer = document.getElementById('item-inquiry-results');
-        if (!searchTerm) {
-            resultsContainer.innerHTML = '';
+        if (allPending.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">${_t('no_pending_financial_approval')}</td></tr>`;
             return;
         }
-        const stockByBranch = calculateStockLevels();
-        const filteredItems = state.items.filter(i => i.name.toLowerCase().includes(searchTerm) || i.code.toLowerCase().includes(searchTerm));
-        let html = '';
-        const branchesToDisplay = getVisibleBranchesForCurrentUser();
-        filteredItems.slice(0, 10).forEach(item => {
-            html += `<h4>${item.name} (${item.code})</h4><table><thead><tr><th>${_t('branch')}</th><th>${_t('table_h_qty')}</th><th>${_t('table_h_value')}</th></tr></thead><tbody>`;
-            let found = false;
-            let totalQty = 0;
-            let totalValue = 0;
-            branchesToDisplay.forEach(branch => {
-                const itemStock = stockByBranch[branch.branchCode]?.[item.code];
-                if (itemStock && itemStock.quantity > 0) {
-                    const value = itemStock.quantity * itemStock.avgCost;
-                    html += `<tr><td>${branch.branchName} (${branch.branchCode || ''})</td><td>${itemStock.quantity.toFixed(2)}</td><td>${value.toFixed(2)} EGP</td></tr>`;
-                    totalQty += itemStock.quantity;
-                    totalValue += value;
-                    found = true;
-                }
-            });
-            if (!found) {
-                html += `<tr><td colspan="3">${_t('no_stock_for_item')}</td></tr>`;
-            } else {
-                html += `<tr style="font-weight:bold; background-color: var(--bg-color);"><td>${_t('table_h_total')}</td><td>${totalQty.toFixed(2)}</td><td>${totalValue.toFixed(2)} EGP</td></tr>`
-            }
-            html += `</tbody></table><hr>`;
-        });
-        resultsContainer.innerHTML = html;
-    }
 
+        allPending.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${new Date(item.date).toLocaleDateString()}</td>
+                <td>${_t(item.txType)}</td>
+                <td>${item.ref}</td>
+                <td>${item.details}</td>
+                <td>${(parseFloat(item.value) || 0).toFixed(2)} EGP</td>
+                <td>
+                    <div class="action-buttons">
+                        <button class="primary small btn-approve-financial" data-id="${item.txType === 'po' ? item.poId : item.batchId}" data-type="${item.txType}">${_t('approve')}</button>
+                        <button class="danger small btn-reject-financial" data-id="${item.txType === 'po' ? item.poId : item.batchId}" data-type="${item.txType}">${_t('reject')}</button>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+    
     function renderPendingTransfers() {
         const container = document.getElementById('pending-transfers-card');
         const tbody = document.getElementById('table-pending-transfers').querySelector('tbody');
@@ -1456,7 +971,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const headers = Object.keys(state.uploadedSalesData[0]);
         
         // Create a mapping of [HEADER] -> [BRANCH_CODE]
-        // This handles "BR-001" and "CAIRO BRANCH" -> BR-001
         const branchHeaderMap = {};
         state.branches.forEach(b => {
             if (headers.includes(b.branchCode.toUpperCase())) {
@@ -1549,68 +1063,7 @@ document.addEventListener('DOMContentLoaded', () => {
         exportBtn.disabled = finalHtml === '';
     }
 
-    function handleSalesFileUpload(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            try {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                const jsonData = XLSX.utils.sheet_to_json(firstSheet);
-
-                // FIX: Clean headers (Trim and Uppercase)
-                const cleanedData = jsonData.map(row => {
-                    const newRow = {};
-                    Object.keys(row).forEach(key => {
-                        newRow[key.trim().toUpperCase()] = row[key]; 
-                    });
-                    // Ensure itemCode is present even if casing differed in original
-                    const itemCodeKey = Object.keys(newRow).find(k => k === 'ITEMCODE');
-                    if(itemCodeKey) newRow.itemCode = newRow[itemCodeKey];
-                    
-                    return newRow;
-                });
-
-                if (!cleanedData[0] || !cleanedData[0].hasOwnProperty('itemCode')) {
-                    throw new Error("Invalid format: 'itemCode' column missing.");
-                }
-
-                state.uploadedSalesData = cleanedData;
-                showToast(_t('file_upload_success', { rows: cleanedData.length }), 'success');
-
-            } catch (err) {
-                showToast(_t('file_upload_error'), 'error');
-                Logger.error(err);
-            }
-        };
-        reader.readAsArrayBuffer(file);
-    }
-
-    function downloadSalesTemplate() {
-        const header = { itemCode: "itemCode", itemName: "itemName" };
-        state.branches.forEach(b => {
-            header[b.branchCode] = ''; 
-        });
-    
-        const templateData = state.items.map(item => {
-            const row = {
-                itemCode: item.code,
-                itemName: item.name
-            };
-            state.branches.forEach(b => {
-                row[b.branchCode] = ''; 
-            });
-            return row;
-        });
-    
-        const ws = XLSX.utils.json_to_sheet(templateData);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "SalesData");
-        XLSX.writeFile(wb, "SalesUploadTemplate.xlsx");
-    }
-
+    // --- 7. UI ACTION HANDLERS ---
     function openSettlementModal(reportData, branchCode) {
         document.getElementById('settlement-notes').value = '';
         settlementConfirmModal.classList.add('active');
@@ -1644,14 +1097,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const result = await postData('performSettlement', payload, btn);
         if (result && result.data.newTransactions) {
-            // FIX: Add new transactions to local state for immediate recalculation
             state.transactions = [...state.transactions, ...result.data.newTransactions]; 
             state.settlements.push(result.data.settlementRecord);
             if(result.data.settlementItems) result.data.settlementItems.forEach(si => state.settlementItems.push(si));
-            
             showToast(_t('settlement_complete'), 'success');
             closeModal();
-            
             const currentView = document.querySelector('.nav-item a.active')?.dataset.view || 'dashboard';
             refreshViewData(currentView); 
         }
@@ -1725,6 +1175,68 @@ document.addEventListener('DOMContentLoaded', () => {
             reloadDataAndRefreshUI();
         }
     }
+    
+    function downloadSalesTemplate() {
+        const header = { itemCode: "itemCode", itemName: "itemName" };
+        state.branches.forEach(b => {
+            header[b.branchCode] = ''; 
+        });
+    
+        const templateData = state.items.map(item => {
+            const row = {
+                itemCode: item.code,
+                itemName: item.name
+            };
+            state.branches.forEach(b => {
+                row[b.branchCode] = ''; 
+            });
+            return row;
+        });
+    
+        const ws = XLSX.utils.json_to_sheet(templateData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "SalesData");
+        XLSX.writeFile(wb, "SalesUploadTemplate.xlsx");
+    }
+
+    function handleSalesFileUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+
+                // FIX: Clean headers (Trim and Uppercase)
+                const cleanedData = jsonData.map(row => {
+                    const newRow = {};
+                    Object.keys(row).forEach(key => {
+                        newRow[key.trim().toUpperCase()] = row[key]; 
+                    });
+                    // Ensure itemCode is present even if casing differed in original
+                    const itemCodeKey = Object.keys(newRow).find(k => k === 'ITEMCODE');
+                    if(itemCodeKey) newRow.itemCode = newRow[itemCodeKey];
+                    
+                    return newRow;
+                });
+
+                if (!cleanedData[0] || !cleanedData[0].hasOwnProperty('itemCode')) {
+                    throw new Error("Invalid format: 'itemCode' column missing.");
+                }
+
+                state.uploadedSalesData = cleanedData;
+                showToast(_t('file_upload_success', { rows: cleanedData.length }), 'success');
+
+            } catch (err) {
+                showToast(_t('file_upload_error'), 'error');
+                Logger.error(err);
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    }
 
     async function savePOChanges(e) {
         const btn = e.currentTarget;
@@ -1769,122 +1281,366 @@ document.addEventListener('DOMContentLoaded', () => {
             reloadDataAndRefreshUI();
         }
     }
+    
+    async function handleUpdateSubmit(e) {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        const type = formEditRecord.dataset.type;
+        const id = formEditRecord.dataset.id;
+        const formData = new FormData(formEditRecord);
+        let payload = {}, action;
 
-    function openPOEditModal(poId) {
-        const po = findByKey(state.purchaseOrders, 'poId', poId);
-        if (!po) return;
-        const poItems = state.purchaseOrderItems.filter(i => i.poId === poId);
-        state.currentEditingPOList = poItems.map(item => {
-            const masterItem = findByKey(state.items, 'code', item.itemCode);
-            return {
-                itemCode: item.itemCode,
-                itemName: masterItem?.name || "N/A",
-                quantity: parseFloat(item.quantity),
-                cost: parseFloat(item.cost)
-            };
-        });
-
-        const modalBody = document.getElementById('edit-po-modal-body');
-        modalBody.innerHTML = `
-            <div class="form-grid">
-                <div class="form-group"><label>${_t('table_h_po_no')}</label><input type="text" id="edit-po-id" value="${po.poId}" readonly></div>
-                <div class="form-group"><label>${_t('supplier')}</label><input type="text" value="${findByKey(state.suppliers, 'supplierCode', po.supplierCode)?.name}" readonly></div>
-                <div class="form-group span-full"><label for="edit-po-notes">${_t('notes_optional')}</label><textarea id="edit-po-notes" rows="2">${po.notes || ''}</textarea></div>
-            </div>
-            <div class="card" style="margin-top: 20px;">
-                <h2 data-translate-key="items_to_order">${_t('items_to_order')}</h2>
-                <table id="table-edit-po-list">
-                    <thead><tr><th>${_t('table_h_code')}</th><th>${_t('item_name')}</th><th>${_t('table_h_quantity')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th><th>${_t('table_h_actions')}</th></tr></thead>
-                    <tbody></tbody>
-                    <tfoot><tr style="font-weight: bold; background-color: var(--bg-color);"><td colspan="4" style="text-align: right;">${_t('grand_total')}</td><td id="edit-po-grand-total" colspan="2">0.00 EGP</td></tr></tfoot>
-                </table>
-                <div style="margin-top: 20px;"><button type="button" data-context="edit-po" class="secondary">${_t('select_items')}</button></div>
-            </div>
-        `;
+        if (type === 'item') {
+            action = 'updateData';
+            const updates = {};
+            for (let [key, value] of formData.entries()) {
+                updates[key] = value;
+            }
+            if (!document.getElementById('edit-is-sub-item-toggle').checked) {
+                updates.ParentItemCode = '';
+            } else {
+                updates.cost = 0; 
+            }
+            payload = { type, id, updates };
+        } else if (type === 'user') {
+            action = id ? 'updateUser' : 'addUser';
+            payload = {};
+            for (let [key, value] of formData.entries()) {
+                 if (key === 'LoginCode' && value === '') continue;
+                 payload[key] = value;
+            }
+            if(id) {
+                payload = { Username: id, updates: {} };
+                for (let [key, value] of formData.entries()) {
+                    if (key === 'LoginCode' && value === '') continue;
+                    if (key !== 'Username') payload.updates[key] = value;
+                }
+            }
+        } else if (type === 'role') {
+            action = 'updateRolePermissions';
+            const updates = {};
+            const allPerms = Object.keys(findByKey(state.allRoles, 'RoleName', id) || {});
+            allPerms.forEach(key => {
+                if (key !== 'RoleName') {
+                    updates[key] = formData.has(key);
+                }
+            });
+            payload = { RoleName: id, updates: updates };
+        } else {
+            action = 'updateData';
+            const updates = {};
+            for (let [key, value] of formData.entries()) {
+                updates[key] = value;
+            }
+            payload = { type, id, updates };
+        }
         
-        const modal = document.getElementById('edit-po-modal');
-        modal.querySelector('.modal-footer').innerHTML = `
-            <button class="secondary modal-cancel">${_t('cancel')}</button>
-            <button id="btn-print-draft-po" class="secondary">${_t('view_print')}</button>
-            <button id="btn-save-po-changes" class="primary" data-po-id="${po.poId}">${_t('save_changes')}</button>
-        `;
-        
-        document.getElementById('btn-print-draft-po').onclick = () => {
-            const supplier = findByKey(state.suppliers, 'supplierCode', po.supplierCode);
-            const dataToPrint = {
-                poId: document.getElementById('edit-po-id').value,
-                date: new Date(),
-                supplierCode: po.supplierCode,
-                notes: document.getElementById('edit-po-notes').value,
-                items: state.currentEditingPOList,
-                createdBy: po.createdBy || state.currentUser.Name
-            };
-            generatePODocument(dataToPrint);
-        };
-
-        renderPOEditListTable();
-        editPOModal.classList.add('active');
+        const result = await postData(action, payload, btn);
+        if (result) {
+            const toastMessage = id ? _t('update_success_toast', {type: _t(type)}) : _t('add_success_toast', {type: _t(type)});
+            showToast(toastMessage, 'success');
+            closeModal();
+            await reloadDataAndRefreshUI();
+        }
     }
 
-    function openInvoiceEditModal(batchId) {
-        const txGroup = state.transactions.filter(t => t.batchId === batchId && t.type === 'receive');
-        if (txGroup.length === 0) {
-            showToast('Could not find invoice data to edit.', 'error');
-            return;
-        }
-        const firstTx = txGroup[0];
+    // Admin Context Selector
+    async function requestAdminContext(config) {
+        const modal = document.getElementById('context-selector-modal');
+        
+        modal.querySelectorAll('.form-group').forEach(el => el.style.display = 'none');
+        
+        if(config.fromBranch) populateOptions(document.getElementById('context-from-branch-select'), state.branches, 'Select From Branch', 'branchCode', 'branchName');
+        if(config.toBranch) populateOptions(document.getElementById('context-to-branch-select'), state.branches, 'Select To Branch', 'branchCode', 'branchName');
+        if(config.branch) populateOptions(document.getElementById('context-branch-select'), state.branches, 'Select Branch', 'branchCode', 'branchName');
 
-        state.currentEditingPOList = txGroup.map(tx => {
-            const masterItem = findByKey(state.items, 'code', tx.itemCode);
-            return {
-                itemCode: tx.itemCode,
-                itemName: masterItem?.name || 'N/A',
-                quantity: parseFloat(tx.quantity),
-                cost: parseFloat(tx.cost)
-            };
+        Object.keys(config).forEach(key => {
+            const group = document.getElementById(`context-modal-${key}-group`);
+            if(group) group.style.display = 'block';
         });
 
-        const modalBody = document.getElementById('edit-po-modal-body');
-        const supplier = findByKey(state.suppliers, 'supplierCode', firstTx.supplierCode);
-        const branch = findByKey(state.branches, 'branchCode', firstTx.branchCode);
-
-        modalBody.innerHTML = `
-            <div class="form-grid">
-                <div class="form-group"><label>Batch ID</label><input type="text" value="${batchId}" readonly></div>
-                <div class="form-group"><label>${_t('supplier')}</label><input type="text" value="${supplier?.name || 'N/A'}" readonly></div>
-                <div class="form-group"><label>${_t('branch')}</label><input type="text" value="${branch?.branchName || 'N/A'}" readonly></div>
-                <div class="form-group"><label for="edit-invoice-number">${_t('table_h_invoice_no')}</label><input type="text" id="edit-invoice-number" value="${firstTx.invoiceNumber || ''}" required></div>
-                <div class="form-group span-full"><label for="edit-invoice-notes">${_t('notes_optional')}</label><textarea id="edit-invoice-notes" rows="2">${firstTx.notes || ''}</textarea></div>
-            </div>
-            <div class="card" style="margin-top: 20px;">
-                <h2 data-translate-key="items_to_be_received">${_t('items_to_be_received')}</h2>
-                <table id="table-edit-po-list">
-                    <thead><tr><th>${_t('table_h_code')}</th><th>${_t('item_name')}</th><th>${_t('table_h_quantity')}</th><th>${_t('table_h_cost_per_unit')}</th><th>${_t('table_h_total')}</th><th>${_t('table_h_actions')}</th></tr></thead>
-                    <tbody></tbody>
-                    <tfoot><tr style="font-weight: bold; background-color: var(--bg-color);"><td colspan="4" style="text-align: right;">${_t('grand_total')}</td><td id="edit-po-grand-total" colspan="2">0.00 EGP</td></tr></tfoot>
-                </table>
-                <div style="margin-top: 20px;"><button type="button" data-context="edit-po" class="secondary">${_t('select_items')}</button></div>
-            </div>
-        `;
-
-        const modal = document.getElementById('edit-po-modal');
-        document.getElementById('edit-po-modal-title').textContent = _t('edit') + ' ' + _t('receive_stock');
-        modal.querySelector('.modal-footer').innerHTML = `
-            <button type="button" class="secondary modal-cancel">${_t('cancel')}</button>
-            <button id="btn-save-invoice-changes" class="primary" data-batch-id="${batchId}">${_t('save_changes')}</button>
-        `;
-
-        renderPOEditListTable();
-        editPOModal.classList.add('active');
+        modal.classList.add('active');
+        return new Promise((resolve, reject) => {
+            state.adminContextPromise = { resolve, reject };
+        });
     }
     
-    function openHistoryModal(itemCode) { /* Not strictly needed for initialization but good to have defined */ }
-    function openViewTransferModal(batchId) { /* Not strictly needed for initialization but good to have defined */ }
-    function openEditModal(type, id) { /* Not strictly needed for initialization but good to have defined */ }
+    function handlePaymentInputChange() {
+        let total = 0;
+        document.querySelectorAll('.payment-amount-input').forEach(input => {
+            total += parseFloat(input.value) || 0;
+        });
+        document.getElementById('payment-total-amount').textContent = `${total.toFixed(2)} EGP`;
+    }
+    
+    function handleModalCheckboxChange(e) {
+        if (e.target.type === 'checkbox') {
+            const itemCode = e.target.dataset.code;
+            if (e.target.checked) {
+                state.modalSelections.add(itemCode);
+            } else {
+                state.modalSelections.delete(itemCode);
+            }
+        }
+    }
 
+    function handleInvoiceModalCheckboxChange(e) {
+        if (e.target.type === 'checkbox') {
+            const invoiceNumber = e.target.dataset.number;
+            if (e.target.checked) {
+                state.invoiceModalSelections.add(invoiceNumber);
+            } else {
+                state.invoiceModalSelections.delete(invoiceNumber);
+            }
+        }
+    }
+    
+    function closeModal() {
+        document.querySelectorAll('.modal-overlay').forEach(modal => modal.classList.remove('active'));
+        modalSearchInput.value = '';
+        modalContext = null;
+    }
+    
+    function openInvoiceSelectorModal() {
+        modalContext = 'invoices';
+        renderInvoicesInModal();
+        invoiceSelectorModal.classList.add('active');
+    }
+    
+    function openItemSelectorModal(e) {
+        const context = e.target.dataset.context;
+        if (!context) {
+            Logger.error("openItemSelectorModal called without a data-context on the button.");
+            return;
+        }
+        modalContext = context;
+        state.modalSelections = new Set(); 
+        renderItemsInModal();
+        itemSelectorModal.classList.add('active');
+    }
+    
+    function renderItemsInModal(filter = '') {
+        const modalItemList = document.getElementById('modal-item-list');
+        modalItemList.innerHTML = '';
+        const lowercasedFilter = filter.toLowerCase();
+    
+        let itemsToShow = state.items;
+        if (modalContext === 'po') {
+            itemsToShow = state.items.filter(i => !i.ParentItemCode);
+        }
+    
+        const filteredItems = itemsToShow.filter(item => 
+            item.name.toLowerCase().includes(lowercasedFilter) || 
+            item.code.toLowerCase().includes(lowercasedFilter)
+        );
+    
+        const itemTree = {};
+        filteredItems.forEach(item => {
+            if (item.ParentItemCode && modalContext !== 'po') {
+                if (!itemTree[item.ParentItemCode]) {
+                    const parent = findByKey(state.items, 'code', item.ParentItemCode);
+                    if (parent) { 
+                         itemTree[item.ParentItemCode] = { parent: parent, children: [] };
+                    }
+                }
+                if(itemTree[item.ParentItemCode]) {
+                    itemTree[item.ParentItemCode].children.push(item);
+                }
+            } else if (!item.ParentItemCode) {
+                 if (!itemTree[item.code]) {
+                    itemTree[item.code] = { parent: item, children: [] };
+                }
+            }
+        });
+    
+        Object.values(itemTree).forEach(node => {
+            if (!node.parent) return; 
+            const isChecked = state.modalSelections.has(node.parent.code);
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'modal-item-container';
+            const hasSubItems = state.items.some(sub => sub.ParentItemCode === node.parent.code);
+
+            let checkboxHtml = `<input type="checkbox" id="modal-item-${node.parent.code}" data-code="${node.parent.code}" ${isChecked ? 'checked' : ''}>`;
+            if (hasSubItems && modalContext !== 'po') {
+                checkboxHtml = `<div class="modal-checkbox-placeholder"></div>`; 
+            }
+
+            let itemHtml = `
+                <div class="modal-item">
+                    ${checkboxHtml}
+                    <label for="modal-item-${node.parent.code}">
+                        <strong>${node.parent.name}</strong><br>
+                        <small style="color:var(--text-light-color)">${_t('table_h_code')}: ${node.parent.code}</small>
+                    </label>`;
+            
+            if (hasSubItems && modalContext !== 'po') {
+                itemHtml += `<button class="secondary small btn-show-cuts" data-parent-code="${node.parent.code}">${_t('show_cuts')}</button>`;
+            }
+    
+            itemHtml += `</div><div class="sub-item-list" id="sub-items-for-${node.parent.code}" style="display:none;"></div>`;
+            itemDiv.innerHTML = itemHtml;
+            modalItemList.appendChild(itemDiv);
+        });
+    
+        document.querySelectorAll('.btn-show-cuts').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const parentCode = e.target.dataset.parentCode;
+                const subItemList = document.getElementById(`sub-items-for-${parentCode}`);
+                if (subItemList.style.display === 'none') {
+                    renderSubItemsInModal(parentCode, subItemList);
+                    subItemList.style.display = 'block';
+                } else {
+                    subItemList.style.display = 'none';
+                }
+            });
+        });
+    }
+    
+    function renderSubItemsInModal(parentCode, container) {
+        const subItems = state.items.filter(i => i.ParentItemCode === parentCode);
+        let subItemsHtml = '';
+        subItems.forEach(sub => {
+            const isChecked = state.modalSelections.has(sub.code);
+            subItemsHtml += `
+                <div class="modal-item sub-item-row">
+                    <input type="checkbox" id="modal-item-${sub.code}" data-code="${sub.code}" ${isChecked ? 'checked' : ''}>
+                    <label for="modal-item-${sub.code}">
+                        <strong>${sub.name}</strong><br>
+                        <small style="color:var(--text-light-color)">${_t('table_h_code')}: ${sub.code}</small>
+                    </label>
+                </div>
+            `;
+        });
+        container.innerHTML = subItemsHtml;
+    }
+    
+    function setupSearch(inputId, renderFn, dataKey, searchKeys) {
+        const searchInput = document.getElementById(inputId);
+        if (!searchInput) return;
+        searchInput.addEventListener('input', e => {
+            const searchTerm = e.target.value.toLowerCase();
+            const dataToFilter = state[dataKey] || [];
+            if (inputId === 'stock-levels-search') {
+                const selectedBranches = Array.from(document.getElementById('stock-levels-branch-filter').selectedOptions).map(opt => opt.value);
+                renderFn(searchTerm ? dataToFilter.filter(item => searchKeys.some(key => item[key] && String(item[key]).toLowerCase().includes(searchTerm))) : dataToFilter, selectedBranches);
+            } else {
+                 renderFn(searchTerm ? dataToFilter.filter(item => searchKeys.some(key => item[key] && String(item[key]).toLowerCase().includes(searchTerm))) : dataToFilter);
+            }
+        });
+    }
+    
+    function attachSubNavListeners() { document.querySelectorAll('.sub-nav').forEach(nav => { if(nav.closest('#history-modal')) return; nav.addEventListener('click', e => { if (!e.target.classList.contains('sub-nav-item')) return; const subviewId = e.target.dataset.subview; const parentView = e.target.closest('.view'); if (!parentView) return; const currentActive = parentView.querySelector('.sub-nav-item.active'); if(currentActive) currentActive.classList.remove('active'); e.target.classList.add('active'); parentView.querySelectorAll('.sub-view').forEach(view => view.classList.remove('active')); const subViewToShow = parentView.querySelector(`#subview-${subviewId}`); if (subViewToShow) subViewToShow.classList.add('active'); refreshViewData(parentView.id.replace('view-','')); }); }); }
+    
+    async function reloadDataAndRefreshUI() { 
+        Logger.info('Reloading data...'); 
+        const { username, loginCode } = state; 
+        if (!username || !loginCode) { logout(); return; } 
+        const currentView = document.querySelector('.nav-item a.active')?.dataset.view || 'dashboard'; 
+        setButtonLoading(true, globalRefreshBtn); 
+        try { 
+            const response = await fetch(`${SCRIPT_URL}?username=${encodeURIComponent(username)}&loginCode=${encodeURIComponent(loginCode)}`); 
+            if (!response.ok) throw new Error('Failed to reload data.'); 
+            const data = await response.json(); 
+            if (data.status === 'error') throw new Error(data.message); 
+            Object.keys(data).forEach(key => { 
+                if(key !== 'user') state[key] = data[key] || state[key]; 
+            }); 
+            updateUserBranchDisplay(); 
+            await refreshViewData(currentView); 
+            Logger.info('Reload complete.'); 
+            showToast(_t('data_refreshed_toast'), 'success'); 
+        } catch (err) { 
+            Logger.error('Data reload failed:', err); 
+            showToast(_t('data_refresh_fail_toast'), 'error'); 
+        } finally { 
+            setButtonLoading(false, globalRefreshBtn); 
+        } 
+    }
+    
+    function updateUserBranchDisplay() {
+        const displayEl = document.getElementById('user-branch-display');
+        if (!state.currentUser || !displayEl) { return; }
+        const branch = findByKey(state.branches, 'branchCode', state.currentUser.AssignedBranchCode);
+        let displayText = '';
+        if (branch) displayText += `${_t('branch')}: ${branch.branchName}`;
+        displayEl.textContent = displayText;
+    }
+    
+    function logout() { Logger.info('User logging out.'); location.reload(); }
+    
+    // --- 8. VIEW LOGIC (Defined AFTER all utilities) ---
+    const refreshViewData = async (viewId) => {
+        if (!state.currentUser) return;
+        Logger.debug(`Refreshing view: ${viewId}`);
+        switch(viewId) {
+            case 'dashboard':
+                const stock = calculateStockLevels();
+                document.getElementById('dashboard-total-items').textContent = (state.items || []).length.toLocaleString();
+                document.getElementById('dashboard-total-suppliers').textContent = (state.suppliers || []).length;
+                document.getElementById('dashboard-total-branches').textContent = (state.branches || []).length;
+                let totalValue = 0;
+                Object.values(stock).forEach(bs => Object.values(bs).forEach(i => totalValue += i.quantity * i.avgCost));
+                document.getElementById('dashboard-total-value').textContent = `${totalValue.toFixed(2)} EGP`;
+                break;
+            case 'transaction-history': 
+                const txFilterBranch = document.getElementById('tx-filter-branch');
+                const txFilterSupplier = document.getElementById('tx-filter-supplier'); 
+                populateOptions(txFilterBranch, state.branches, _t('all_branches'), 'branchCode', 'branchName');
+                if (txFilterSupplier) populateOptions(txFilterSupplier, state.suppliers, 'All Suppliers', 'supplierCode', 'name');
+                const txTypes = ['receive', 'issue', 'transfer_out', 'transfer_in', 'return_out', 'po', 'adjustment_in', 'adjustment_out', 'extraction_in', 'extraction_out'];
+                const txTypeOptions = txTypes.map(t => ({'type': t, 'name': _t(t.replace(/_/g,''))}));
+                populateOptions(document.getElementById('tx-filter-type'), txTypeOptions, _t('all_types'), 'type', 'name');
+                renderTransactionHistory({ startDate: document.getElementById('tx-filter-start-date').value, endDate: document.getElementById('tx-filter-end-date').value, type: document.getElementById('tx-filter-type').value, branch: document.getElementById('tx-filter-branch').value, searchTerm: document.getElementById('transaction-search').value }); 
+                break;
+            case 'master-data':
+                renderItemsTable(); renderSuppliersTable(); renderBranchesTable();
+                const mainItems = (state.items || []).filter(i => !i.ParentItemCode);
+                populateOptions(document.getElementById('parent-item-code'), mainItems, _t('select_parent_item'), 'code', 'name');
+                break;
+            case 'backup': loadAndRenderBackups(); loadAutoBackupSettings(); break;
+            case 'operations':
+                populateOptions(document.getElementById('receive-supplier'), state.suppliers, _t('select_supplier'), 'supplierCode', 'name');
+                populateOptions(document.getElementById('receive-branch'), state.branches, _t('select_a_branch'), 'branchCode', 'branchName');
+                populateOptions(document.getElementById('transfer-from-branch'), state.branches, _t('select_a_branch'), 'branchCode', 'branchName');
+                populateOptions(document.getElementById('transfer-to-branch'), state.branches, _t('select_a_branch'), 'branchCode', 'branchName');
+                populateOptions(document.getElementById('return-supplier'), state.suppliers, _t('select_supplier'), 'supplierCode', 'name');
+                populateOptions(document.getElementById('return-branch'), state.branches, _t('select_a_branch'), 'branchCode', 'branchName');
+                populateOptions(document.getElementById('adjustment-branch'), state.branches, _t('select_a_branch'), 'branchCode', 'branchName');
+                populateOptions(document.getElementById('extraction-branch'), state.branches, _t('select_a_branch'), 'branchCode', 'branchName');
+                populateOptions(document.getElementById('extraction-main-item'), (state.items || []).filter(i => !i.ParentItemCode), _t('select_main_item_to_extract'), 'code', 'name');
+                populateOptions(document.getElementById('fin-adj-supplier'), state.suppliers, _t('select_supplier'), 'supplierCode', 'name');
+                populateOptions(document.getElementById('receive-po-select'), (state.purchaseOrders || []).filter(po => po.Status === 'Approved'), _t('select_a_po'), 'poId', 'poId', 'supplierCode');
+                renderReceiveListTable(); renderTransferListTable(); renderReturnListTable(); renderPendingTransfers(); renderInTransitReport(); renderAdjustmentListTable(); renderExtractionPreview();
+                break;
+            case 'purchasing':
+                 populateOptions(document.getElementById('po-supplier'), state.suppliers, _t('select_supplier'), 'supplierCode', 'name');
+                 renderPOListTable(); renderPurchaseOrdersViewer(); renderPendingFinancials();
+                 break;
+            case 'payments':
+                populateOptions(document.getElementById('payment-supplier-select'), state.suppliers, _t('select_supplier'), 'supplierCode', 'name');
+                renderPaymentList();
+                break;
+            case 'reports':
+                populateOptions(document.getElementById('supplier-statement-select'), state.suppliers, _t('select_a_supplier'), 'supplierCode', 'name');
+                renderSettlementHistory();
+                break;
+            case 'stock-levels':
+                 const branchFilterContainer = document.getElementById('stock-levels-branch-filter-container');
+                 if(branchFilterContainer) branchFilterContainer.style.display = 'none'; 
+                renderItemCentricStockView();
+                break;
+            case 'user-management':
+                const result = await postData('getAllUsersAndRoles', {}, null);
+                if (result) { state.allUsers = result.data.users; state.allRoles = result.data.roles; renderUserManagementUI(); }
+                break;
+            case 'activity-log': renderActivityLog(); break;
+        }
+        applyTranslations();
+    };
 
     // ==========================================
-    // 10. EVENT LISTENERS (FINAL)
+    // 9. EVENT LISTENERS & INIT (FINAL)
     // ==========================================
     function attachEventListeners() {
         btnLogout.addEventListener('click', logout);
@@ -1909,6 +1665,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (btn.id === 'btn-add-new-user') openEditModal('user', null);
             if (btn.classList.contains('btn-view-tx')) { /* Doc Hook */ }
             if (btn.classList.contains('btn-receive-transfer')) openViewTransferModal(btn.dataset.batchId);
+            if (btn.classList.contains('btn-approve-financial') || btn.classList.contains('btn-reject-financial')) {
+                const id = btn.dataset.id; const type = btn.dataset.type; const action = btn.classList.contains('btn-approve-financial') ? 'approveFinancial' : 'rejectFinancial';
+                if (confirm(action === 'approveFinancial' ? _t('approve_confirm_prompt', {type: _t(type)}) : _t('reject_confirm_prompt', {type: _t(type)}))) {
+                    postData(action, { id, type }, btn).then(result => { if (result) { showToast(action.includes('approve') ? _t('approved_toast', {type: _t(type)}) : _t('rejected_toast', {type: _t(type)}), 'success'); reloadDataAndRefreshUI(); } });
+                }
+            }
         });
 
         document.body.addEventListener('click', (e) => {
@@ -1943,6 +1705,13 @@ document.addEventListener('DOMContentLoaded', () => {
         attachTable('table-po-list', 'currentPOList', renderPOListTable);
         attachTable('table-return-list', 'currentReturnList', renderReturnListTable);
         attachTable('table-adjustment-list', 'currentAdjustmentList', renderAdjustmentListTable);
+
+        // Search Bars
+        setupSearch('search-items', renderItemsTable, 'items', ['name', 'code']);
+        setupSearch('search-suppliers', renderSuppliersTable, 'suppliers', ['name', 'supplierCode']);
+        setupSearch('search-branches', renderBranchesTable, 'branches', ['branchName', 'branchCode']);
+        setupSearch('stock-levels-search', renderItemCentricStockView, 'items', ['name', 'code']);
+        document.getElementById('item-inquiry-search').addEventListener('input', e => renderItemInquiry(e.target.value.toLowerCase()));
     }
 
     function initializeAppUI() {
@@ -1950,29 +1719,23 @@ document.addEventListener('DOMContentLoaded', () => {
         attachEventListeners(); 
         showView('dashboard');
     }
-    
-    function logout() { location.reload(); }
 
     function init() {
+        const langSwitcher = document.getElementById('lang-switcher');
+        const savedLang = localStorage.getItem('userLanguage') || 'en';
+        state.currentLanguage = savedLang;
+        langSwitcher.value = savedLang;
+        applyTranslations();
+        langSwitcher.addEventListener('change', e => {
+            const selectedLang = e.target.value;
+            localStorage.setItem('userLanguage', selectedLang);
+            state.currentLanguage = selectedLang;
+            reloadDataAndRefreshUI();
+        });
+
         loginForm.addEventListener('submit', (e) => {
             e.preventDefault();
             attemptLogin(loginUsernameInput.value.trim(), loginCodeInput.value);
-        });
-    }
-    
-    // --- OTHER UTILITIES ---
-    function setupSearch(inputId, renderFn, dataKey, searchKeys) {
-        const searchInput = document.getElementById(inputId);
-        if (!searchInput) return;
-        searchInput.addEventListener('input', e => {
-            const searchTerm = e.target.value.toLowerCase();
-            const dataToFilter = state[dataKey] || [];
-            if (inputId === 'stock-levels-search') {
-                const selectedBranches = Array.from(document.getElementById('stock-levels-branch-filter').selectedOptions).map(opt => opt.value);
-                renderFn(searchTerm ? dataToFilter.filter(item => searchKeys.some(key => item[key] && String(item[key]).toLowerCase().includes(searchTerm))) : dataToFilter, selectedBranches);
-            } else {
-                 renderFn(searchTerm ? dataToFilter.filter(item => searchKeys.some(key => item[key] && String(item[key]).toLowerCase().includes(searchTerm))) : dataToFilter);
-            }
         });
     }
 
