@@ -10,7 +10,8 @@ export let state = {
     allUsers: [], allRoles: [], backups: [], adminContextPromise: {},
 };
 
-export let modalContext = { value: null }; // Mutable object for context
+// Mutable object context to avoid read-only export errors
+export let modalContext = { value: null }; 
 
 export const translations = {
     'en': {
