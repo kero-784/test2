@@ -1285,6 +1285,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const sheetList = document.getElementById('restore-sheet-list');
         sheetList.innerHTML = '';
 
+
         const sheets = ['Items', 'Suppliers', 'Branches', 'Transactions', 'Settings'];
         sheets.forEach(sheet => {
             const div = document.createElement('div');
@@ -1645,14 +1646,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ], 'no_items_added');
     }
 
-    function exportToExcel(tableId, fileName) {
-        // Use the xlsx library which is included in index.html
-        const table = document.getElementById(tableId);
-        if (!table) return;
 
-        const wb = XLSX.utils.table_to_book(table, { sheet: "Sheet1" });
-        XLSX.writeFile(wb, fileName);
-    }
 
     // ==========================================
     // 7. EVENT LISTENERS & INIT (FINAL)
