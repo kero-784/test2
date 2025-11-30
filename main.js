@@ -1,4 +1,3 @@
-// main.js
 import { SCRIPT_URL } from './config.js';
 import { state, setState, resetStateLists } from './state.js';
 import { Logger, showToast, applyTranslations, populateOptions, findByKey, postData, setButtonLoading, _t } from './utils.js';
@@ -28,7 +27,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             
             if (data.status !== 'error' && data.user) {
-                if (data.user.isDisabled) throw new Error('Account disabled.');
+                // FIXED: Robust check for disabled status (handles string "FALSE" correctly)
+                const isUserDisabled = data.user.isDisabled === true || String(data.user.isDisabled).toUpperCase() === 'TRUE';
+                
+                if (isUserDisabled) {
+                    throw new Error('Account disabled.');
+                }
                 
                 setState('currentUser', data.user);
                 setState('username', username);
@@ -239,25 +243,28 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ADMIN CONTEXT CONFIRMATION
-    document.getElementById('btn-confirm-context').addEventListener('click', () => {
-        const modal = document.getElementById('context-selector-modal');
-        const context = {
-            fromBranch: modal.querySelector('#context-modal-fromBranch-group').style.display === 'block' ? modal.querySelector('#context-from-branch-select').value : null,
-            toBranch: modal.querySelector('#context-modal-toBranch-group').style.display === 'block' ? modal.querySelector('#context-to-branch-select').value : null,
-            branch: modal.querySelector('#context-modal-branch-group').style.display === 'block' ? modal.querySelector('#context-branch-select').value : null,
-            toSection: modal.querySelector('#context-modal-toSection-group').style.display === 'block' ? modal.querySelector('#context-to-section-select').value : null,
-            fromSection: modal.querySelector('#context-modal-fromSection-group').style.display === 'block' ? modal.querySelector('#context-from-section-select').value : null,
-        };
+    const btnConfirmContext = document.getElementById('btn-confirm-context');
+    if (btnConfirmContext) {
+        btnConfirmContext.addEventListener('click', () => {
+            const modal = document.getElementById('context-selector-modal');
+            const context = {
+                fromBranch: modal.querySelector('#context-modal-fromBranch-group').style.display === 'block' ? modal.querySelector('#context-from-branch-select').value : null,
+                toBranch: modal.querySelector('#context-modal-toBranch-group').style.display === 'block' ? modal.querySelector('#context-to-branch-select').value : null,
+                branch: modal.querySelector('#context-modal-branch-group').style.display === 'block' ? modal.querySelector('#context-branch-select').value : null,
+                toSection: modal.querySelector('#context-modal-toSection-group').style.display === 'block' ? modal.querySelector('#context-to-section-select').value : null,
+                fromSection: modal.querySelector('#context-modal-fromSection-group').style.display === 'block' ? modal.querySelector('#context-from-section-select').value : null,
+            };
 
-        // Check validation
-        if (Object.entries(context).some(([key, value]) => modal.querySelector(`#context-modal-${key}-group`).style.display === 'block' && !value)) {
-            showToast('Please make a selection for all required fields.', 'error');
-            return;
-        }
+            // Check validation
+            if (Object.entries(context).some(([key, value]) => modal.querySelector(`#context-modal-${key}-group`).style.display === 'block' && !value)) {
+                showToast('Please make a selection for all required fields.', 'error');
+                return;
+            }
 
-        if (state.adminContextPromise.resolve) state.adminContextPromise.resolve(context);
-        modal.classList.remove('active');
-    });
+            if (state.adminContextPromise.resolve) state.adminContextPromise.resolve(context);
+            modal.classList.remove('active');
+        });
+    }
 
     // Form Edit Record Submission (Generic Update)
     document.getElementById('form-edit-record').addEventListener('submit', async (e) => {
