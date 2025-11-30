@@ -8,7 +8,8 @@ export const Logger = {
 };
 
 export const _t = (key, r) => { 
-    let t = translations[state.currentLanguage]?.[key] || key; 
+    // Fallback logic for keys not found (often the uppercase ones)
+    let t = translations[state.currentLanguage]?.[key] || translations['en']?.[key] || key;
     if(r) {
         for(let k in r) t = t.replaceAll(`{${k}}`, r[k]); 
     }
@@ -38,6 +39,11 @@ export function applyTranslations() {
     document.querySelectorAll('[data-translate-placeholder]').forEach(el => {
         const key = el.dataset.translatePlaceholder;
         el.placeholder = _t(key);
+    });
+    // Fix for table headers that might be static
+    document.querySelectorAll('th').forEach(th => {
+        const key = th.getAttribute('data-translate-key') || th.innerText.trim();
+        if(translations['en'][key]) th.innerText = _t(key);
     });
 }
 
