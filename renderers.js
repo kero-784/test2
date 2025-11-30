@@ -109,6 +109,7 @@ export function renderTransferListTable() {
 }
 
 export function renderIssueListTable() { 
+    // Kept for backward compatibility if needed, though removed from UI
     renderDynamicListTable('table-issue-list', state.currentIssueList, [ 
         { type: 'text', key: 'itemCode' }, 
         { type: 'text', key: 'itemName' }, 
@@ -184,7 +185,7 @@ export function renderAdjustmentListTable() {
         const physicalCount = typeof item.physicalCount !== 'undefined' ? item.physicalCount : '';
         const adjustment = (parseFloat(physicalCount) || 0) - systemQty;
         
-        item.physicalCount = physicalCount; // Ensure state is synced
+        item.physicalCount = physicalCount;
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -411,12 +412,52 @@ export function renderEditModalContent(type, id) {
             record = findByKey(state.items, 'code', id);
             editModalTitle.textContent = _t('edit_item');
             
-            // Generate Options for Category based on config/hardcoded list
+            const isMain = record.ItemType === 'Main';
+            let cutsSelectorHtml = '';
+            
+            // --- LINK CUTS TO PARENT LOGIC ---
+            if (isMain) {
+                // Find all available cuts in the system
+                const allCuts = state.items.filter(i => i.ItemType === 'Cut');
+                
+                // Get currently linked cuts (stored as comma-separated string)
+                const currentLinks = (record.DefinedCuts || '').split(',').map(s => s.trim());
+
+                let checkboxesHtml = '';
+                if(allCuts.length > 0) {
+                    allCuts.forEach(cut => {
+                        const isChecked = currentLinks.includes(cut.code) ? 'checked' : '';
+                        checkboxesHtml += `
+                            <div style="display:flex; align-items:center; gap:8px; padding:4px 0;">
+                                <input type="checkbox" name="DefinedCuts" value="${cut.code}" ${isChecked} id="link-${cut.code}">
+                                <label for="link-${cut.code}" style="margin:0; font-size:14px;">${cut.name}</label>
+                            </div>
+                        `;
+                    });
+                    cutsSelectorHtml = `
+                        <div class="form-group span-full" style="border-top:1px solid #eee; padding-top:10px; margin-top:10px;">
+                            <label style="color:var(--primary-color);"><strong>Linked Cuts (Production Output)</strong></label>
+                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ddd; padding:10px; border-radius:8px;">
+                                ${checkboxesHtml}
+                            </div>
+                            <small style="color:#666;">Select the cuts that are produced from this carcass.</small>
+                        </div>
+                    `;
+                } else {
+                    cutsSelectorHtml = `<p style="color:#888;">No items marked as 'Cut' found. Add Cut items first.</p>`;
+                }
+            }
+            // -------------------------------------
+
             const categories = ['Beef', 'Lamb', 'Poultry', 'Seafood', 'Offal', 'Processed', 'Consumables'];
             const catOptions = categories.map(c => `<option value="${c}" ${record.category === c ? 'selected' : ''}>${_t('cat_'+c.toLowerCase())}</option>`).join('');
             
             formHtml = `
                 <div class="form-grid">
+                    <div class="form-group"><label>${_t('item_type')}</label>
+                        <input type="text" value="${record.ItemType || 'Main'}" readonly style="background:#eee;">
+                        <input type="hidden" name="ItemType" value="${record.ItemType || 'Main'}">
+                    </div>
                     <div class="form-group"><label>${_t('item_code')}</label><input type="text" value="${record.code}" readonly></div>
                     <div class="form-group"><label>${_t('barcode')}</label><input type="text" name="barcode" value="${record.barcode || ''}"></div>
                     <div class="form-group"><label>${_t('item_name')}</label><input type="text" name="name" value="${record.name}" required></div>
@@ -424,6 +465,8 @@ export function renderEditModalContent(type, id) {
                     <div class="form-group"><label>${_t('category')}</label><select name="category" required>${catOptions}</select></div>
                     <div class="form-group"><label>${_t('default_supplier')}</label><select id="edit-item-supplier" name="supplierCode"></select></div>
                     <div class="form-group span-full"><label>${_t('default_cost')}</label><input type="number" name="cost" step="0.01" min="0" value="${record.cost}" required></div>
+                    
+                    ${cutsSelectorHtml} 
                 </div>`;
             editModalBody.innerHTML = formHtml;
             populateOptions(document.getElementById('edit-item-supplier'), state.suppliers, _t('select_supplier'), 'supplierCode', 'name');
@@ -437,9 +480,7 @@ export function renderEditModalContent(type, id) {
             editModalBody.innerHTML = formHtml;
             break;
             
-        // ... (Add Branch, Section cases similarly using simple inputs) ...
         case 'user':
-            // Logic for User rendering is handled via main.js triggers usually, but here is the HTML generator
             record = findByKey(state.allUsers, 'Username', id);
             editModalTitle.textContent = id ? _t('edit_user') : _t('add_new_user_title');
             const currentRole = record ? record.RoleName : '';
@@ -459,16 +500,42 @@ export function renderEditModalContent(type, id) {
 
 export function renderItemsInModal(filter = '') {
     const listEl = document.getElementById('modal-item-list');
+    const modal = document.getElementById('item-selector-modal');
     listEl.innerHTML = '';
+    
     const lowerFilter = filter.toLowerCase();
     
-    state.items.filter(item => item.name.toLowerCase().includes(lowerFilter) || item.code.toLowerCase().includes(lowerFilter)).forEach(item => {
+    // Check if we have specific allowed items (from Butchery logic)
+    const allowedItemsJson = modal.dataset.allowedItems; 
+    let allowedCodes = null;
+    if (allowedItemsJson && allowedItemsJson !== "undefined" && allowedItemsJson !== "") {
+        try {
+            allowedCodes = JSON.parse(allowedItemsJson);
+        } catch (e) { console.error("Error parsing allowed items", e); }
+    }
+
+    state.items.filter(item => {
+        // 1. Text Search Filter
+        const matchesText = item.name.toLowerCase().includes(lowerFilter) || item.code.toLowerCase().includes(lowerFilter);
+        
+        // 2. Allowed Items Filter (If butchery parent is selected)
+        let matchesContext = true;
+        if (allowedCodes && Array.isArray(allowedCodes) && allowedCodes.length > 0) {
+            matchesContext = allowedCodes.includes(item.code);
+        }
+        
+        return matchesText && matchesContext;
+    }).forEach(item => {
         const isChecked = state.modalSelections.has(item.code);
         const itemDiv = document.createElement('div');
         itemDiv.className = 'modal-item';
         itemDiv.innerHTML = `<input type="checkbox" id="modal-item-${item.code}" data-code="${item.code}" ${isChecked ? 'checked' : ''}><label for="modal-item-${item.code}"><strong>${item.name}</strong><br><small style="color:var(--text-light-color)">${item.code}</small></label>`;
         listEl.appendChild(itemDiv);
     });
+
+    if (listEl.innerHTML === '') {
+        listEl.innerHTML = `<p style="text-align:center; padding:20px; color:#888;">No matching items found.<br>${allowedCodes ? '(Filtered by Parent Item definition)' : ''}</p>`;
+    }
 }
 
 // --- DASHBOARD AND OTHER VIEWS ---
@@ -504,7 +571,9 @@ export function renderUserManagementUI() {
     (state.allUsers || []).forEach(user => {
         const tr = document.createElement('tr');
         const assigned = findByKey(state.branches, 'branchCode', user.AssignedBranchCode)?.branchName || 'N/A';
-        tr.innerHTML = `<td>${user.Username}</td><td>${user.Name}</td><td>${user.RoleName}</td><td>${assigned}</td><td>${user.isDisabled ? 'Disabled' : 'Active'}</td><td><button class="secondary small btn-edit" data-type="user" data-id="${user.Username}">${_t('edit')}</button></td>`;
+        // Display status correctly based on boolean
+        const statusText = (user.isDisabled === true || String(user.isDisabled).toUpperCase() === 'TRUE') ? 'Disabled' : 'Active';
+        tr.innerHTML = `<td>${user.Username}</td><td>${user.Name}</td><td>${user.RoleName}</td><td>${assigned}</td><td>${statusText}</td><td><button class="secondary small btn-edit" data-type="user" data-id="${user.Username}">${_t('edit')}</button></td>`;
         usersTbody.appendChild(tr);
     });
 }
