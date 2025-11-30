@@ -1,6 +1,6 @@
 import { state } from './state.js';
-import { _t, findByKey, printContent } from './utils.js'; // Ensure printContent is imported
-import { calculateStockLevels, prepareListForSubmission } from './calculations.js';
+import { _t, findByKey, printContent } from './utils.js';
+import { calculateStockLevels } from './calculations.js';
 
 // --- TOTALIZER FUNCTIONS ---
 export function updateReceiveGrandTotal() { 
@@ -45,7 +45,7 @@ export const renderDynamicListTable = (tbodyId, list, columnsConfig, emptyMessag
     const table = document.getElementById(tbodyId);
     if(!table) return;
     const tbody = table.querySelector('tbody');
-    tbody.innerHTML = '';
+    let html = '';
     
     if (!list || list.length === 0) {
         tbody.innerHTML = `<tr><td colspan="${columnsConfig.length + 1}" style="text-align:center;">${_t(emptyMessage)}</td></tr>`;
@@ -83,9 +83,9 @@ export const renderDynamicListTable = (tbodyId, list, columnsConfig, emptyMessag
             const pItem = group.parentItem; const pIdx = group.parentIndex; const isPh = pItem.isMainItemPlaceholder;
             let totWgt = isPh ? group.children.reduce((s, c) => s + (parseFloat(c.item.quantity)||0), 0) : 0;
             const dispQty = isPh ? totWgt.toFixed(2) : (pItem.quantity||'');
+            const trClass = isPh ? ' class="main-item-group-header"' : '';
             
-            let tr = document.createElement('tr'); if(isPh) tr.classList.add('main-item-group-header');
-            
+            html += `<tr${trClass}>`;
             columnsConfig.forEach(col => {
                 let val = '';
                 if(col.type === 'text') val = pItem[col.key];
@@ -97,27 +97,27 @@ export const renderDynamicListTable = (tbodyId, list, columnsConfig, emptyMessag
                 else if(col.type === 'calculated') { val = isPh ? (parseFloat(pItem.cost)||0).toFixed(2) : ((parseFloat(pItem.quantity)||0)*(parseFloat(pItem.cost)||0)).toFixed(2); }
                 else if(col.type === 'available_stock') val = (stock[branchCode]?.[pItem.itemCode]?.quantity||0).toFixed(2);
                 
-                tr.innerHTML += `<td>${val}</td>`;
+                html += `<td>${val}</td>`;
             });
-            tr.innerHTML += `<td>${!isPh ? `<button class="danger small" data-index="${pIdx}">X</button>` : '---'}</td>`;
-            tbody.appendChild(tr);
+            html += `<td>${!isPh ? `<button class="danger small" data-index="${pIdx}">X</button>` : '---'}</td></tr>`;
         }
 
         // Child Rows
         group.children.forEach(child => {
-            let tr = document.createElement('tr'); tr.classList.add('sub-item-row');
+            html += `<tr class="sub-item-row">`;
             columnsConfig.forEach(col => {
                 let val = '';
                 if(col.type === 'text') val = child.item[col.key];
                 else if(col.type === 'number_input') val = `<input type="number" class="table-input" value="${child.item[col.key]||''}" data-index="${child.index}" data-field="${col.key}">`;
                 else if(col.type === 'available_stock') val = (stock[branchCode]?.[child.item.itemCode]?.quantity||0).toFixed(2);
                 else val = '---';
-                tr.innerHTML += `<td>${val}</td>`;
+                html += `<td>${val}</td>`;
             });
-            tr.innerHTML += `<td><button class="danger small" data-index="${child.index}">X</button></td>`;
-            tbody.appendChild(tr);
+            html += `<td><button class="danger small" data-index="${child.index}">X</button></td></tr>`;
         });
     });
+    
+    tbody.innerHTML = html;
     if(totalizerFn) totalizerFn();
 };
 
@@ -154,47 +154,117 @@ export function renderReturnListTable() {
 
 export function renderTransactionHistory(filters = {}) {
     const table = document.getElementById('table-transaction-history'); if(!table) return;
-    const tbody = table.querySelector('tbody'); tbody.innerHTML = '';
+    const tbody = table.querySelector('tbody'); 
     
     let items = [...(state.transactions||[])];
     if(filters.branch) items = items.filter(t => t.branchCode == filters.branch || t.fromBranchCode == filters.branch || t.toBranchCode == filters.branch);
     if(filters.type) items = items.filter(t => t.type == filters.type);
+    if(filters.supplier) items = items.filter(t => t.supplierCode == filters.supplier);
     
     const groups = {}; 
     items.forEach(t => { if(!groups[t.batchId]) groups[t.batchId] = []; groups[t.batchId].push(t); });
     
+    let html = '';
     Object.values(groups).sort((a,b) => new Date(b[0].date) - new Date(a[0].date)).forEach(g => {
         const t = g[0];
-        tbody.innerHTML += `<tr><td>${new Date(t.date).toLocaleString()}</td><td>${t.type}</td><td>${t.batchId}</td><td>${g.length} Items</td><td>${t.Status||''}</td><td><button class="secondary small btn-view-tx" data-batch-id="${t.batchId}" data-type="${t.type}">View</button></td></tr>`;
+        html += `<tr><td>${new Date(t.date).toLocaleString()}</td><td>${t.type}</td><td>${t.batchId}</td><td>${g.length} Items</td><td>${t.Status||''}</td><td><button class="secondary small btn-view-tx" data-batch-id="${t.batchId}" data-type="${t.type}">View</button></td></tr>`;
     });
+    tbody.innerHTML = html;
 }
 
 export function renderItemsTable() { 
-    const tbody = document.getElementById('table-items').querySelector('tbody'); tbody.innerHTML = ''; 
-    (state.items||[]).forEach(i => tbody.innerHTML += `<tr><td>${i.code}</td><td>${i.name}</td><td>${i.ParentItemCode||''}</td><td>${i.cost}</td><td><button class="secondary small btn-edit" data-type="item" data-id="${i.code}">Edit</button></td></tr>`); 
+    const tbody = document.getElementById('table-items').querySelector('tbody'); 
+    let html = '';
+    (state.items||[]).forEach(i => html += `<tr><td>${i.code}</td><td>${i.name}</td><td>${i.ParentItemCode||''}</td><td>${i.cost}</td><td><button class="secondary small btn-edit" data-type="item" data-id="${i.code}">Edit</button></td></tr>`); 
+    tbody.innerHTML = html;
 }
+
 export function renderSuppliersTable() { 
-    const tbody = document.getElementById('table-suppliers').querySelector('tbody'); tbody.innerHTML = ''; 
-    (state.suppliers||[]).forEach(s => tbody.innerHTML += `<tr><td>${s.supplierCode}</td><td>${s.name}</td><td>-</td><td><button class="secondary small btn-edit" data-type="supplier" data-id="${s.supplierCode}">Edit</button></td></tr>`); 
+    const tbody = document.getElementById('table-suppliers').querySelector('tbody'); 
+    let html = '';
+    (state.suppliers||[]).forEach(s => html += `<tr><td>${s.supplierCode}</td><td>${s.name}</td><td>-</td><td><button class="secondary small btn-edit" data-type="supplier" data-id="${s.supplierCode}">Edit</button></td></tr>`); 
+    tbody.innerHTML = html;
 }
+
 export function renderBranchesTable() { 
-    const tbody = document.getElementById('table-branches').querySelector('tbody'); tbody.innerHTML = ''; 
-    (state.branches||[]).forEach(b => tbody.innerHTML += `<tr><td>${b.branchCode}</td><td>${b.branchName}</td><td><button class="secondary small btn-edit" data-type="branch" data-id="${b.branchCode}">Edit</button></td></tr>`); 
+    const tbody = document.getElementById('table-branches').querySelector('tbody'); 
+    let html = '';
+    (state.branches||[]).forEach(b => html += `<tr><td>${b.branchCode}</td><td>${b.branchName}</td><td><button class="secondary small btn-edit" data-type="branch" data-id="${b.branchCode}">Edit</button></td></tr>`); 
+    tbody.innerHTML = html;
 }
 
 export function renderAdjustmentListTable() {
-    const tbody = document.getElementById('table-adjustment-list').querySelector('tbody'); tbody.innerHTML = '';
+    const tbody = document.getElementById('table-adjustment-list').querySelector('tbody'); 
     if (!state.currentAdjustmentList.length) { tbody.innerHTML = `<tr><td colspan="6">${_t('no_items_for_adjustment')}</td></tr>`; return; }
     const stock = calculateStockLevels(); const bc = document.getElementById('adjustment-branch').value;
+    
+    let html = '';
     state.currentAdjustmentList.forEach((item, idx) => {
         const sys = (bc && stock[bc]?.[item.itemCode]?.quantity)||0;
         const phys = item.physicalCount !== undefined ? item.physicalCount : '';
         const adj = (parseFloat(phys)||0) - sys;
-        tbody.innerHTML += `<tr><td>${item.itemCode}</td><td>${item.itemName}</td><td>${sys.toFixed(2)}</td><td><input type="number" class="table-input" value="${phys}" data-index="${idx}" data-field="physicalCount"></td><td>${adj.toFixed(2)}</td><td><button class="danger small" data-index="${idx}">X</button></td></tr>`;
+        html += `<tr><td>${item.itemCode}</td><td>${item.itemName}</td><td>${sys.toFixed(2)}</td><td><input type="number" class="table-input" value="${phys}" data-index="${idx}" data-field="physicalCount"></td><td>${adj.toFixed(2)}</td><td><button class="danger small" data-index="${idx}">X</button></td></tr>`;
     });
+    tbody.innerHTML = html;
 }
 
-// --- DOCUMENT GENERATORS (MOVED HERE) ---
+// --- NEWLY ADDED RENDERERS FOR MISSING FUNCTIONS ---
+
+export function renderItemCentricStockView() {
+    const container = document.getElementById('item-centric-stock-container');
+    if(!container) return;
+    
+    const stock = calculateStockLevels();
+    const branchFilter = Array.from(document.getElementById('stock-levels-branch-filter')?.selectedOptions || []).map(o => o.value);
+    const searchTerm = document.getElementById('stock-levels-search')?.value.toLowerCase() || '';
+
+    let html = '<table><thead><tr><th>Item Code</th><th>Item Name</th>';
+    const branchesToShow = (state.branches || []).filter(b => branchFilter.length === 0 || branchFilter.includes(b.branchCode));
+    branchesToShow.forEach(b => html += `<th>${b.branchName}</th>`);
+    html += '<th>Total</th></tr></thead><tbody>';
+
+    state.items.forEach(item => {
+        if (searchTerm && !item.name.toLowerCase().includes(searchTerm) && !item.code.toLowerCase().includes(searchTerm)) return;
+        
+        html += `<tr><td>${item.code}</td><td>${item.name}</td>`;
+        let total = 0;
+        branchesToShow.forEach(b => {
+            const qty = stock[b.branchCode]?.[item.code]?.quantity || 0;
+            total += qty;
+            html += `<td>${qty.toFixed(2)}</td>`;
+        });
+        html += `<td><strong>${total.toFixed(2)}</strong></td></tr>`;
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+export function renderItemInquiry() {
+    const container = document.getElementById('item-inquiry-results');
+    const searchTerm = document.getElementById('item-inquiry-search')?.value;
+    
+    if(!container || !searchTerm) {
+        if(container) container.innerHTML = '';
+        return;
+    }
+
+    const item = state.items.find(i => i.code === searchTerm || i.name === searchTerm);
+    if (!item) { container.innerHTML = `<p>${_t('no_items_found')}</p>`; return; }
+
+    const stock = calculateStockLevels();
+    let html = `<h3>${item.name} (${item.code})</h3>`;
+    html += `<div class="grid">`;
+    (state.branches || []).forEach(b => {
+        const s = stock[b.branchCode]?.[item.code];
+        if (s && s.quantity !== 0) {
+            html += `<div class="card"><h4>${b.branchName}</h4><p class="kpi-value">${s.quantity.toFixed(2)}</p></div>`;
+        }
+    });
+    html += `</div>`;
+    container.innerHTML = html;
+}
+
+// --- DOCUMENT GENERATORS ---
 const generateGroupedItemsHtml = (data, headers) => {
     let itemsHtml = ''; let grandTotal = 0;
     const groupedItems = {};
@@ -209,7 +279,7 @@ const generateGroupedItemsHtml = (data, headers) => {
         const group = groupedItems[key];
         if (group.children.length > 0) {
              const mainData = group.mainItemData || { cost: 0 };
-             group.totalValue = parseFloat(group.mainItemData ? group.mainItemData.cost : 0); // Lump sum cost is total
+             group.totalValue = parseFloat(group.mainItemData ? group.mainItemData.cost : 0); 
              itemsHtml += `<tr class="main-item-group-header"><td colspan="${headers.length}"><strong>${group.parent?.name}</strong></td></tr>`;
              group.children.forEach(item => itemsHtml += `<tr><td>${item.itemCode}</td><td>${item.itemName}</td><td>${item.quantity}</td><td>-</td><td>-</td></tr>`);
              grandTotal += group.totalValue;
