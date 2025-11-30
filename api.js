@@ -1,18 +1,15 @@
+
 import { state, SCRIPT_URL } from './state.js';
 import { Logger, showToast, setButtonLoading, _t } from './utils.js';
-import { initializeAppUI } from './main.js';
 
 // --- LOGIN ---
 export async function attemptLogin(u, c) {
     const loginForm = document.getElementById('login-form');
     const loginError = document.getElementById('login-error');
     const loginLoader = document.getElementById('login-loader');
-    const loginContainer = document.getElementById('login-container');
-    const appContainer = document.getElementById('app-container');
-
-    if (!u || !c) return;
     
-    // UI Updates
+    if (!u || !c) return false;
+    
     loginForm.style.display = 'none'; 
     loginError.textContent = ''; 
     loginLoader.style.display = 'flex';
@@ -26,7 +23,6 @@ export async function attemptLogin(u, c) {
         if (data.status === 'error' || !data.user) throw new Error(data.message || 'Invalid credentials.');
         if (data.user.isDisabled === true || String(data.user.isDisabled).toUpperCase() === 'TRUE') throw new Error('Account disabled.');
         
-        // Initialize State
         state.username = u; 
         state.loginCode = c; 
         state.currentUser = data.user;
@@ -34,22 +30,19 @@ export async function attemptLogin(u, c) {
         
         Logger.info(`Login successful for user: ${state.currentUser.Name}`);
         
-        // Language Setup
         const savedLang = localStorage.getItem('userLanguage') || 'en';
         state.currentLanguage = savedLang;
         const langSwitcher = document.getElementById('lang-switcher');
         if(langSwitcher) langSwitcher.value = savedLang;
         
-        // Switch View
-        loginContainer.style.display = 'none'; 
-        appContainer.style.display = 'flex';
-        initializeAppUI(); 
+        return true; // Login success
         
     } catch (err) {
         Logger.error('Login failed:', err); 
         loginError.textContent = err.message; 
         loginLoader.style.display = 'none'; 
         loginForm.style.display = 'block';
+        return false;
     }
 }
 
@@ -90,10 +83,8 @@ export async function reloadDataAndRefreshUI() {
         
         if (data.status === 'error') throw new Error(data.message);
         
-        // Update State
         Object.keys(data).forEach(k => { if(k !== 'user') state[k] = data[k] || state[k]; });
         
-        // Trigger UI Update Event
         const currentView = document.querySelector('.nav-item a.active')?.dataset.view || 'dashboard';
         document.dispatchEvent(new CustomEvent('dataRefreshed', { detail: { view: currentView }}));
         
