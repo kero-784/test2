@@ -14,6 +14,7 @@ import { calculateStockLevels } from './calculations.js';
 import { generateReceiveDocument, generateTransferDocument, generatePODocument, generateReturnDocument } from './documents.js';
 
 export async function handleButcherySubmit(e) {
+    if(e) e.preventDefault(); // STOP PAGE RELOAD
     const btn = e.currentTarget;
     const parentCode = document.getElementById('butchery-parent-code').value;
     const parentQty = parseFloat(document.getElementById('butchery-parent-qty').value);
@@ -63,6 +64,7 @@ export async function handleButcherySubmit(e) {
 }
 
 export async function handleReceiveSubmit(e) {
+    if(e) e.preventDefault(); // STOP PAGE RELOAD
     const btn = e.currentTarget;
     let branchCode = document.getElementById('receive-branch').value;
     const supplierCode = document.getElementById('receive-supplier').value;
@@ -96,7 +98,7 @@ export async function handleReceiveSubmit(e) {
         items: state.currentReceiveList.map(i => ({
             ...i,
             type: 'receive',
-            batchNo: batchNo, // Propagate batch to line items
+            batchNo: batchNo, 
             expiryDate: expiryDate
         }))
     };
@@ -112,6 +114,7 @@ export async function handleReceiveSubmit(e) {
 }
 
 export async function handleTransferSubmit(e) {
+    if(e) e.preventDefault(); // STOP PAGE RELOAD
     const btn = e.currentTarget;
     let fromBranchCode = document.getElementById('transfer-from-branch').value;
     let toBranchCode = document.getElementById('transfer-to-branch').value;
@@ -153,6 +156,7 @@ export async function handleTransferSubmit(e) {
 }
 
 export async function handlePOSubmit(e) {
+    if(e) e.preventDefault(); // STOP PAGE RELOAD
     const btn = e.currentTarget;
     const supplierCode = document.getElementById('po-supplier').value;
     const poId = document.getElementById('po-ref').value;
@@ -188,6 +192,7 @@ export async function handlePOSubmit(e) {
 }
 
 export async function handleReturnSubmit(e) {
+    if(e) e.preventDefault(); // STOP PAGE RELOAD
     const btn = e.currentTarget;
     const supplierCode = document.getElementById('return-supplier').value;
     let fromBranchCode = document.getElementById('return-branch').value;
@@ -227,6 +232,7 @@ export async function handleReturnSubmit(e) {
 }
 
 export async function handleRequestSubmit(e) {
+    if(e) e.preventDefault(); // STOP PAGE RELOAD
     const btn = e.currentTarget;
     let fromSection = state.currentUser.AssignedSectionCode;
     let toBranch = state.currentUser.AssignedBranchCode;
@@ -264,6 +270,7 @@ export async function handleRequestSubmit(e) {
 }
 
 export async function handleAdjustmentSubmit(e) {
+    if(e) e.preventDefault(); // STOP PAGE RELOAD
     const btn = e.currentTarget;
     let branchCode = document.getElementById('adjustment-branch').value;
     const ref = document.getElementById('adjustment-ref').value;
