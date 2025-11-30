@@ -1,3 +1,4 @@
+// main.js
 import { SCRIPT_URL } from './config.js';
 import { state, setState, resetStateLists } from './state.js';
 import { Logger, showToast, applyTranslations, populateOptions, findByKey, postData, setButtonLoading, _t } from './utils.js';
@@ -27,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             
             if (data.status !== 'error' && data.user) {
-                // FIXED: Robust check for disabled status (handles string "FALSE" correctly)
+                // Robust check for disabled status
                 const isUserDisabled = data.user.isDisabled === true || String(data.user.isDisabled).toUpperCase() === 'TRUE';
                 
                 if (isUserDisabled) {
@@ -84,7 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Global Button Listener (Edit, Print, Delete via delegation)
+    // Global Button Listener
     document.body.addEventListener('click', (e) => {
         const btn = e.target.closest('button');
         if (!btn) return;
@@ -143,11 +144,125 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
         }
+
+        // Standardized Item Selector Logic
+        if (btn.classList.contains('btn-select-items')) {
+            const context = btn.dataset.context;
+            state.currentSelectionModal.type = 'item-selector';
+            const modal = document.getElementById('item-selector-modal');
+            modal.dataset.context = context;
+            
+            // Butchery Logic: Set filtering rules if adding cuts
+            modal.dataset.allowedItems = ""; // Reset
+            if (context === 'butchery-child') {
+                const parentCode = document.getElementById('butchery-parent-code').value;
+                if (!parentCode) {
+                    showToast("Please select a Parent Item first.", "error");
+                    return; 
+                }
+                const parentItem = findByKey(state.items, 'code', parentCode);
+                if (parentItem && parentItem.DefinedCuts) {
+                    const cutsArray = parentItem.DefinedCuts.split(',').map(s => s.trim());
+                    modal.dataset.allowedItems = JSON.stringify(cutsArray);
+                }
+            }
+
+            state.modalSelections.clear();
+            Renderers.renderItemsInModal();
+            modal.classList.add('active');
+        }
     });
 
-    // --- FORM SUBMISSION BINDINGS ---
-    // Imported from transactions.js
-    
+    // --- SETUP FORM HANDLERS (CRITICAL FOR PREVENTING RELOAD) ---
+    const attachFormHandler = (formId, actionName, dataExtractor) => {
+        const form = document.getElementById(formId);
+        if(!form) return;
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault(); // STOP RELOAD
+            const btn = form.querySelector('button[type="submit"]');
+            const data = dataExtractor();
+            const res = await postData(actionName, data, btn);
+            if(res) {
+                showToast(_t('add_success_toast'), 'success');
+                form.reset();
+                await reloadData();
+            }
+        });
+    };
+
+    attachFormHandler('form-add-item', 'addItem', () => ({
+        ItemType: document.getElementById('item-type').value,
+        code: document.getElementById('item-code').value,
+        barcode: document.getElementById('item-barcode').value,
+        name: document.getElementById('item-name').value,
+        unit: document.getElementById('item-unit').value,
+        category: document.getElementById('item-category').value,
+        supplierCode: document.getElementById('item-supplier').value,
+        cost: parseFloat(document.getElementById('item-cost').value)
+    }));
+
+    attachFormHandler('form-add-supplier', 'addSupplier', () => ({
+        supplierCode: document.getElementById('supplier-code').value,
+        name: document.getElementById('supplier-name').value,
+        contact: document.getElementById('supplier-contact').value
+    }));
+
+    attachFormHandler('form-add-branch', 'addBranch', () => ({
+        branchCode: document.getElementById('branch-code').value,
+        branchName: document.getElementById('branch-name').value
+    }));
+
+    attachFormHandler('form-add-section', 'addSection', () => ({
+        sectionCode: document.getElementById('section-code').value,
+        sectionName: document.getElementById('section-name').value
+    }));
+
+    // Payment Form
+    document.getElementById('form-record-payment')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        const supplierCode = document.getElementById('payment-supplier-select').value;
+        const method = document.getElementById('payment-method').value;
+        
+        if (!supplierCode || state.invoiceModalSelections.size === 0) {
+            showToast('Please select a supplier and at least one invoice.', 'error');
+            return;
+        }
+
+        const paymentId = `PAY-${Date.now()}`;
+        let totalAmount = 0;
+        const payments = [];
+        
+        document.querySelectorAll('.payment-amount-input').forEach(input => {
+            const amount = parseFloat(input.value) || 0;
+            if (amount > 0) {
+                totalAmount += amount;
+                payments.push({
+                    paymentId,
+                    date: new Date().toISOString(),
+                    supplierCode,
+                    invoiceNumber: input.dataset.invoice,
+                    amount,
+                    method
+                });
+            }
+        });
+
+        if (payments.length === 0) return;
+
+        const payload = { supplierCode, method, date: new Date().toISOString(), totalAmount, payments };
+        const result = await postData('addPaymentBatch', payload, btn);
+        if (result) {
+            showToast('Payment recorded!', 'success');
+            Documents.generatePaymentVoucher(payload);
+            state.invoiceModalSelections.clear();
+            document.getElementById('form-record-payment').reset();
+            Renderers.renderPendingFinancials();
+            await reloadData();
+        }
+    });
+
+    // --- TRANSACTION BUTTON BINDINGS ---
     const bindBtn = (id, handler) => {
         const btn = document.getElementById(id);
         if(btn) btn.addEventListener('click', handler);
@@ -156,7 +271,6 @@ document.addEventListener('DOMContentLoaded', () => {
     bindBtn('btn-submit-receive-batch', Transactions.handleReceiveSubmit);
     bindBtn('btn-submit-butchery', Transactions.handleButcherySubmit);
     bindBtn('btn-submit-transfer-batch', Transactions.handleTransferSubmit);
-    bindBtn('btn-submit-issue-batch', Transactions.handleIssueSubmit);
     bindBtn('btn-submit-po', Transactions.handlePOSubmit);
     bindBtn('btn-submit-return', Transactions.handleReturnSubmit);
     bindBtn('btn-submit-request', Transactions.handleRequestSubmit);
@@ -223,9 +337,6 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (context === 'transfer') {
                 addToList('currentTransferList');
                 Renderers.renderTransferListTable();
-            } else if (context === 'issue') {
-                addToList('currentIssueList');
-                Renderers.renderIssueListTable();
             } else if (context === 'po') {
                 addToList('currentPOList');
                 Renderers.renderPOListTable();
@@ -275,8 +386,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const formData = new FormData(form);
         const updates = {};
         
+        // Handle DefinedCuts checkboxes specifically
+        if (type === 'item') {
+            const selectedCuts = [];
+            form.querySelectorAll('input[name="DefinedCuts"]:checked').forEach(cb => {
+                selectedCuts.push(cb.value);
+            });
+            if (form.querySelector('input[name="ItemType"]').value === 'Main') {
+                updates['DefinedCuts'] = selectedCuts.join(',');
+            }
+        }
+
         for (let [key, value] of formData.entries()) {
-            if(value !== "") updates[key] = value;
+            if (key !== 'DefinedCuts' && value !== "") updates[key] = value;
         }
 
         let action = 'updateData';
@@ -303,12 +425,10 @@ function initializeAppUI() {
     const currentUser = state.currentUser;
     document.querySelector('.sidebar-header h1').textContent = `Hi, ${currentUser.Name.split(' ')[0]}`;
     
-    // Initial data population
     populateOptions(document.getElementById('receive-branch'), state.branches, _t('branch'), 'branchCode', 'branchName');
     populateOptions(document.getElementById('receive-supplier'), state.suppliers, _t('supplier'), 'supplierCode', 'name');
     populateOptions(document.getElementById('butchery-branch'), state.branches, _t('branch'), 'branchCode', 'branchName');
     
-    // Default View
     showView('dashboard');
 }
 
@@ -346,18 +466,15 @@ function refreshViewData(viewId) {
             Renderers.renderButcheryListTable();
             break;
         case 'operations':
-            // Populate all operation dropdowns
-            ['receive', 'transfer-from', 'transfer-to', 'issue-from', 'return', 'adjustment'].forEach(prefix => {
+            ['receive', 'transfer-from', 'transfer-to', 'return', 'adjustment'].forEach(prefix => {
                 const el = document.getElementById(`${prefix}-branch`);
                 if(el) populateOptions(el, state.branches, _t('branch'), 'branchCode', 'branchName');
             });
             populateOptions(document.getElementById('receive-supplier'), state.suppliers, _t('supplier'), 'supplierCode', 'name');
             populateOptions(document.getElementById('return-supplier'), state.suppliers, _t('supplier'), 'supplierCode', 'name');
-            populateOptions(document.getElementById('issue-to-section'), state.sections, _t('section'), 'sectionCode', 'sectionName');
             
             Renderers.renderReceiveListTable();
             Renderers.renderTransferListTable();
-            Renderers.renderIssueListTable();
             Renderers.renderReturnListTable();
             Renderers.renderAdjustmentListTable();
             Renderers.renderPendingTransfers();
