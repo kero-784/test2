@@ -1,4 +1,4 @@
-export const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby7Gpjp1zJtjwDnDM5vuaQg_tJKmKejDAZoi-kimOSCMVlVBnCyT6CZmYrVU80y-Jv9/exec';
+export const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwSM8G9AqHy6Nnhwcpit7xRJbKMkY93ACaHA3_3pzwZlNaF6ORzVL-Ev10FF7HQiu9M/exec';
 
 export let state = {
     currentUser: null, username: null, loginCode: null, currentLanguage: 'en',
