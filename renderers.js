@@ -1,6 +1,6 @@
 import { state } from './state.js';
 import { _t, findByKey, printContent } from './utils.js';
-import { calculateStockLevels } from './calculations.js';
+import { calculateStockLevels, calculateSupplierFinancials } from './calculations.js';
 
 // --- TOTALIZER FUNCTIONS ---
 export function updateReceiveGrandTotal() { 
@@ -240,11 +240,7 @@ export function renderItemCentricStockView() {
 export function renderItemInquiry() {
     const container = document.getElementById('item-inquiry-results');
     const searchTerm = document.getElementById('item-inquiry-search')?.value;
-    
-    if(!container || !searchTerm) {
-        if(container) container.innerHTML = '';
-        return;
-    }
+    if(!container || !searchTerm) { if(container) container.innerHTML = ''; return; }
 
     const item = state.items.find(i => i.code === searchTerm || i.name === searchTerm);
     if (!item) { container.innerHTML = `<p>${_t('no_items_found')}</p>`; return; }
@@ -262,8 +258,34 @@ export function renderItemInquiry() {
     container.innerHTML = html;
 }
 
-// --- DOCUMENT GENERATORS (Function declarations to fix export error) ---
+// MISSING FUNCTION IMPLEMENTATION
+export function renderSupplierStatement(supplierCode, startDate, endDate) {
+    const container = document.getElementById('supplier-statement-results');
+    if (!container) return;
+    const financials = calculateSupplierFinancials();
+    const data = financials[supplierCode];
+    if (!data) { container.innerHTML = '<p>No data found for this supplier.</p>'; return; }
 
+    let html = `<h3>${_t('supplier_statement_title', { supplierName: data.supplierName })}</h3>`;
+    html += `<table><thead><tr><th>${_t('date')}</th><th>${_t('type')}</th><th>${_t('table_h_ref_no')}</th><th>${_t('table_h_debit')}</th><th>${_t('table_h_credit')}</th></tr></thead><tbody>`;
+
+    let runningBalance = 0;
+    data.events.forEach(e => {
+        if (startDate && new Date(e.date) < new Date(startDate)) return;
+        if (endDate && new Date(e.date) > new Date(endDate)) return;
+        // runningBalance += (e.debit - e.credit); // Logic depends on accounting type, sticking to simple list
+        html += `<tr><td>${new Date(e.date).toLocaleDateString()}</td><td>${e.type}</td><td>${e.ref}</td><td>${e.debit.toFixed(2)}</td><td>${e.credit.toFixed(2)}</td></tr>`;
+    });
+    html += `</tbody><tfoot><tr><td colspan="4" style="text-align:right"><strong>${_t('table_h_balance')}</strong></td><td><strong>${data.balance.toFixed(2)}</strong></td></tr></tfoot></table>`;
+    container.innerHTML = `<div class="printable-document">${html}</div>`;
+    container.style.display = 'block';
+}
+
+export function renderSalesDiscrepancyReport() {
+    showToast('Sales Discrepancy Report feature is coming soon.', 'info');
+}
+
+// --- DOCUMENT GENERATORS ---
 const generateGroupedItemsHtml = (data, headers) => {
     let itemsHtml = ''; let grandTotal = 0;
     const groupedItems = {};
@@ -287,23 +309,8 @@ const generateGroupedItemsHtml = (data, headers) => {
     return { html: itemsHtml, totalValue: grandTotal };
 };
 
-export function generateTransferDocument(d) { 
-    printContent(`<div>Transfer ${d.batchId}</div>`); 
-}
-
-export function generateReceiveDocument(d) { 
-    const { html, totalValue } = generateGroupedItemsHtml(d, ['code','name','qty','cost','total']);
-    printContent(`<div><h2>GRN ${d.batchId}</h2><table>${html}</table><h3>Total: ${totalValue}</h3></div>`); 
-}
-
-export function generatePODocument(d) { 
-    printContent(`<div>PO ${d.poId}</div>`); 
-}
-
-export function generateReturnDocument(d) { 
-    printContent(`<div>Return ${d.batchId}</div>`); 
-}
-
-export function generatePaymentVoucher(d) { 
-    printContent(`<div>Payment ${d.totalAmount}</div>`); 
-}
+export function generateTransferDocument(d) { printContent(`<div>Transfer ${d.batchId}</div>`); }
+export function generateReceiveDocument(d) { const { html, totalValue } = generateGroupedItemsHtml(d, ['code','name','qty','cost','total']); printContent(`<div><h2>GRN ${d.batchId}</h2><table>${html}</table><h3>Total: ${totalValue}</h3></div>`); }
+export function generatePODocument(d) { printContent(`<div>PO ${d.poId}</div>`); }
+export function generateReturnDocument(d) { printContent(`<div>Return ${d.batchId}</div>`); }
+export function generatePaymentVoucher(d) { printContent(`<div>Payment ${d.totalAmount}</div>`); }
