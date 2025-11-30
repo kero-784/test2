@@ -91,6 +91,17 @@ export function openItemSelectorModal(e) {
     renderItemsInModal(); 
     document.getElementById('item-selector-modal').classList.add('active');
 }
+export function printContent(content) {
+    const printWindow = window.open('', '', 'height=600,width=800');
+    printWindow.document.write('<html><head><title>Print</title>');
+    printWindow.document.write('<link rel="stylesheet" href="style.css">'); 
+    printWindow.document.write('</head><body>');
+    printWindow.document.write(content);
+    printWindow.document.write('</body></html>');
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => printWindow.print(), 500);
+}
 
 export function renderItemsInModal(filter = '') {
     const list = document.getElementById('modal-item-list'); 
