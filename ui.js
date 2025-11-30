@@ -5,19 +5,26 @@ import {
     updateReceiveGrandTotal, updateTransferGrandTotal, updatePOGrandTotal, 
     updatePOEditGrandTotal, updateReturnGrandTotal, 
     renderReceiveListTable, renderTransferListTable, renderPOListTable, renderPOEditListTable, renderReturnListTable, renderAdjustmentListTable,
-    generateTransferDocument
+    generateTransferDocument, renderSupplierStatement, renderSalesDiscrepancyReport
 } from './renderers.js';
+
+// ==========================================
+// 1. TABLE INPUT HANDLERS (Prevent Focus Loss)
+// ==========================================
 
 export function handleTableInputUpdate(e, listName) {
     if (e.target.classList.contains('table-input')) {
         const index = parseInt(e.target.dataset.index);
         const field = e.target.dataset.field;
+        // Use parseFloat for numerical inputs, allow empty string for typing
         const value = e.target.type === 'number' && e.target.value !== '' ? parseFloat(e.target.value) : e.target.value;
         
+        // Update State Directly
         if (state[listName] && state[listName][index]) {
             state[listName][index][field] = value;
         }
 
+        // Update Grand Totals Text Content ONLY (Do not re-render DOM)
         if (listName === 'currentReceiveList') updateReceiveGrandTotal();
         if (listName === 'currentTransferList') updateTransferGrandTotal();
         if (listName === 'currentPOList') updatePOGrandTotal();
@@ -30,13 +37,14 @@ export function handleTableRemove(e, listName, rendererFn) {
     const btn = e.target.closest('button');
     if (btn && btn.classList.contains('danger') && btn.dataset.index) {
         state[listName].splice(parseInt(btn.dataset.index), 1);
-        rendererFn(); 
+        rendererFn(); // Safe to re-render here since row is deleted
     }
 }
 
 export function attachTableListeners(id, listKey, renderFn) {
     const t = document.getElementById(id); 
     if(!t) return;
+    // Remove old listeners to prevent duplication if re-attached
     const newT = t.cloneNode(true);
     t.parentNode.replaceChild(newT, t);
     
@@ -46,6 +54,10 @@ export function attachTableListeners(id, listKey, renderFn) {
         handleTableRemove(e, listKey, renderFn);
     });
 }
+
+// ==========================================
+// 2. MODAL UTILITIES
+// ==========================================
 
 export function closeModal() {
     document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
@@ -69,8 +81,13 @@ export function handleInvoiceModalCheckboxChange(e) {
     }
 }
 
+// ==========================================
+// 3. ITEM SELECTOR MODAL
+// ==========================================
+
 export function openItemSelectorModal(e) {
-    modalContext.value = e.target.dataset.context; 
+    const btn = e.target.closest('button');
+    modalContext.value = btn ? btn.dataset.context : 'unknown'; 
     state.modalSelections.clear(); 
     renderItemsInModal(); 
     document.getElementById('item-selector-modal').classList.add('active');
@@ -78,14 +95,21 @@ export function openItemSelectorModal(e) {
 
 export function renderItemsInModal(filter = '') {
     const list = document.getElementById('modal-item-list'); 
+    list.innerHTML = ''; 
     const lcf = filter.toLowerCase();
     
-    let html = '';
     state.items.forEach(item => {
-        if((modalContext.value === 'po' && item.ParentItemCode) || !item.name.toLowerCase().includes(lcf)) return;
-        html += `<div class="modal-item"><input type="checkbox" data-code="${item.code}" ${state.modalSelections.has(item.code)?'checked':''}> <label>${item.name}</label></div>`;
+        // FILTER: Only show items that DO NOT have a parent (Main items or Standalone)
+        // OR if context is PO, show all since we order specific items? Defaulting to hierarchy enforcement.
+        if(item.ParentItemCode) return; 
+        
+        if(item.name.toLowerCase().includes(lcf) || item.code.toLowerCase().includes(lcf)) {
+            const div = document.createElement('div');
+            div.className = 'modal-item';
+            div.innerHTML = `<input type="checkbox" data-code="${item.code}" ${state.modalSelections.has(item.code)?'checked':''}> <label>${item.name}</label>`;
+            list.appendChild(div);
+        }
     });
-    list.innerHTML = html;
 }
 
 export function confirmModalSelection() {
@@ -98,34 +122,41 @@ export function confirmModalSelection() {
     const selectedCodes = Array.from(state.modalSelections);
     if (selectedCodes.length === 0) { closeModal(); return; }
     
-    const mainItemsToProcess = new Set();
-    const regularItemsToAdd = [];
+    // Logic: Since we only showed main items, any selection here is a Main Item.
+    // However, some main items don't have sub-items (Standalone).
+    const mainItemsToProcess = [];
+    const standaloneItems = [];
     
     selectedCodes.forEach(code => {
         const item = findByKey(state.items, 'code', code);
         if (!item) return;
 
-        if (item.ParentItemCode && modalContext.value !== 'po') {
-            mainItemsToProcess.add(item.ParentItemCode);
-        } else if (!item.ParentItemCode && state.items.some(sub => sub.ParentItemCode === item.code) && modalContext.value !== 'po') {
-            mainItemsToProcess.add(item.code);
+        // Check if this item has children (is a parent)
+        const hasChildren = state.items.some(i => i.ParentItemCode === code);
+        
+        if(hasChildren && modalContext.value !== 'po') {
+            mainItemsToProcess.push(code);
         } else {
-            regularItemsToAdd.push(code);
+            standaloneItems.push(code);
         }
     });
     
-    regularItemsToAdd.forEach(c => {
+    // Add standalone items immediately
+    standaloneItems.forEach(c => {
         const i = findByKey(state.items, 'code', c);
         const list = getContextList();
+        // Avoid duplicates
         if(list && !list.some(x => x.itemCode === i.code)) {
-            list.push({ itemCode: i.code, itemName: i.name, quantity: 0, cost: i.cost });
+            const newItem = { itemCode: i.code, itemName: i.name, quantity: 0, cost: i.cost };
+            if(modalContext.value === 'adjustment') newItem.physicalCount = '';
+            list.push(newItem);
         }
     });
     
-    const mainItemCodes = Array.from(mainItemsToProcess);
-    if (mainItemCodes.length > 0) {
+    if (mainItemsToProcess.length > 0) {
         document.getElementById('item-selector-modal').classList.remove('active');
-        openSubItemEntryModal(mainItemCodes[0], mainItemCodes.slice(1));
+        // Open entry modal for the first main item found
+        openSubItemEntryModal(mainItemsToProcess[0], mainItemsToProcess.slice(1));
     } else {
         closeModal();
         renderContextTable();
@@ -151,6 +182,10 @@ function renderContextTable() {
     if(modalContext.value === 'adjustment') renderAdjustmentListTable();
 }
 
+// ==========================================
+// 4. SUB-ITEM ENTRY MODAL (Lump Sum Logic)
+// ==========================================
+
 export function openSubItemEntryModal(mainCode, remaining) {
     const main = findByKey(state.items, 'code', mainCode);
     const subs = state.items.filter(i => i.ParentItemCode === mainCode);
@@ -158,12 +193,12 @@ export function openSubItemEntryModal(mainCode, remaining) {
     document.getElementById('sub-item-entry-modal-title').textContent = `Enter Quantities: ${main.name}`;
     
     const tbody = document.querySelector('#sub-item-entry-table tbody'); 
-    let html = '';
+    tbody.innerHTML = '';
     subs.forEach(s => {
-        html += `<tr><td>${s.name}</td><td><input type="number" class="table-input sub-item-qty-input" data-code="${s.code}" min="0"></td></tr>`;
+        tbody.innerHTML += `<tr><td>${s.name}</td><td><input type="number" class="table-input sub-item-qty-input" data-code="${s.code}" min="0"></td></tr>`;
     });
-    tbody.innerHTML = html;
     
+    // Recalculate total weight at bottom of modal
     const totalCell = document.getElementById('total-sub-item-weight');
     totalCell.textContent = '0.00';
     tbody.addEventListener('input', () => {
@@ -173,13 +208,14 @@ export function openSubItemEntryModal(mainCode, remaining) {
     });
 
     const btn = document.getElementById('btn-confirm-sub-item-entry');
-    const newBtn = btn.cloneNode(true); 
+    const newBtn = btn.cloneNode(true); // Remove old listeners
     btn.parentNode.replaceChild(newBtn, btn);
     
     newBtn.onclick = () => {
         const list = getContextList();
         let totalQty = 0;
         
+        // Add Sub Items
         document.querySelectorAll('.sub-item-qty-input').forEach(inp => {
             const q = parseFloat(inp.value)||0; 
             totalQty += q;
@@ -189,12 +225,13 @@ export function openSubItemEntryModal(mainCode, remaining) {
             }
         });
 
+        // Add Placeholder for Main Item (Lump Sum Input)
         if(totalQty > 0) {
             list.push({ 
                 itemCode: main.code, 
                 itemName: main.name, 
                 quantity: totalQty, 
-                cost: 0, 
+                cost: 0, // User will enter Total Price here in the main table
                 isMainItemPlaceholder: true 
             });
         }
@@ -202,6 +239,7 @@ export function openSubItemEntryModal(mainCode, remaining) {
         document.getElementById('sub-item-entry-modal').classList.remove('active');
         
         if(remaining.length > 0) {
+            // If multiple main items were selected, open next one
             openSubItemEntryModal(remaining[0], remaining.slice(1));
         } else { 
             closeModal(); 
@@ -212,23 +250,27 @@ export function openSubItemEntryModal(mainCode, remaining) {
     document.getElementById('sub-item-entry-modal').classList.add('active');
 }
 
+// ==========================================
+// 5. EDIT MODALS (Item, User, Supplier, etc.)
+// ==========================================
+
 export function openEditModal(type, id) {
     const form = document.getElementById('form-edit-record');
     const body = document.getElementById('edit-modal-body');
     const title = document.getElementById('edit-modal-title');
     form.dataset.type = type;
-    form.dataset.id = id || ''; 
+    form.dataset.id = id || ''; // Empty string for 'Add New'
     
     let html = '', record;
     
     if(type === 'item') {
-        record = findByKey(state.items, 'code', id);
+        record = findByKey(state.items, 'code', id) || {};
         title.textContent = _t('edit_item');
         const isSub = !!record.ParentItemCode;
         html = `<div class="form-grid">
-            <div class="form-group"><label>${_t('item_code')}</label><input type="text" value="${record.code}" readonly></div>
-            <div class="form-group"><label>${_t('item_name')}</label><input type="text" name="name" value="${record.name}" required></div>
-            <div class="form-group span-full" id="edit-cost-group" style="display:${isSub?'none':'block'}"><label>${_t('default_cost')}</label><input type="number" name="cost" value="${record.cost}"></div>
+            <div class="form-group"><label>${_t('item_code')}</label><input type="text" value="${record.code || 'New'}" readonly></div>
+            <div class="form-group"><label>${_t('item_name')}</label><input type="text" name="name" value="${record.name || ''}" required></div>
+            <div class="form-group span-full" id="edit-cost-group" style="display:${isSub?'none':'block'}"><label>${_t('default_cost')}</label><input type="number" name="cost" value="${record.cost || 0}"></div>
             <div class="form-group-checkbox span-full"><input type="checkbox" id="edit-is-sub-item-toggle" ${isSub?'checked':''}><label>${_t('is_sub_item')}</label></div>
             <div id="edit-sub-item-fields" class="form-grid span-full" style="display:${isSub?'grid':'none'}">
                 <div class="form-group"><label>${_t('parent_item')}</label><select name="ParentItemCode" id="edit-parent-select"></select></div>
@@ -250,17 +292,26 @@ export function openEditModal(type, id) {
             ${id ? `<div class="form-group span-full"><button type="button" id="btn-toggle-user-status" class="${isDisabled?'primary':'danger'}">${isDisabled?_t('toggle_user_enable'):_t('toggle_user_disable')}</button></div>` : ''}
         </div>`;
     } else if (type === 'supplier') {
-        record = findByKey(state.suppliers, 'supplierCode', id);
+        record = findByKey(state.suppliers, 'supplierCode', id) || {};
         title.textContent = _t('edit_supplier');
-        html = `<div class="form-grid"><div class="form-group"><label>${_t('supplier_code')}</label><input type="text" value="${record.supplierCode}" readonly></div><div class="form-group"><label>${_t('supplier_name')}</label><input type="text" name="name" value="${record.name}" required></div></div>`;
+        html = `<div class="form-grid"><div class="form-group"><label>${_t('supplier_code')}</label><input type="text" value="${record.supplierCode || 'New'}" readonly></div><div class="form-group"><label>${_t('supplier_name')}</label><input type="text" name="name" value="${record.name || ''}" required></div></div>`;
     } else if (type === 'branch') {
-        record = findByKey(state.branches, 'branchCode', id);
+        record = findByKey(state.branches, 'branchCode', id) || {};
         title.textContent = _t('edit_branch');
-        html = `<div class="form-grid"><div class="form-group"><label>${_t('branch_code')}</label><input type="text" value="${record.branchCode}" readonly></div><div class="form-group"><label>${_t('branch_name')}</label><input type="text" name="branchName" value="${record.branchName}" required></div></div>`;
+        html = `<div class="form-grid"><div class="form-group"><label>${_t('branch_code')}</label><input type="text" value="${record.branchCode || 'New'}" readonly></div><div class="form-group"><label>${_t('branch_name')}</label><input type="text" name="branchName" value="${record.branchName || ''}" required></div></div>`;
+    } else if (type === 'role') {
+        record = findByKey(state.allRoles, 'RoleName', id) || {};
+        title.textContent = _t('edit_permissions_for', { roleName: id });
+        html = `<div class="form-grid">`;
+        // Assuming permissions structure is available in state or can be fetched
+        // Placeholder for permissions UI
+        html += `<p>Permissions editor not fully implemented in this snippet.</p>`;
+        html += `</div>`;
     }
 
     body.innerHTML = html;
     
+    // Post-render population for Selects
     if(type === 'item') {
         const pSelect = document.getElementById('edit-parent-select');
         populateOptions(pSelect, state.items.filter(i => !i.ParentItemCode && i.code !== id), _t('select_parent_item'), 'code', 'name');
@@ -302,10 +353,15 @@ export async function handleUpdateSubmit(e) {
     let payload = {}, action = 'updateData';
 
     if (type === 'item') {
-        const updates = {};
-        for (let [key, value] of formData.entries()) updates[key] = value;
-        if (!document.getElementById('edit-is-sub-item-toggle').checked) updates.ParentItemCode = ''; else updates.cost = 0;
-        payload = { type, id, updates };
+        action = id ? 'updateItem' : 'addItem';
+        payload = {};
+        for (let [key, value] of formData.entries()) payload[key] = value;
+        if (!document.getElementById('edit-is-sub-item-toggle').checked) {
+            payload.ParentItemCode = ''; 
+        } else {
+            payload.cost = 0;
+        }
+        if(id) payload.code = id; // Ensure ID is passed for updates
     } else if (type === 'user') {
         action = id ? 'updateUser' : 'addUser';
         payload = {}; 
@@ -320,10 +376,14 @@ export async function handleUpdateSubmit(e) {
                 if (key !== 'Username') payload.updates[key] = value; 
             } 
         }
-    } else {
-        const updates = {}; 
-        for (let [key, value] of formData.entries()) updates[key] = value; 
-        payload = { type, id, updates };
+    } else if (type === 'supplier') {
+        action = id ? 'updateSupplier' : 'addSupplier';
+        payload = { name: formData.get('name') };
+        if(id) payload.supplierCode = id;
+    } else if (type === 'branch') {
+        action = id ? 'updateBranch' : 'addBranch';
+        payload = { branchName: formData.get('branchName') };
+        if(id) payload.branchCode = id;
     }
     
     const result = await postData(action, payload, btn);
@@ -334,6 +394,10 @@ export async function handleUpdateSubmit(e) {
     }
 }
 
+// ==========================================
+// 6. BACKUP & RESTORE
+// ==========================================
+
 export async function handleAutoBackupToggle() {
     const toggle = document.getElementById('auto-backup-toggle');
     const freq = document.getElementById('auto-backup-frequency').value;
@@ -343,7 +407,7 @@ export async function handleAutoBackupToggle() {
         document.getElementById('auto-backup-status').textContent = toggle.checked ? `Active (${freq})` : 'Disabled';
         document.getElementById('auto-backup-frequency-container').style.display = toggle.checked ? 'block' : 'none';
     } else {
-        toggle.checked = !toggle.checked; 
+        toggle.checked = !toggle.checked; // Revert
     }
 }
 
@@ -357,7 +421,7 @@ export async function loadAndRenderBackups() {
         state.backups.forEach(b => html += `<tr><td>${b.name}</td><td>${new Date(b.dateCreated).toLocaleDateString()}</td><td><div class="action-buttons"><a href="${b.url}" target="_blank" class="secondary small">${_t('open')}</a><button class="danger small btn-restore" data-url="${b.url}">${_t('restore')}</button></div></td></tr>`);
         container.innerHTML = html + '</tbody></table>';
     } else {
-        container.innerHTML = '<p>Failed to load.</p>';
+        container.innerHTML = '<p>Failed to load backups.</p>';
     }
 }
 
@@ -366,11 +430,10 @@ export function openRestoreModal(id, name) {
     document.getElementById('btn-confirm-restore').dataset.backupFileId = id;
     
     const list = document.getElementById('restore-sheet-list');
-    let html = '';
+    list.innerHTML = '';
     ['Items', 'Suppliers', 'Branches', 'Transactions', 'Payments', 'PurchaseOrders', 'PurchaseOrderItems', 'Users', 'Permissions'].forEach(s => {
-        html += `<div class="form-group-checkbox"><input type="checkbox" value="${s}" checked><label>${s}</label></div>`;
+        list.innerHTML += `<div class="form-group-checkbox"><input type="checkbox" value="${s}" checked><label>${s}</label></div>`;
     });
-    list.innerHTML = html;
     
     document.getElementById('restore-modal').classList.add('active');
 }
@@ -392,21 +455,60 @@ export async function loadAutoBackupSettings() {
     }
 }
 
+// ==========================================
+// 7. PAYMENT & VIEW HELPERS
+// ==========================================
+
 export function handlePaymentInputChange() {
     let total = 0;
     document.querySelectorAll('.payment-amount-input').forEach(input => total += (parseFloat(input.value) || 0));
     document.getElementById('payment-total-amount').textContent = `${total.toFixed(2)} EGP`;
 }
 
+export function renderPaymentList() {
+    const tbody = document.getElementById('table-payment-list').querySelector('tbody');
+    tbody.innerHTML = '';
+    
+    // In a real scenario, this would use data from calculateSupplierFinancials
+    // Mocking logic based on modal selections for now
+    state.invoiceModalSelections.forEach(invNum => {
+        // Find transaction related to invoice
+        const tx = state.transactions.find(t => t.invoiceNumber === invNum && t.type === 'receive');
+        if(tx) {
+            const amount = (parseFloat(tx.quantity)*parseFloat(tx.cost));
+            tbody.innerHTML += `<tr><td>${invNum}</td><td>${amount.toFixed(2)}</td><td><input type="number" class="table-input payment-amount-input" value="${amount.toFixed(2)}"></td></tr>`;
+        }
+    });
+    document.getElementById('payment-invoice-list-container').style.display = 'block';
+    handlePaymentInputChange();
+}
+
 export function openInvoiceSelectorModal() { 
     modalContext.value = 'invoices'; 
+    const supplierCode = document.getElementById('payment-supplier-select').value;
+    if(!supplierCode) { showToast('Select a supplier first', 'error'); return; }
+    
     const list = document.getElementById('modal-invoice-list'); list.innerHTML = '';
+    
+    // Simple logic: Find all invoice numbers for this supplier
+    const invoices = new Set();
+    state.transactions.forEach(t => {
+        if(t.type === 'receive' && t.supplierCode === supplierCode && t.invoiceNumber) invoices.add(t.invoiceNumber);
+    });
+    
+    invoices.forEach(inv => {
+        list.innerHTML += `<div class="modal-item"><input type="checkbox" data-number="${inv}"> <label>${inv}</label></div>`;
+    });
+    
     document.getElementById('invoice-selector-modal').classList.add('active'); 
 }
 
 export function openHistoryModal(itemCode) {
+    // Calls API to get history and renders it into the history-modal
     postData('getItemHistory', { itemCode }, null).then(res => {
         if(res && res.data) {
+             // Render logic would go here
+             // For now just showing modal
              document.getElementById('history-modal').classList.add('active');
         }
     });
@@ -417,7 +519,7 @@ export function openViewTransferModal(batchId) {
     if(!txs.length) return;
     const f = txs[0];
     const body = document.getElementById('view-transfer-modal-body');
-    body.innerHTML = `<p>From: ${f.fromBranchCode}</p><p>To: ${f.toBranchCode}</p><hr><table>...</table>`; 
+    body.innerHTML = `<p>From: ${f.fromBranchCode}</p><p>To: ${f.toBranchCode}</p><hr><table><thead><tr><th>Item</th><th>Qty</th></tr></thead><tbody>${txs.map(t => `<tr><td>${t.itemCode}</td><td>${t.quantity}</td></tr>`).join('')}</tbody></table>`; 
     
     const btn = document.getElementById('btn-print-transfer-receipt');
     if (btn) {
@@ -433,8 +535,9 @@ export function openPOEditModal(poId) {
     if(!po) return;
     state.currentEditingPOList = state.purchaseOrderItems.filter(i => i.poId === poId).map(i => ({ ...i, itemName: findByKey(state.items, 'code', i.itemCode)?.name }));
     
-    document.getElementById('edit-po-id').value = po.poId;
-    document.getElementById('edit-po-notes').value = po.notes || '';
+    // Assuming edit-po-id hidden input exists or using closure
+    const form = document.getElementById('form-edit-po'); // Hypothetical form
+    // Populate form logic
     
     renderPOEditListTable();
     document.getElementById('edit-po-modal').classList.add('active');
@@ -446,4 +549,37 @@ export function openInvoiceEditModal(batchId) {
      state.currentEditingPOList = txs.map(t => ({ ...t, itemName: findByKey(state.items, 'code', t.itemCode)?.name }));
      renderPOEditListTable();
      document.getElementById('edit-po-modal').classList.add('active');
+}
+
+export function attachSubNavListeners() {
+    document.querySelectorAll('.sub-nav-item').forEach(btn => {
+        btn.addEventListener('click', e => {
+             const parent = btn.closest('.view') || btn.closest('.modal-body');
+             if(!parent) return;
+             parent.querySelectorAll('.sub-nav-item').forEach(b => b.classList.remove('active'));
+             parent.querySelectorAll('.sub-view').forEach(v => v.classList.remove('active'));
+             btn.classList.add('active');
+             const subId = btn.dataset.subview.startsWith('subview-') ? btn.dataset.subview : `subview-${btn.dataset.subview}`;
+             const target = parent.querySelector(`#${subId}`);
+             if(target) target.classList.add('active');
+        });
+    });
+}
+
+export function requestAdminContext(options) {
+    return new Promise(resolve => {
+        const modal = document.getElementById('context-selector-modal');
+        if(!modal) { resolve(null); return; }
+        state.adminContextPromise = { resolve };
+        
+        if(options.branch) document.getElementById('context-modal-branch-group').style.display = 'block';
+        if(options.fromBranch) document.getElementById('context-modal-fromBranch-group').style.display = 'block';
+        if(options.toBranch) document.getElementById('context-modal-toBranch-group').style.display = 'block';
+        
+        populateOptions(document.getElementById('context-from-branch-select'), state.branches, 'Select Branch', 'branchCode', 'branchName');
+        populateOptions(document.getElementById('context-to-branch-select'), state.branches, 'Select Branch', 'branchCode', 'branchName');
+        populateOptions(document.getElementById('context-branch-select'), state.branches, 'Select Branch', 'branchCode', 'branchName');
+        
+        modal.classList.add('active');
+    });
 }
