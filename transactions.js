@@ -11,35 +11,46 @@ import {
     renderAdjustmentListTable
 } from './renderers.js';
 import { calculateStockLevels } from './calculations.js';
-import { generateReceiveDocument, generateTransferDocument, generatePODocument, generateReturnDocument } from './documents.js';
+import { generateReceiveDocument, generateTransferDocument, generatePODocument, generateReturnDocument, generatePaymentVoucher } from './documents.js';
 
+/**
+ * Handles the "Butchery Production" (Yield) submission.
+ * Converts one Parent item (Carcass) into multiple Child items (Cuts).
+ */
 export async function handleButcherySubmit(e) {
-    if(e) e.preventDefault(); // STOP PAGE RELOAD
+    if (e) e.preventDefault(); // Prevent page reload
     const btn = e.currentTarget;
+    
+    // 1. Gather Form Data
     const parentCode = document.getElementById('butchery-parent-code').value;
     const parentQty = parseFloat(document.getElementById('butchery-parent-qty').value);
     const branchCode = document.getElementById('butchery-branch').value;
     let batchNo = document.getElementById('butchery-batch').value;
     const expiryDate = document.getElementById('butchery-expiry').value;
 
-    if (!parentCode || !parentQty || !branchCode || !expiryDate || state.currentButcheryList.length === 0) {
+    // 2. Validation
+    if (!parentCode || isNaN(parentQty) || parentQty <= 0 || !branchCode || !expiryDate || state.currentButcheryList.length === 0) {
         showToast('Please fill all fields, select a parent item, and add cuts.', 'error');
         return;
     }
 
-    // Cost Logic: Inherit Parent Average Cost per unit weight
+    // 3. Cost Logic (Inherit Parent Average Cost per KG)
     const stock = calculateStockLevels();
+    // Default to 0 if no stock found, preventing NaN errors
     const parentAvgCost = stock[branchCode]?.[parentCode]?.avgCost || 0;
     
-    // Auto-Generate Batch if empty
+    // 4. Auto-Generate Batch Number if empty
     if(!batchNo) {
-        batchNo = `BATCH-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${Math.floor(1000 + Math.random() * 9000)}`;
+        // Format: BATCH-YYMMDD-RAND
+        batchNo = `BATCH-${new Date().toISOString().slice(2,10).replace(/-/g,'')}-${Math.floor(1000 + Math.random() * 9000)}`;
     }
 
+    // 5. Build Child Items Array
     const childItems = state.currentButcheryList.map(c => ({
         itemCode: c.itemCode,
+        itemName: c.itemName,
         quantity: parseFloat(c.quantity),
-        cost: parentAvgCost // Inheriting cost per kg
+        cost: parentAvgCost // Apply parent's cost per unit to children
     }));
 
     const payload = {
@@ -52,9 +63,47 @@ export async function handleButcherySubmit(e) {
         notes: `Butchery Yield Process`
     };
 
+    // 6. Send to Backend
     const result = await postData('processButchery', payload, btn);
+    
     if (result) {
         showToast('Butchery production processed successfully!', 'success');
+        
+        // 7. Optimistic UI Update (Add to local transaction log immediately)
+        const now = new Date().toISOString();
+        
+        // Add Output (Children)
+        childItems.forEach(c => {
+            state.transactions.push({
+                batchId: batchNo,
+                date: now,
+                type: 'production_in',
+                itemCode: c.itemCode,
+                quantity: c.quantity,
+                cost: c.cost,
+                branchCode: branchCode,
+                Status: 'Completed',
+                isApproved: true,
+                expiryDate: expiryDate,
+                batchNo: batchNo
+            });
+        });
+        
+        // Add Input (Parent Deduction)
+        state.transactions.push({
+            batchId: batchNo,
+            date: now,
+            type: 'production_out',
+            itemCode: parentCode,
+            quantity: parentQty,
+            cost: parentAvgCost,
+            branchCode: branchCode,
+            fromBranchCode: branchCode, // Important for calc logic
+            Status: 'Completed',
+            isApproved: true
+        });
+
+        // 8. Reset Form
         state.currentButcheryList = [];
         document.getElementById('form-butchery').reset();
         document.getElementById('butchery-parent-display').value = '';
@@ -63,28 +112,36 @@ export async function handleButcherySubmit(e) {
     }
 }
 
+/**
+ * Handles Receiving Stock (GRN).
+ */
 export async function handleReceiveSubmit(e) {
-    if(e) e.preventDefault(); // STOP PAGE RELOAD
+    if (e) e.preventDefault();
     const btn = e.currentTarget;
+    
     let branchCode = document.getElementById('receive-branch').value;
     const supplierCode = document.getElementById('receive-supplier').value;
-    const invoiceNumber = document.getElementById('receive-invoice').value;
-    const batchNo = document.getElementById('receive-batch').value;
+    let invoiceNumber = document.getElementById('receive-invoice').value;
+    let batchNo = document.getElementById('receive-batch').value;
     const expiryDate = document.getElementById('receive-expiry').value;
     const poId = document.getElementById('receive-po-select').value;
     const notes = document.getElementById('receive-notes').value;
 
-    const user = state.currentUser;
-    if (user.permissions.viewAllBranches && !user.AssignedBranchCode && !branchCode) {
+    // Handle Admin Context
+    if (state.currentUser.permissions.viewAllBranches && !state.currentUser.AssignedBranchCode && !branchCode) {
         const context = await requestAdminContext({ branch: true });
         if(!context) return;
         branchCode = context.branch;
     }
 
-    if (!supplierCode || !branchCode || !invoiceNumber || state.currentReceiveList.length === 0) {
+    if (!supplierCode || !branchCode || state.currentReceiveList.length === 0) {
         showToast(_t('fill_required_fields_toast'), 'error');
         return;
     }
+
+    // Auto-Generate Identifiers if missing
+    if (!batchNo) batchNo = `GRN-${Date.now().toString().slice(-6)}`;
+    if (!invoiceNumber) invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
 
     const payload = {
         type: 'receive',
@@ -96,16 +153,34 @@ export async function handleReceiveSubmit(e) {
         date: new Date().toISOString(),
         notes,
         items: state.currentReceiveList.map(i => ({
-            ...i,
+            itemCode: i.itemCode,
+            itemName: i.itemName,
+            quantity: parseFloat(i.quantity),
+            cost: parseFloat(i.cost),
             type: 'receive',
-            batchNo: batchNo, 
+            batchNo: batchNo,
             expiryDate: expiryDate
         }))
     };
 
     const result = await postData('addTransactionBatch', payload, btn);
+    
     if (result) {
         showToast('Stock Received Successfully!', 'success');
+        
+        // Optimistic Update
+        payload.items.forEach(item => {
+            state.transactions.push({
+                ...item,
+                branchCode: branchCode,
+                supplierCode: supplierCode,
+                invoiceNumber: invoiceNumber,
+                // If user has permission to approve, assume approved locally, otherwise pending
+                isApproved: state.currentUser.permissions.opApproveFinancials ? true : false, 
+                Status: state.currentUser.permissions.opApproveFinancials ? 'Completed' : 'Pending Approval'
+            });
+        });
+
         generateReceiveDocument(payload);
         resetStateLists();
         document.getElementById('form-receive-details').reset();
@@ -113,15 +188,18 @@ export async function handleReceiveSubmit(e) {
     }
 }
 
+/**
+ * Handles Internal Transfers.
+ */
 export async function handleTransferSubmit(e) {
-    if(e) e.preventDefault(); // STOP PAGE RELOAD
+    if (e) e.preventDefault();
     const btn = e.currentTarget;
     let fromBranchCode = document.getElementById('transfer-from-branch').value;
     let toBranchCode = document.getElementById('transfer-to-branch').value;
     const notes = document.getElementById('transfer-notes').value;
-    const ref = document.getElementById('transfer-ref').value;
+    const ref = document.getElementById('transfer-ref').value || generateId('TRN');
 
-    if(state.currentUser.permissions.viewAllBranches && !state.currentUser.AssignedBranchCode) {
+    if (state.currentUser.permissions.viewAllBranches && !state.currentUser.AssignedBranchCode) {
         const context = await requestAdminContext({ fromBranch: true, toBranch: true });
         if(!context) return;
         fromBranchCode = context.fromBranch;
@@ -140,13 +218,32 @@ export async function handleTransferSubmit(e) {
         fromBranchCode,
         toBranchCode,
         date: new Date().toISOString(),
-        items: state.currentTransferList.map(i => ({...i, type: 'transfer_out'})),
+        items: state.currentTransferList.map(i => ({
+            itemCode: i.itemCode,
+            itemName: i.itemName,
+            quantity: parseFloat(i.quantity),
+            type: 'transfer_out'
+        })),
         notes
     };
 
     const result = await postData('addTransactionBatch', payload, btn);
     if (result) {
         showToast('Transfer initiated!', 'success');
+        
+        // Optimistic Update
+        payload.items.forEach(item => {
+            state.transactions.push({
+                ...item,
+                batchId: payload.batchId,
+                date: payload.date,
+                fromBranchCode: fromBranchCode,
+                toBranchCode: toBranchCode,
+                Status: 'In Transit',
+                isApproved: true
+            });
+        });
+
         generateTransferDocument(payload);
         resetStateLists();
         document.getElementById('form-transfer-details').reset();
@@ -155,11 +252,14 @@ export async function handleTransferSubmit(e) {
     }
 }
 
+/**
+ * Handles Purchase Orders.
+ */
 export async function handlePOSubmit(e) {
-    if(e) e.preventDefault(); // STOP PAGE RELOAD
+    if (e) e.preventDefault();
     const btn = e.currentTarget;
     const supplierCode = document.getElementById('po-supplier').value;
-    const poId = document.getElementById('po-ref').value;
+    const poId = document.getElementById('po-ref').value || generateId('PO');
     const notes = document.getElementById('po-notes').value;
 
     if (!supplierCode || state.currentPOList.length === 0) {
@@ -183,6 +283,26 @@ export async function handlePOSubmit(e) {
     const result = await postData('addPurchaseOrder', payload, btn);
     if (result) {
         showToast('Purchase Order created!', 'success');
+        
+        // Optimistic Update
+        state.purchaseOrders.push({
+            poId: payload.poId,
+            date: payload.date,
+            supplierCode: payload.supplierCode,
+            totalValue: payload.totalValue,
+            Status: 'Pending Approval',
+            createdBy: payload.createdBy
+        });
+        // Push items to purchaseOrderItems state array if you track them locally
+        payload.items.forEach(item => {
+            state.purchaseOrderItems.push({
+                poId: payload.poId,
+                itemCode: item.itemCode,
+                quantity: item.quantity,
+                cost: item.cost
+            });
+        });
+
         generatePODocument(payload);
         resetStateLists();
         document.getElementById('form-po-details').reset();
@@ -191,22 +311,25 @@ export async function handlePOSubmit(e) {
     }
 }
 
+/**
+ * Handles Returns to Supplier.
+ */
 export async function handleReturnSubmit(e) {
-    if(e) e.preventDefault(); // STOP PAGE RELOAD
+    if (e) e.preventDefault();
     const btn = e.currentTarget;
     const supplierCode = document.getElementById('return-supplier').value;
     let fromBranchCode = document.getElementById('return-branch').value;
     const ref = document.getElementById('return-ref').value;
     const notes = document.getElementById('return-notes').value;
 
-    if(state.currentUser.permissions.viewAllBranches && !state.currentUser.AssignedBranchCode) {
+    if (state.currentUser.permissions.viewAllBranches && !state.currentUser.AssignedBranchCode) {
         const context = await requestAdminContext({ fromBranch: true });
         if(!context) return;
         fromBranchCode = context.fromBranch;
     }
 
     if (!supplierCode || !fromBranchCode || !ref || state.currentReturnList.length === 0) {
-        showToast('Please fill all required fields and add items to return.', 'error');
+        showToast('Please fill all required fields and add items.', 'error');
         return;
     }
 
@@ -217,13 +340,32 @@ export async function handleReturnSubmit(e) {
         supplierCode,
         fromBranchCode,
         date: new Date().toISOString(),
-        items: state.currentReturnList.map(i => ({...i, type: 'return_out'})),
+        items: state.currentReturnList.map(i => ({
+            itemCode: i.itemCode,
+            itemName: i.itemName,
+            quantity: parseFloat(i.quantity),
+            cost: parseFloat(i.cost),
+            type: 'return_out'
+        })),
         notes
     };
 
     const result = await postData('addTransactionBatch', payload, btn);
     if (result) {
         showToast('Return processed!', 'success');
+        
+        // Optimistic Update
+        payload.items.forEach(item => {
+            state.transactions.push({
+                ...item,
+                batchId: payload.batchId,
+                date: payload.date,
+                supplierCode: supplierCode,
+                fromBranchCode: fromBranchCode,
+                Status: 'Completed'
+            });
+        });
+
         generateReturnDocument(payload);
         resetStateLists();
         document.getElementById('form-return-details').reset();
@@ -231,8 +373,11 @@ export async function handleReturnSubmit(e) {
     }
 }
 
+/**
+ * Handles Stock Request Submission.
+ */
 export async function handleRequestSubmit(e) {
-    if(e) e.preventDefault(); // STOP PAGE RELOAD
+    if (e) e.preventDefault();
     const btn = e.currentTarget;
     let fromSection = state.currentUser.AssignedSectionCode;
     let toBranch = state.currentUser.AssignedBranchCode;
@@ -269,8 +414,11 @@ export async function handleRequestSubmit(e) {
     }
 }
 
+/**
+ * Handles Stock Adjustments (Stocktake).
+ */
 export async function handleAdjustmentSubmit(e) {
-    if(e) e.preventDefault(); // STOP PAGE RELOAD
+    if (e) e.preventDefault();
     const btn = e.currentTarget;
     let branchCode = document.getElementById('adjustment-branch').value;
     const ref = document.getElementById('adjustment-ref').value;
@@ -283,20 +431,21 @@ export async function handleAdjustmentSubmit(e) {
     }
 
     if (!branchCode || !ref || !state.currentAdjustmentList || state.currentAdjustmentList.length === 0) {
-        showToast('Please select a branch and add items to adjust.', 'error');
+        showToast('Please select a branch and add items.', 'error');
         return;
     }
 
     const stock = calculateStockLevels();
     const adjustmentItems = state.currentAdjustmentList.map(item => {
         const systemQty = (stock[branchCode]?.[item.itemCode]?.quantity) || 0;
-        const physicalCount = item.physicalCount || 0;
+        const physicalCount = parseFloat(item.physicalCount) || 0;
         const adjustmentQty = physicalCount - systemQty;
         
-        if (Math.abs(adjustmentQty) < 0.001) return null; // No change
+        if (Math.abs(adjustmentQty) < 0.001) return null; // No significant change
 
         return {
             itemCode: item.itemCode,
+            itemName: item.itemName,
             quantity: Math.abs(adjustmentQty),
             type: adjustmentQty > 0 ? 'adjustment_in' : 'adjustment_out',
             cost: findByKey(state.items, 'code', item.itemCode)?.cost || 0
@@ -320,6 +469,21 @@ export async function handleAdjustmentSubmit(e) {
     const result = await postData('addTransactionBatch', payload, btn);
     if (result) {
         showToast('Stock adjustment processed!', 'success');
+        
+        // Optimistic Update
+        const now = new Date().toISOString();
+        adjustmentItems.forEach(item => {
+            state.transactions.push({
+                ...item,
+                batchId: payload.batchId,
+                date: now,
+                branchCode: branchCode, // for IN
+                fromBranchCode: branchCode, // for OUT
+                Status: 'Completed',
+                isApproved: true
+            });
+        });
+
         resetStateLists();
         renderAdjustmentListTable();
         document.getElementById('form-adjustment-details').reset();
