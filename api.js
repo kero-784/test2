@@ -27,14 +27,9 @@ export async function attemptLogin(u, c) {
         Object.keys(data).forEach(k => { if(k !== 'user') state[k] = data[k] || []; });
         
         Logger.info(`Login successful for user: ${state.currentUser.Name}`);
-        
         const savedLang = localStorage.getItem('userLanguage') || 'en';
         state.currentLanguage = savedLang;
-        const langSwitcher = document.getElementById('lang-switcher');
-        if(langSwitcher) langSwitcher.value = savedLang;
-        
         return true; 
-        
     } catch (err) {
         Logger.error('Login failed:', err); 
         loginError.textContent = err.message; 
@@ -49,12 +44,7 @@ export async function postData(action, data, btn) {
     try {
         const res = await fetch(SCRIPT_URL, { 
             method: 'POST', 
-            body: JSON.stringify({ 
-                username: state.username, 
-                loginCode: state.loginCode, 
-                action, 
-                data 
-            }) 
+            body: JSON.stringify({ username: state.username, loginCode: state.loginCode, action, data }) 
         });
         const result = await res.json();
         if (result.status !== 'success') throw new Error(result.message);
@@ -71,19 +61,13 @@ export async function reloadDataAndRefreshUI() {
     const btn = document.getElementById('global-refresh-button');
     if (!state.username) return;
     setButtonLoading(true, btn);
-    
     try {
         const res = await fetch(`${SCRIPT_URL}?username=${encodeURIComponent(state.username)}&loginCode=${encodeURIComponent(state.loginCode)}`);
         if (!res.ok) throw new Error('Failed to fetch data');
         const data = await res.json();
-        
         if (data.status === 'error') throw new Error(data.message);
-        
         Object.keys(data).forEach(k => { if(k !== 'user') state[k] = data[k] || state[k]; });
-        
-        const currentView = document.querySelector('.nav-item a.active')?.dataset.view || 'dashboard';
-        document.dispatchEvent(new CustomEvent('dataRefreshed', { detail: { view: currentView }}));
-        
+        document.dispatchEvent(new CustomEvent('dataRefreshed'));
         showToast(_t('data_refreshed_toast'), 'success');
     } catch (err) { 
         showToast(_t('data_refresh_fail_toast'), 'error'); 
