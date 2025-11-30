@@ -166,17 +166,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- MODAL & SELECTOR LOGIC ---
     
     // Generic Item Selector Trigger
-    // Note: The HTML onClick="document.dispatchEvent..." patterns invoke this
     document.addEventListener('openItemSelector', (e) => {
         const context = e.detail.context;
-        // Set the active context for the modal
-        state.currentSelectionModal.type = 'item-selector'; // logic flag
-        // Normally we'd set a specific property to know where to push data back to
-        // For simplicity in this architecture, we use the `state.modalSelections` 
-        // and map the context string to the list in `confirmModalSelection` logic.
-        
-        // This requires the modal confirm button to know the context.
-        // We attach the context to the modal DOM or a state variable.
+        state.currentSelectionModal.type = 'item-selector';
         const modal = document.getElementById('item-selector-modal');
         modal.dataset.context = context;
         
@@ -208,7 +200,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('butchery-parent-code').value = item.code;
             }
         } else {
-            // Helper to add items to lists
             const addToList = (listName) => {
                 selectedCodes.forEach(code => {
                     const item = findByKey(state.items, 'code', code);
@@ -247,6 +238,27 @@ document.addEventListener('DOMContentLoaded', () => {
         state.modalSelections.clear();
     });
 
+    // ADMIN CONTEXT CONFIRMATION
+    document.getElementById('btn-confirm-context').addEventListener('click', () => {
+        const modal = document.getElementById('context-selector-modal');
+        const context = {
+            fromBranch: modal.querySelector('#context-modal-fromBranch-group').style.display === 'block' ? modal.querySelector('#context-from-branch-select').value : null,
+            toBranch: modal.querySelector('#context-modal-toBranch-group').style.display === 'block' ? modal.querySelector('#context-to-branch-select').value : null,
+            branch: modal.querySelector('#context-modal-branch-group').style.display === 'block' ? modal.querySelector('#context-branch-select').value : null,
+            toSection: modal.querySelector('#context-modal-toSection-group').style.display === 'block' ? modal.querySelector('#context-to-section-select').value : null,
+            fromSection: modal.querySelector('#context-modal-fromSection-group').style.display === 'block' ? modal.querySelector('#context-from-section-select').value : null,
+        };
+
+        // Check validation
+        if (Object.entries(context).some(([key, value]) => modal.querySelector(`#context-modal-${key}-group`).style.display === 'block' && !value)) {
+            showToast('Please make a selection for all required fields.', 'error');
+            return;
+        }
+
+        if (state.adminContextPromise.resolve) state.adminContextPromise.resolve(context);
+        modal.classList.remove('active');
+    });
+
     // Form Edit Record Submission (Generic Update)
     document.getElementById('form-edit-record').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -256,12 +268,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const formData = new FormData(form);
         const updates = {};
         
-        // Convert FormData to object
         for (let [key, value] of formData.entries()) {
             if(value !== "") updates[key] = value;
         }
 
-        // Special handling depending on backend expectations
         let action = 'updateData';
         let payload = { type, id, updates };
 
@@ -366,7 +376,6 @@ function refreshViewData(viewId) {
             Renderers.renderPendingFinancials();
             break;
         case 'user-management':
-            // Usually requires a fresh fetch if managing users
             postData('getAllUsersAndRoles', {}, null).then(res => {
                 if(res) {
                     state.allUsers = res.data.users;
@@ -406,18 +415,12 @@ function openEditModal(type, id) {
     document.getElementById('edit-modal').classList.add('active');
 }
 
-// History Modal Logic
 function openHistoryModal(itemCode) {
     const modal = document.getElementById('history-modal');
     document.getElementById('history-modal-title').textContent = `${_t('history')}: ${itemCode}`;
     
-    // Placeholder for fetching history data specifically
     postData('getItemHistory', { itemCode }, null).then(res => {
         if(res && res.data) {
-            // Render Price History
-            const priceTbody = document.createElement('tbody'); // In real implementation, bind to specific containers in the history modal HTML
-            // ... (Logic to render history tables inside the modal)
-            // For now, alerting or simple injection:
             const container = document.getElementById('subview-price-history');
             let html = '<table><thead><tr><th>Date</th><th>Old</th><th>New</th><th>User</th></tr></thead><tbody>';
             res.data.priceHistory.forEach(h => {
