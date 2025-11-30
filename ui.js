@@ -1,8 +1,8 @@
 import { state, modalContext } from './state.js';
-import { _t, findByKey } from './utils.js';
-import { updateReceiveGrandTotal, updateTransferGrandTotal, updatePOGrandTotal, updatePOEditGrandTotal, updateReturnGrandTotal, renderReceiveListTable, renderTransferListTable, renderPOListTable, renderPOEditListTable, renderReturnListTable } from './renderers.js';
+import { _t, findByKey, showToast } from './utils.js';
+import { updateReceiveGrandTotal, updateTransferGrandTotal, updatePOGrandTotal, updatePOEditGrandTotal, updateReturnGrandTotal } from './renderers.js';
 
-export function handleTableInputUpdate(e, listName, rendererFn) {
+export function handleTableInputUpdate(e, listName) {
     if (e.target.classList.contains('table-input')) {
         const index = parseInt(e.target.dataset.index);
         const field = e.target.dataset.field;
@@ -12,6 +12,7 @@ export function handleTableInputUpdate(e, listName, rendererFn) {
             state[listName][index][field] = value;
         }
 
+        // Call grand total updates ONLY. Do not re-render table rows.
         if (listName === 'currentReceiveList') updateReceiveGrandTotal();
         if (listName === 'currentTransferList') updateTransferGrandTotal();
         if (listName === 'currentPOList') updatePOGrandTotal();
@@ -30,6 +31,6 @@ export function handleTableRemove(e, listName, rendererFn) {
 
 export function attachTableListeners(id, listKey, renderFn) {
     const t = document.getElementById(id); if(!t) return;
-    t.addEventListener('input', e => handleTableInputUpdate(e, listKey, renderFn)); 
+    t.addEventListener('input', e => handleTableInputUpdate(e, listKey)); // Removed renderFn here to save focus
     t.addEventListener('click', e => handleTableRemove(e, listKey, renderFn));
 }
