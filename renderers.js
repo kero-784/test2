@@ -1,3 +1,4 @@
+
 import { state } from './state.js';
 import { _t, findByKey, userCan, populateOptions, formatCurrency, formatDate, Logger, printContent } from './utils.js';
 import { calculateStockLevels, calculateSupplierFinancials } from './calculations.js';
@@ -195,7 +196,7 @@ export function renderItemsTable(data = state.items) {
             <td>${formatCurrency(item.cost)}</td>
             <td>
                 <div class="action-buttons">
-                    <button class="secondary small btn-edit" data-type="item" data-id="${item.code}">${_t('edit')}</button>
+                    ${userCan('createItem') ? `<button class="secondary small btn-edit" data-type="item" data-id="${item.code}">${_t('edit')}</button>` : ''}
                     <button class="secondary small btn-history" data-type="item" data-id="${item.code}">${_t('history')}</button>
                 </div>
             </td>`;
@@ -225,7 +226,7 @@ export function renderSuppliersTable(data = state.suppliers) {
             <td>${supplier.name}</td>
             <td>${supplier.contact}</td>
             <td>${formatCurrency(balance)}</td>
-            <td><button class="secondary small btn-edit" data-type="supplier" data-id="${supplier.supplierCode}">${_t('edit')}</button></td>`;
+            <td>${userCan('createSupplier') ? `<button class="secondary small btn-edit" data-type="supplier" data-id="${supplier.supplierCode}">${_t('edit')}</button>` : ''}</td>`;
         tbody.appendChild(tr);
     });
 }
@@ -247,7 +248,7 @@ export function renderBranchesTable(data = state.branches) {
         tr.innerHTML = `
             <td>${branch.branchCode || ''}</td>
             <td>${branch.branchName}</td>
-            <td><button class="secondary small btn-edit" data-type="branch" data-id="${branch.branchCode}">${_t('edit')}</button></td>`;
+            <td>${userCan('createBranch') ? `<button class="secondary small btn-edit" data-type="branch" data-id="${branch.branchCode}">${_t('edit')}</button>` : ''}</td>`;
         tbody.appendChild(tr);
     });
 }
@@ -269,7 +270,7 @@ export function renderSectionsTable(data = state.sections) {
         tr.innerHTML = `
             <td>${section.sectionCode || ''}</td>
             <td>${section.sectionName}</td>
-            <td><button class="secondary small btn-edit" data-type="section" data-id="${section.sectionCode}">${_t('edit')}</button></td>`;
+            <td>${userCan('createSection') ? `<button class="secondary small btn-edit" data-type="section" data-id="${section.sectionCode}">${_t('edit')}</button>` : ''}</td>`;
         tbody.appendChild(tr);
     });
 }
@@ -344,7 +345,9 @@ export function renderTransactionHistory(filters = {}) {
         
         const canEditInvoice = state.currentUser?.permissions?.opEditInvoice && first.type === 'receive' && (!first.isApproved);
         let actionsHtml = `<button class="secondary small btn-view-tx" data-batch-id="${group.batchId}" data-type="${first.type}">${_t('view_print')}</button>`;
-        if(canEditInvoice){
+        
+        // CHECK PERMISSION FOR EDIT
+        if(canEditInvoice && userCan('opEditInvoice')){
             actionsHtml += `<button class="secondary small btn-edit-invoice" data-batch-id="${group.batchId}">${_t('edit')}</button>`;
         }
 
@@ -404,6 +407,18 @@ export function renderPendingFinancials() {
     }
 
     allPending.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(item => {
+        let actionButtons = '';
+        // CHECK PERMISSION FOR APPROVAL
+        if (userCan('opApproveFinancials')) {
+            actionButtons = `
+                <div class="action-buttons">
+                    <button class="primary small btn-approve-financial" data-id="${item.txType === 'po' ? item.poId : item.batchId}" data-type="${item.txType}">${_t('approve')}</button>
+                    <button class="danger small btn-reject-financial" data-id="${item.txType === 'po' ? item.poId : item.batchId}" data-type="${item.txType}">${_t('reject')}</button>
+                </div>`;
+        } else {
+            actionButtons = `<span style="color:var(--text-light-color); font-style:italic;">${_t('status_pending')}</span>`;
+        }
+
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td>${formatDate(item.date)}</td>
@@ -411,12 +426,7 @@ export function renderPendingFinancials() {
             <td>${item.ref}</td>
             <td>${item.details}</td>
             <td>${formatCurrency(item.value)}</td>
-            <td>
-                <div class="action-buttons">
-                    <button class="primary small btn-approve-financial" data-id="${item.txType === 'po' ? item.poId : item.batchId}" data-type="${item.txType}">${_t('approve')}</button>
-                    <button class="danger small btn-reject-financial" data-id="${item.txType === 'po' ? item.poId : item.batchId}" data-type="${item.txType}">${_t('reject')}</button>
-                </div>
-            </td>
+            <td>${actionButtons}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -716,7 +726,14 @@ export function renderPendingTransfers() {
     container.style.display = 'block';
     list.forEach(t => {
         const from = findByKey(state.branches, 'branchCode', t.fromBranchCode)?.branchName || t.fromBranchCode;
-        tbody.innerHTML += `<tr><td>${formatDate(t.date)}</td><td>Incoming from ${from}</td><td>${t.ref}</td><td>${t.items.length}</td><td><button class="primary small btn-receive-transfer" data-batch-id="${t.batchId}">Receive</button></td></tr>`;
+        // CHECK PERMISSION FOR RECEIVE
+        let actionCell = '';
+        if (userCan('opReceive')) {
+            actionCell = `<button class="primary small btn-receive-transfer" data-batch-id="${t.batchId}">Receive</button>`;
+        } else {
+            actionCell = 'Pending Receipt';
+        }
+        tbody.innerHTML += `<tr><td>${formatDate(t.date)}</td><td>Incoming from ${from}</td><td>${t.ref}</td><td>${t.items.length}</td><td>${actionCell}</td></tr>`;
     });
 }
 
@@ -748,9 +765,17 @@ export function renderInTransitReport() {
         let actionHtml = `<span class="status-tag status-intransit">In Transit</span>`;
 
         if (t.toBranchCode === myBranch) {
-            actionHtml = `<button class="primary small btn-receive-transfer" data-batch-id="${t.batchId}">Receive Stock</button>`;
+            // CHECK PERMISSION
+            if (userCan('opReceive')) {
+                actionHtml = `<button class="primary small btn-receive-transfer" data-batch-id="${t.batchId}">Receive Stock</button>`;
+            } else {
+                actionHtml = 'Pending Receipt';
+            }
         } else if (t.fromBranchCode === myBranch || isAdmin) {
-            actionHtml = `<button class="danger small btn-cancel-transfer" data-batch-id="${t.batchId}">Cancel Transfer</button>`;
+            // CHECK PERMISSION
+            if (userCan('opTransfer')) {
+                actionHtml = `<button class="danger small btn-cancel-transfer" data-batch-id="${t.batchId}">Cancel Transfer</button>`;
+            }
         }
         
         tbody.innerHTML += `
@@ -806,7 +831,6 @@ export function updateNotifications() {
     }
 }
 
-// --- USER MANAGEMENT (Added missing function) ---
 export function renderUserManagementUI() {
     const usersTbody = document.getElementById('table-users');
     if (!usersTbody) return;
