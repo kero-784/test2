@@ -7,8 +7,9 @@ import {
     renderReturnListTable, 
     renderAdjustmentListTable, 
     renderPOListTable,
-    renderPendingTransfers, // Needed to refresh list after action
-    renderInTransitReport   // Needed to refresh list after action
+    renderPendingTransfers, 
+    renderInTransitReport,
+    renderRequestListTable 
 } from './renderers.js';
 import { calculateStockLevels } from './calculations.js';
 import { generateReceiveDocument, generateTransferDocument, generateReturnDocument, generatePODocument } from './documents.js';
@@ -52,7 +53,6 @@ export async function handleButcherySubmit(e) {
     const result = await postData('processButchery', payload, btn);
     if (result) {
         showToast('Butchery production processed!', 'success');
-        // Optimistic UI Updates
         const now = new Date().toISOString();
         childItems.forEach(c => state.transactions.push({
             batchId: batchNo, date: now, type: 'production_in', itemCode: c.itemCode, quantity: c.quantity, cost: c.cost, branchCode: branchCode, Status: 'Completed', isApproved: true
@@ -354,12 +354,17 @@ export async function handleRequestSubmit(e) {
     }
 }
 
-// --- NEW: TRANSFER MANAGEMENT (Actions) ---
+// --- TRANSFER MANAGEMENT (ACTIONS) ---
 
 export function openTransferModal(batchId) {
     const modal = document.getElementById('view-transfer-modal');
     const body = document.getElementById('view-transfer-modal-body');
     const title = document.getElementById('view-transfer-modal-title');
+    
+    if (!modal || !body || !title) {
+        console.error('Transfer modal HTML missing');
+        return;
+    }
     
     const txs = state.transactions.filter(t => t.batchId === batchId && t.type === 'transfer_out');
     if(!txs.length) return;
@@ -378,9 +383,11 @@ export function openTransferModal(batchId) {
     
     body.innerHTML = `<p><strong>From:</strong> ${fromBranch}</p><p><strong>Date:</strong> ${new Date(first.date).toLocaleString()}</p><p><strong>Ref:</strong> ${first.ref}</p><hr>${itemsHtml}`;
     
-    // Bind Batch ID to buttons for Main.js global listener to read
-    document.getElementById('btn-confirm-receive-transfer').dataset.batchId = batchId;
-    document.getElementById('btn-reject-transfer').dataset.batchId = batchId;
+    // Bind Batch ID to buttons
+    const btnConfirm = document.getElementById('btn-confirm-receive-transfer');
+    const btnReject = document.getElementById('btn-reject-transfer');
+    if(btnConfirm) btnConfirm.dataset.batchId = batchId;
+    if(btnReject) btnReject.dataset.batchId = batchId;
     
     modal.classList.add('active');
 }
@@ -403,12 +410,10 @@ export async function processTransferAction(action, batchId, btn) {
     if (result) {
         showToast(`Transfer ${action === 'receiveTransfer' ? 'Received' : 'Rejected'}`, 'success');
         
-        // Optimistic Update: Mark old as Completed/Rejected
         state.transactions.forEach(t => {
             if(t.batchId === batchId) t.Status = (action === 'receiveTransfer' ? 'Completed' : 'Rejected');
         });
         
-        // If received, add incoming transactions
         if(action === 'receiveTransfer') {
             const now = new Date().toISOString();
             payload.items.forEach(i => state.transactions.push({
