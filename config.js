@@ -1,7 +1,7 @@
 // config.js
 
 // !!! IMPORTANT: Replace this URL with your actual Google Apps Script Web App URL !!!
-export const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxwmmC8xwC8EnhzKXYeRDXRkk1vFfpLgnW9XOlmfgcr7Ywuizzu1mt_TT7HDRUuXrem/exec';
+export const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz7e_9ud8_kmxf_9LryuVkaqsggbX_DYlpvR0QSOhq0a86rgf0Plf0rXD5JXayfvlgJ/exec';
 
 export const translations = {
     'en': {
