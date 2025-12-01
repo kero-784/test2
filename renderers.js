@@ -3,6 +3,40 @@ import { _t, findByKey, userCan, populateOptions, formatCurrency, formatDate, Lo
 import { calculateStockLevels, calculateSupplierFinancials } from './calculations.js';
 import * as Documents from './documents.js';
 
+// --- CONFIG: PERMISSION DEFINITIONS ---
+const PERMISSION_GROUPS = {
+    'Administration': [
+        { key: 'manageUsers', label: 'Manage Users & Roles' },
+        { key: 'viewAllBranches', label: 'View All Branches (Super User)' },
+        { key: 'opBackupRestore', label: 'Backup & Restore' }
+    ],
+    'Master Data Creation': [
+        { key: 'createItem', label: 'Create Items' },
+        { key: 'createSupplier', label: 'Create Suppliers' },
+        { key: 'createBranch', label: 'Create Branches' },
+        { key: 'createSection', label: 'Create Sections' }
+    ],
+    'Stock Operations': [
+        { key: 'opReceive', label: 'Receive Stock (GRN)' },
+        { key: 'opTransfer', label: 'Send Transfer' },
+        { key: 'opIssue', label: 'Issue Stock' },
+        { key: 'opReturn', label: 'Return to Supplier' },
+        { key: 'opStockAdjustment', label: 'Stock Adjustments' },
+        { key: 'opProduction', label: 'Butchery & Production' }
+    ],
+    'Financials': [
+        { key: 'opCreatePO', label: 'Create PO' },
+        { key: 'opApproveFinancials', label: 'Approve POs & GRNs' },
+        { key: 'opEditInvoice', label: 'Edit GRN/Invoice' },
+        { key: 'opRecordPayment', label: 'Record Payments' }
+    ],
+    'Requests': [
+        { key: 'opRequestItems', label: 'Make Requests' },
+        { key: 'opApproveIssueRequest', label: 'Approve Issue Requests' },
+        { key: 'opApproveResupplyRequest', label: 'Approve Resupply Requests' }
+    ]
+};
+
 // --- GENERIC TABLE RENDERER ---
 const renderDynamicListTable = (tbodyId, list, columnsConfig, emptyMessage, totalizerFn) => {
     const table = document.getElementById(tbodyId);
@@ -523,9 +557,33 @@ export function renderEditModalContent(type, id) {
                         <input type="text" name="RoleName" required placeholder="e.g., Accountant">
                     </div>
                     <p style="grid-column: 1/-1; color: #666; font-size: 0.9em;">
-                        Note: After adding a role, please configure its permissions in the Google Sheet 'Permissions' tab.
+                        Note: After adding a role, use the 'Permissions' button to configure access rights.
                     </p>
                 </div>`;
+            editModalBody.innerHTML = formHtml;
+            break;
+
+        case 'role-permissions':
+            const roleData = findByKey(state.allRoles, 'RoleName', id);
+            editModalTitle.textContent = _t('edit_permissions_for').replace('{roleName}', id);
+            
+            let permissionsHtml = '';
+            for (const [groupName, perms] of Object.entries(PERMISSION_GROUPS)) {
+                permissionsHtml += `<div class="permission-category">${groupName}</div><div class="permissions-grid">`;
+                perms.forEach(perm => {
+                    // Check if role has this permission set to TRUE (or true boolean)
+                    const isChecked = roleData && (roleData[perm.key] === true || String(roleData[perm.key]).toUpperCase() === 'TRUE');
+                    permissionsHtml += `
+                        <div class="form-group-checkbox">
+                            <input type="checkbox" name="${perm.key}" id="perm-${perm.key}" ${isChecked ? 'checked' : ''}>
+                            <label for="perm-${perm.key}">${perm.label}</label>
+                        </div>`;
+                });
+                permissionsHtml += `</div>`;
+            }
+            
+            // Add RoleName as hidden field for submission
+            formHtml = `<input type="hidden" name="RoleName" value="${id}"><div style="padding-bottom:10px;">${permissionsHtml}</div>`;
             editModalBody.innerHTML = formHtml;
             break;
     }
@@ -900,7 +958,10 @@ export function renderRolesTable() {
         tr.innerHTML = `
             <td>${role.RoleName}</td>
             <td>
-                <button class="secondary small btn-delete-role" data-role="${role.RoleName}">Delete</button>
+                <div class="action-buttons">
+                    <button class="secondary small btn-edit-role-perms" data-role="${role.RoleName}">Permissions</button>
+                    <button class="danger small btn-delete-role" data-role="${role.RoleName}">Delete</button>
+                </div>
             </td>`;
         tbody.appendChild(tr);
     });
