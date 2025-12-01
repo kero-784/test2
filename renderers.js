@@ -1,6 +1,7 @@
 import { state } from './state.js';
-import { _t, findByKey, userCan, populateOptions, formatCurrency, formatDate, Logger } from './utils.js';
+import { _t, findByKey, userCan, populateOptions, formatCurrency, formatDate, Logger, printContent } from './utils.js';
 import { calculateStockLevels, calculateSupplierFinancials } from './calculations.js';
+import * as Documents from './documents.js';
 
 // --- GENERIC TABLE RENDERER ---
 const renderDynamicListTable = (tbodyId, list, columnsConfig, emptyMessage, totalizerFn) => {
@@ -20,17 +21,28 @@ const renderDynamicListTable = (tbodyId, list, columnsConfig, emptyMessage, tota
     
     list.forEach((item, index) => {
         const tr = document.createElement('tr');
+        let cellsHtml = '';
         columnsConfig.forEach(col => {
             let content = '';
             const fromBranch = col.branchSelectId ? document.getElementById(col.branchSelectId)?.value : null;
             const availableStock = fromBranch ? (stock[fromBranch]?.[item.itemCode]?.quantity || 0) : 0;
             
             switch (col.type) {
-                case 'text': content = item[col.key] || ''; break;
-                case 'number_input': content = `<input type="number" class="table-input" value="${item[col.key] || ''}" min="${col.min || 0.001}" step="${col.step || 0.001}" data-index="${index}" data-field="${col.key}">`; break;
-                case 'cost_input': content = `<input type="number" class="table-input" value="${(parseFloat(item.cost) || 0).toFixed(2)}" min="0" step="0.01" data-index="${index}" data-field="cost">`; break;
-                case 'calculated': content = `<span>${col.calculator(item)}</span>`; break;
-                case 'available_stock': content = availableStock.toFixed(3); break;
+                case 'text': 
+                    content = item[col.key] || ''; 
+                    break;
+                case 'number_input': 
+                    content = `<input type="number" class="table-input" value="${item[col.key] || ''}" min="${col.min || 0.001}" step="${col.step || 0.001}" data-index="${index}" data-field="${col.key}">`; 
+                    break;
+                case 'cost_input': 
+                    content = `<input type="number" class="table-input" value="${(parseFloat(item.cost) || 0).toFixed(2)}" min="0" step="0.01" data-index="${index}" data-field="cost">`; 
+                    break;
+                case 'calculated': 
+                    content = `<span>${col.calculator(item)}</span>`; 
+                    break;
+                case 'available_stock': 
+                    content = availableStock.toFixed(3); 
+                    break;
             }
             const td = document.createElement('td');
             td.innerHTML = content;
@@ -49,366 +61,676 @@ const renderDynamicListTable = (tbodyId, list, columnsConfig, emptyMessage, tota
 
 export function renderReceiveListTable() { 
     renderDynamicListTable('table-receive-list', state.currentReceiveList, [ 
-        { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, 
+        { type: 'text', key: 'itemCode' }, 
+        { type: 'text', key: 'itemName' }, 
+        { type: 'number_input', key: 'quantity' }, 
+        { type: 'cost_input', key: 'cost' }, 
         { type: 'calculated', calculator: item => formatCurrency((parseFloat(item.quantity)||0) * (parseFloat(item.cost)||0)) } 
     ], 'no_items_selected_toast', () => {
         let total = state.currentReceiveList.reduce((acc, i) => acc + ((parseFloat(i.quantity)||0) * (parseFloat(i.cost)||0)), 0);
-        const el = document.getElementById('receive-grand-total'); if(el) el.textContent = formatCurrency(total);
+        const el = document.getElementById('receive-grand-total');
+        if(el) el.textContent = formatCurrency(total);
     }); 
 }
 
 export function renderButcheryListTable() {
     renderDynamicListTable('table-butchery-children', state.currentButcheryList, [ 
-        { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity', step: 0.001 } 
+        { type: 'text', key: 'itemCode' }, 
+        { type: 'text', key: 'itemName' }, 
+        { type: 'number_input', key: 'quantity', step: 0.001 } 
     ], 'no_items_selected_toast', () => {
         let total = state.currentButcheryList.reduce((acc, i) => acc + (parseFloat(i.quantity)||0), 0);
-        const el = document.getElementById('butchery-total-weight'); if(el) el.textContent = total.toFixed(3);
+        const totalEl = document.getElementById('butchery-total-weight');
+        if(totalEl) totalEl.textContent = total.toFixed(3);
         
-        const pQty = parseFloat(document.getElementById('butchery-parent-qty')?.value) || 0;
-        const yEl = document.getElementById('butchery-yield-pct');
-        if(yEl && pQty > 0) { 
-            const pct = (total / pQty) * 100;
-            yEl.textContent = pct.toFixed(1) + '%';
-            yEl.style.color = (pct > 102 || pct < 50) ? 'red' : 'green';
+        const parentQty = parseFloat(document.getElementById('butchery-parent-qty')?.value) || 0;
+        if (parentQty > 0) {
+            const pct = (total / parentQty) * 100;
+            const el = document.getElementById('butchery-yield-pct');
+            if(el) {
+                el.textContent = pct.toFixed(1) + '%';
+                el.style.color = (pct > 102 || pct < 50) ? 'red' : 'green';
+            }
         }
     });
 }
 
 export function renderTransferListTable() { 
     renderDynamicListTable('table-transfer-list', state.currentTransferList, [ 
-        { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'available_stock', branchSelectId: 'transfer-from-branch' }, { type: 'number_input', key: 'quantity' } 
+        { type: 'text', key: 'itemCode' }, 
+        { type: 'text', key: 'itemName' }, 
+        { type: 'available_stock', branchSelectId: 'transfer-from-branch' }, 
+        { type: 'number_input', key: 'quantity' } 
     ], 'no_items_selected_toast', () => {
-        const el = document.getElementById('transfer-grand-total'); if(el) el.textContent = state.currentTransferList.reduce((acc, i) => acc + (parseFloat(i.quantity)||0), 0).toFixed(3);
+        let total = state.currentTransferList.reduce((acc, i) => acc + (parseFloat(i.quantity)||0), 0);
+        const el = document.getElementById('transfer-grand-total');
+        if(el) el.textContent = total.toFixed(3);
     }); 
 }
 
 export function renderReturnListTable() { 
     renderDynamicListTable('table-return-list', state.currentReturnList, [ 
-        { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'available_stock', branchSelectId: 'return-branch' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' } 
+        { type: 'text', key: 'itemCode' }, 
+        { type: 'text', key: 'itemName' }, 
+        { type: 'available_stock', branchSelectId: 'return-branch' }, 
+        { type: 'number_input', key: 'quantity' }, 
+        { type: 'cost_input', key: 'cost' }
     ], 'no_items_selected_toast', () => {
-        const el = document.getElementById('return-grand-total'); if(el) el.textContent = formatCurrency(state.currentReturnList.reduce((acc, i) => acc + ((parseFloat(i.quantity)||0)*(parseFloat(i.cost)||0)), 0));
+        let total = state.currentReturnList.reduce((acc, i) => acc + ((parseFloat(i.quantity)||0) * (parseFloat(i.cost)||0)), 0);
+        const el = document.getElementById('return-grand-total');
+        if(el) el.textContent = formatCurrency(total);
     }); 
 }
 
 export function renderPOListTable() { 
     renderDynamicListTable('table-po-list', state.currentPOList, [ 
-        { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, 
+        { type: 'text', key: 'itemCode' }, 
+        { type: 'text', key: 'itemName' }, 
+        { type: 'number_input', key: 'quantity' }, 
+        { type: 'cost_input', key: 'cost' }, 
         { type: 'calculated', calculator: item => formatCurrency((parseFloat(item.quantity)||0) * (parseFloat(item.cost)||0)) } 
     ], 'no_items_selected_toast', () => {
-        const el = document.getElementById('po-grand-total'); if(el) el.textContent = formatCurrency(state.currentPOList.reduce((acc, i) => acc + ((parseFloat(i.quantity)||0)*(parseFloat(i.cost)||0)), 0));
+        let total = state.currentPOList.reduce((acc, i) => acc + ((parseFloat(i.quantity)||0) * (parseFloat(i.cost)||0)), 0);
+        const el = document.getElementById('po-grand-total');
+        if(el) el.textContent = formatCurrency(total);
     }); 
 }
 
 export function renderPOEditListTable() {
     renderDynamicListTable('table-edit-po-list', state.currentEditingPOList, [ 
-        { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, 
+        { type: 'text', key: 'itemCode' }, 
+        { type: 'text', key: 'itemName' }, 
+        { type: 'number_input', key: 'quantity' }, 
+        { type: 'cost_input', key: 'cost' }, 
         { type: 'calculated', calculator: item => formatCurrency((parseFloat(item.quantity)||0) * (parseFloat(item.cost)||0)) } 
     ], 'no_items_selected_toast', () => {
-        const el = document.getElementById('edit-po-grand-total'); if(el) el.textContent = formatCurrency(state.currentEditingPOList.reduce((acc, i) => acc + ((parseFloat(i.quantity)||0)*(parseFloat(i.cost)||0)), 0));
+        let total = state.currentEditingPOList.reduce((acc, i) => acc + ((parseFloat(i.quantity)||0) * (parseFloat(i.cost)||0)), 0);
+        const el = document.getElementById('edit-po-grand-total');
+        if(el) el.textContent = formatCurrency(total);
     });
 }
 
 export function renderRequestListTable() { 
-    renderDynamicListTable('table-request-list', state.currentRequestList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' } ], 'no_items_selected_toast', null); 
+    renderDynamicListTable('table-request-list', state.currentRequestList, [ 
+        { type: 'text', key: 'itemCode' }, 
+        { type: 'text', key: 'itemName' }, 
+        { type: 'number_input', key: 'quantity' } 
+    ], 'no_items_selected_toast', null); 
 }
 
 export function renderAdjustmentListTable() {
-    const table = document.getElementById('table-adjustment-list'); if(!table) return;
-    const tbody = table.querySelector('tbody'); if(!tbody) return; tbody.innerHTML = '';
-    if (!state.currentAdjustmentList.length) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">${_t('no_items_for_adjustment')}</td></tr>`; return; }
-    const stock = calculateStockLevels(); const branch = document.getElementById('adjustment-branch')?.value;
-    state.currentAdjustmentList.forEach((item, idx) => {
-        const sys = (branch && stock[branch]?.[item.itemCode]?.quantity) || 0;
-        const phys = item.physicalCount || 0;
-        const diff = phys - sys;
-        tbody.innerHTML += `<tr><td>${item.itemCode}</td><td>${item.itemName}</td><td>${sys.toFixed(3)}</td><td><input type="number" class="table-input" value="${phys}" step="0.001" data-index="${idx}" data-field="physicalCount"></td><td style="color:${diff<0?'red':(diff>0?'green':'inherit')}">${diff.toFixed(3)}</td><td><button class="danger small" data-index="${idx}">X</button></td></tr>`;
+    const table = document.getElementById('table-adjustment-list');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    
+    if (!state.currentAdjustmentList || state.currentAdjustmentList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">${_t('no_items_for_adjustment')}</td></tr>`;
+        return;
+    }
+    
+    const stock = calculateStockLevels();
+    const branchCode = document.getElementById('adjustment-branch')?.value;
+
+    state.currentAdjustmentList.forEach((item, index) => {
+        const systemQty = (branchCode && stock[branchCode]?.[item.itemCode]?.quantity) || 0;
+        const physicalCount = typeof item.physicalCount !== 'undefined' ? item.physicalCount : '';
+        const adjustment = (parseFloat(physicalCount) || 0) - systemQty;
+        
+        item.physicalCount = physicalCount;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${item.itemCode}</td>
+            <td>${item.itemName}</td>
+            <td>${systemQty.toFixed(3)}</td>
+            <td><input type="number" class="table-input" value="${physicalCount}" min="0" step="0.001" data-index="${index}" data-field="physicalCount"></td>
+            <td style="font-weight: bold; color: ${adjustment > 0 ? 'var(--secondary-color)' : (adjustment < 0 ? 'var(--danger-color)' : 'inherit')}">${adjustment.toFixed(3)}</td>
+            <td><button class="danger small" data-index="${index}">X</button></td>
+        `;
+        tbody.appendChild(tr);
     });
 }
 
 // --- MASTER DATA RENDERERS ---
 
-export function renderItemsTable(data = state.items) { 
-    const tb = document.getElementById('table-items')?.querySelector('tbody'); 
-    if(tb) { 
-        tb.innerHTML = ''; 
-        data.forEach(i => tb.innerHTML += `<tr><td>${i.code}</td><td>${i.name}</td><td>${i.category}</td><td>${i.ItemType||'Main'}</td><td>${formatCurrency(i.cost)}</td><td><button class="secondary small btn-edit" data-type="item" data-id="${i.code}">Edit</button></td></tr>`); 
-    } 
+export function renderItemsTable(data = state.items) {
+    const table = document.getElementById('table-items');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    
+    if (!data || data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">${_t('no_items_found')}</td></tr>`;
+        return;
+    }
+    
+    data.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${item.code}</td>
+            <td>${item.name}</td>
+            <td>${_t(item.category ? 'cat_'+item.category.toLowerCase() : '') || item.category}</td>
+            <td>${item.ItemType || 'Main'}</td>
+            <td>${formatCurrency(item.cost)}</td>
+            <td>
+                <div class="action-buttons">
+                    <button class="secondary small btn-edit" data-type="item" data-id="${item.code}">${_t('edit')}</button>
+                    <button class="secondary small btn-history" data-type="item" data-id="${item.code}">${_t('history')}</button>
+                </div>
+            </td>`;
+        tbody.appendChild(tr);
+    });
 }
 
-export function renderSuppliersTable(data = state.suppliers) { 
-    const tb = document.getElementById('table-suppliers')?.querySelector('tbody'); 
-    if(tb) { 
-        tb.innerHTML = ''; 
-        data.forEach(s => tb.innerHTML += `<tr><td>${s.supplierCode}</td><td>${s.name}</td><td>${s.contact}</td><td>-</td><td><button class="secondary small btn-edit" data-type="supplier" data-id="${s.supplierCode}">Edit</button></td></tr>`); 
-    } 
+export function renderSuppliersTable(data = state.suppliers) {
+    const table = document.getElementById('table-suppliers');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    
+    const financials = calculateSupplierFinancials();
+    
+    if (!data || data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">${_t('no_suppliers_found')}</td></tr>`;
+        return;
+    }
+    
+    data.forEach(supplier => {
+        const balance = financials[supplier.supplierCode]?.balance || 0;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${supplier.supplierCode || ''}</td>
+            <td>${supplier.name}</td>
+            <td>${supplier.contact}</td>
+            <td>${formatCurrency(balance)}</td>
+            <td><button class="secondary small btn-edit" data-type="supplier" data-id="${supplier.supplierCode}">${_t('edit')}</button></td>`;
+        tbody.appendChild(tr);
+    });
 }
 
-export function renderBranchesTable(data = state.branches) { 
-    const tb = document.getElementById('table-branches')?.querySelector('tbody'); 
-    if(tb) { 
-        tb.innerHTML = ''; 
-        data.forEach(b => tb.innerHTML += `<tr><td>${b.branchCode}</td><td>${b.branchName}</td><td><button class="secondary small btn-edit" data-type="branch" data-id="${b.branchCode}">Edit</button></td></tr>`); 
-    } 
+export function renderBranchesTable(data = state.branches) {
+    const table = document.getElementById('table-branches');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    
+    if (!data || data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;">${_t('no_branches_found')}</td></tr>`;
+        return;
+    }
+    
+    data.forEach(branch => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${branch.branchCode || ''}</td>
+            <td>${branch.branchName}</td>
+            <td><button class="secondary small btn-edit" data-type="branch" data-id="${branch.branchCode}">${_t('edit')}</button></td>`;
+        tbody.appendChild(tr);
+    });
 }
 
-export function renderSectionsTable(data = state.sections) { 
-    const tb = document.getElementById('table-sections')?.querySelector('tbody'); 
-    if(tb) { 
-        tb.innerHTML = ''; 
-        data.forEach(s => tb.innerHTML += `<tr><td>${s.sectionCode}</td><td>${s.sectionName}</td><td><button class="secondary small btn-edit" data-type="section" data-id="${s.sectionCode}">Edit</button></td></tr>`); 
-    } 
+export function renderSectionsTable(data = state.sections) {
+    const table = document.getElementById('table-sections');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    
+    if (!data || data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;">${_t('no_sections_found')}</td></tr>`;
+        return;
+    }
+    
+    data.forEach(section => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${section.sectionCode || ''}</td>
+            <td>${section.sectionName}</td>
+            <td><button class="secondary small btn-edit" data-type="section" data-id="${section.sectionCode}">${_t('edit')}</button></td>`;
+        tbody.appendChild(tr);
+    });
 }
 
 // --- REPORT & HISTORY RENDERERS ---
 
 export function renderTransactionHistory(filters = {}) {
-    const table = document.getElementById('table-transaction-history'); if (!table) return;
-    const tbody = table.querySelector('tbody'); if (!tbody) return; tbody.innerHTML = '';
-    
-    let tx = [...state.transactions];
-    let pos = [...state.purchaseOrders];
-    let all = [...tx, ...pos.map(p => ({...p, type: 'po', batchId: p.poId, ref: p.poId}))];
-
-    if (state.currentUser && !userCan('viewAllBranches')) { 
-        const bc = state.currentUser.AssignedBranchCode;
-        if(bc) all = all.filter(t => t.branchCode === bc || t.fromBranchCode === bc || t.toBranchCode === bc);
-    }
-    
-    if(all.length === 0) { tbody.innerHTML = '<tr><td colspan="6">No data</td></tr>'; return; }
-    
-    all.sort((a,b)=>new Date(b.date)-new Date(a.date)).forEach(t => {
-        let details = t.notes || '';
-        if(t.type === 'receive') details = `GRN: ${t.invoiceNumber} (${t.supplierCode})`;
-        else if(t.type && t.type.includes('production')) details = `Butchery Yield`;
-        else if(t.type === 'po') details = `Order: ${t.supplierCode}`;
-        
-        const status = t.Status || (t.isApproved ? 'Approved' : 'Pending');
-        
-        tbody.innerHTML += `<tr><td>${formatDate(t.date)}</td><td>${t.type}</td><td>${t.batchId}</td><td>${details}</td><td>${status}</td><td><button class="secondary small btn-view-tx" data-batch-id="${t.batchId}" data-type="${t.type}">View</button></td></tr>`;
-    });
-}
-
-export function renderPendingFinancials() {
-    const table = document.getElementById('table-pending-financial-approval'); if (!table) return;
-    const tbody = table.querySelector('tbody'); tbody.innerHTML = '';
-    
-    const pending = state.transactions.filter(t => t.type === 'receive' && !t.isApproved);
-    const pos = state.purchaseOrders.filter(p => p.Status === 'Pending Approval');
-    
-    if(!pending.length && !pos.length) { tbody.innerHTML = '<tr><td colspan="6">No pending approvals</td></tr>'; return; }
-    
-    // Group receives by batch
-    const groups = {};
-    pending.forEach(t => { 
-        if(!groups[t.batchId]) groups[t.batchId]={...t, val:0, count:0}; 
-        groups[t.batchId].val += (parseFloat(t.quantity)*parseFloat(t.cost));
-        groups[t.batchId].count++;
-    });
-
-    // Render POs
-    pos.forEach(p => {
-         tbody.innerHTML += `<tr><td>${formatDate(p.date)}</td><td>PO</td><td>${p.poId}</td><td>${p.supplierCode}</td><td>${formatCurrency(p.totalValue)}</td><td><button class="primary small btn-approve-financial" data-id="${p.poId}" data-type="po">Approve</button></td></tr>`;
-    });
-    
-    // Render GRNs
-    Object.values(groups).forEach(t => {
-        tbody.innerHTML += `<tr><td>${formatDate(t.date)}</td><td>GRN</td><td>${t.batchId}</td><td>${t.invoiceNumber}</td><td>${formatCurrency(t.val)}</td><td><button class="primary small btn-approve-financial" data-id="${t.batchId}" data-type="receive">Approve</button></td></tr>`;
-    });
-}
-
-// *** THE MISSING FUNCTION THAT CAUSED THE ERROR ***
-export function renderPurchaseOrdersViewer() {
-    const table = document.getElementById('table-po-viewer');
-    if (!table) return;
+    const table = document.getElementById('table-transaction-history');
+    if (!table) return; 
     const tbody = table.querySelector('tbody');
     if (!tbody) return;
     tbody.innerHTML = '';
+    
+    let allTx = [...state.transactions];
+    let allPo = [...state.purchaseOrders];
 
-    const pos = (state.purchaseOrders || []);
-    if(pos.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center">No Purchase Orders found</td></tr>';
+    if (state.currentUser && !userCan('viewAllBranches')) {
+        const branchCode = state.currentUser.AssignedBranchCode;
+        if (branchCode) {
+            allTx = allTx.filter(t => String(t.branchCode) === branchCode || String(t.fromBranchCode) === branchCode || String(t.toBranchCode) === branchCode);
+            allPo = []; 
+        }
+    }
+    
+    let allHistoryItems = [ 
+        ...allTx, 
+        ...allPo.map(po => ({...po, type: 'po', batchId: po.poId, ref: po.poId})) 
+    ];
+
+    // Filter Logic
+    const sDate = filters.startDate ? new Date(filters.startDate) : null;
+    if(sDate) sDate.setHours(0,0,0,0);
+    const eDate = filters.endDate ? new Date(filters.endDate) : null;
+    if(eDate) eDate.setHours(23,59,59,999);
+
+    if (sDate) allHistoryItems = allHistoryItems.filter(t => new Date(t.date) >= sDate);
+    if (eDate) allHistoryItems = allHistoryItems.filter(t => new Date(t.date) <= eDate);
+    if (filters.type) allHistoryItems = allHistoryItems.filter(t => String(t.type) === String(filters.type));
+    if (filters.branch) allHistoryItems = allHistoryItems.filter(t => String(t.branchCode) === String(filters.branch) || String(t.fromBranchCode) === String(filters.branch) || String(t.toBranchCode) === String(filters.branch));
+    
+    if (filters.searchTerm) {
+        const lowerFilter = filters.searchTerm.toLowerCase();
+        allHistoryItems = allHistoryItems.filter(t => {
+            const item = findByKey(state.items, 'code', t.itemCode);
+            return (t.ref && String(t.ref).toLowerCase().includes(lowerFilter)) ||
+                   (t.batchId && String(t.batchId).toLowerCase().includes(lowerFilter)) ||
+                   (t.invoiceNumber && String(t.invoiceNumber).toLowerCase().includes(lowerFilter)) ||
+                   (item && item.name.toLowerCase().includes(lowerFilter));
+        });
+    }
+
+    const grouped = {};
+    allHistoryItems.forEach(t => {
+        const key = t.batchId;
+        if (!key) return;
+        if (!grouped[key]) grouped[key] = { date: t.date, type: t.type, batchId: key, transactions: [] };
+        grouped[key].transactions.push(t);
+    });
+
+    const sortedGroups = Object.values(grouped).sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    if(sortedGroups.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">No transactions found.</td></tr>`;
         return;
     }
 
-    pos.slice().reverse().forEach(po => {
-        const supplier = findByKey(state.suppliers, 'supplierCode', po.supplierCode);
-        const supplierName = supplier ? supplier.name : po.supplierCode;
-        const itemCount = (state.purchaseOrderItems || []).filter(i => i.poId === po.poId).length;
+    sortedGroups.forEach(group => {
+        const first = group.transactions[0];
+        let details = '', statusTag = '', refNum = first.ref || first.batchId;
+        let typeDisplay = _t(first.type) || (first.type ? first.type.toUpperCase() : 'UNKNOWN');
         
+        const canEditInvoice = state.currentUser?.permissions?.opEditInvoice && first.type === 'receive' && (!first.isApproved);
+        let actionsHtml = `<button class="secondary small btn-view-tx" data-batch-id="${group.batchId}" data-type="${first.type}">${_t('view_print')}</button>`;
+        
+        if(first.type === 'receive') {
+            details = `Received from <strong>${findByKey(state.suppliers, 'supplierCode', first.supplierCode)?.name || 'N/A'}</strong>`;
+            refNum = first.invoiceNumber;
+            statusTag = first.isApproved ? `<span class="status-tag status-approved">${_t('status_approved')}</span>` : `<span class="status-tag status-pendingapproval">${_t('status_pending')}</span>`;
+        } else if (first.type === 'transfer_out' || first.type === 'transfer_in') {
+            details = `To: ${findByKey(state.branches, 'branchCode', first.toBranchCode)?.branchName}`;
+            statusTag = `<span class="status-tag status-${(first.Status || '').toLowerCase().replace(/ /g,'')}">${_t('status_' + (first.Status || '').toLowerCase().replace(/ /g,''))}</span>`;
+        } else if (first.type && first.type.includes('production')) {
+            typeDisplay = _t('process_production');
+            details = `Butchery Yield at <strong>${findByKey(state.branches, 'branchCode', first.branchCode)?.branchName}</strong>`;
+            statusTag = `<span class="status-tag status-completed">Completed</span>`;
+        } else if (first.type === 'po') {
+            details = `PO for <strong>${findByKey(state.suppliers, 'supplierCode', first.supplierCode)?.name}</strong>`;
+            statusTag = `<span class="status-tag status-${(first.Status || 'pending').toLowerCase().replace(/ /g,'')}">${first.Status}</span>`;
+        }
+
         const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${po.poId}</td>
-            <td>${formatDate(po.date)}</td>
-            <td>${supplierName}</td>
-            <td>${itemCount}</td>
-            <td>${formatCurrency(po.totalValue)}</td>
-            <td>${po.Status}</td>
-            <td><button class="secondary small btn-view-tx" data-batch-id="${po.poId}" data-type="po">View</button></td>`;
+        tr.innerHTML = `<td>${formatDate(first.date)}</td><td>${typeDisplay}</td><td>${refNum}</td><td>${details}</td><td>${statusTag}</td><td><div class="action-buttons">${actionsHtml}</div></td>`;
         tbody.appendChild(tr);
     });
 }
 
-export function renderActivityLog() {
-    const tb = document.getElementById('table-activity-log')?.querySelector('tbody'); 
-    if(tb) { 
-        tb.innerHTML=''; 
-        state.activityLog.slice().reverse().forEach(l => {
-            tb.innerHTML += `<tr><td>${new Date(l.Timestamp).toLocaleString()}</td><td>${l.User}</td><td>${l.Action}</td><td>${l.Description}</td></tr>`;
-        }); 
+export function renderPendingFinancials() {
+    const table = document.getElementById('table-pending-financial-approval');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    
+    const pendingPOs = (state.purchaseOrders || []).filter(po => po.Status === 'Pending Approval');
+    
+    const pendingReceivesGroups = {};
+    (state.transactions || []).filter(t => t.type === 'receive' && (t.isApproved === false || String(t.isApproved).toUpperCase() === 'FALSE')).forEach(t => {
+        if (!pendingReceivesGroups[t.batchId]) {
+            pendingReceivesGroups[t.batchId] = {
+                date: t.date,
+                txType: 'receive',
+                ref: t.invoiceNumber,
+                batchId: t.batchId,
+                details: `GRN from ${findByKey(state.suppliers, 'supplierCode', t.supplierCode)?.name || 'N/A'}`,
+                totalValue: 0
+            };
+        }
+        pendingReceivesGroups[t.batchId].totalValue += (parseFloat(t.quantity) || 0) * (parseFloat(t.cost) || 0);
+    });
+
+    let allPending = [
+        ...pendingPOs.map(po => ({...po, txType: 'po', ref: po.poId, value: po.totalValue, details: `PO for ${po.supplierCode}`})),
+        ...Object.values(pendingReceivesGroups).map(rcv => ({...rcv, value: rcv.totalValue}))
+    ];
+
+    if (allPending.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">${_t('no_pending_financial_approval')}</td></tr>`;
+        return;
+    }
+
+    allPending.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(item => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${formatDate(item.date)}</td>
+            <td>${_t(item.txType)}</td>
+            <td>${item.ref}</td>
+            <td>${item.details}</td>
+            <td>${formatCurrency(item.value)}</td>
+            <td>
+                <div class="action-buttons">
+                    <button class="primary small btn-approve-financial" data-id="${item.txType === 'po' ? item.poId : item.batchId}" data-type="${item.txType}">${_t('approve')}</button>
+                    <button class="danger small btn-reject-financial" data-id="${item.txType === 'po' ? item.poId : item.batchId}" data-type="${item.txType}">${_t('reject')}</button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+// --- MODAL CONTENT RENDERERS ---
+
+export function renderEditModalContent(type, id) {
+    const editModalBody = document.getElementById('edit-modal-body');
+    const editModalTitle = document.getElementById('edit-modal-title');
+    let record, formHtml;
+
+    switch (type) {
+        case 'item':
+            record = findByKey(state.items, 'code', id);
+            editModalTitle.textContent = _t('edit_item');
+            
+            const categories = ['Beef', 'Lamb', 'Poultry', 'Seafood', 'Offal', 'Processed', 'Consumables'];
+            const catOptions = categories.map(c => `<option value="${c}" ${record.category === c ? 'selected' : ''}>${_t('cat_'+c.toLowerCase())}</option>`).join('');
+            
+            let cutsSection = '';
+            if (record.ItemType === 'Main') {
+                const cuts = state.items.filter(i => i.ItemType === 'Cut');
+                const linked = (record.DefinedCuts || '').split(',').map(s => s.trim());
+                let checkboxes = cuts.map(cut => {
+                    const checked = linked.includes(cut.code) ? 'checked' : '';
+                    return `<div style="padding:2px;"><input type="checkbox" name="DefinedCuts" value="${cut.code}" ${checked} id="lnk-${cut.code}"> <label for="lnk-${cut.code}">${cut.name}</label></div>`;
+                }).join('');
+                cutsSection = `<div class="form-group span-full"><label>Linked Cuts</label><div style="max-height:100px;overflow-y:auto;border:1px solid #ccc;padding:5px;">${checkboxes}</div></div>`;
+            }
+
+            formHtml = `
+                <div class="form-grid">
+                    <div class="form-group"><label>${_t('item_type')}</label><input type="text" name="ItemType" value="${record.ItemType || 'Main'}" readonly></div>
+                    <div class="form-group"><label>${_t('item_code')}</label><input type="text" value="${record.code}" readonly></div>
+                    <div class="form-group"><label>${_t('barcode')}</label><input type="text" name="barcode" value="${record.barcode || ''}"></div>
+                    <div class="form-group"><label>${_t('item_name')}</label><input type="text" name="name" value="${record.name}" required></div>
+                    <div class="form-group"><label>${_t('unit')}</label><input type="text" name="unit" value="${record.unit}" required></div>
+                    <div class="form-group"><label>${_t('category')}</label><select name="category" required>${catOptions}</select></div>
+                    <div class="form-group"><label>${_t('default_supplier')}</label><select id="edit-item-supplier" name="supplierCode"></select></div>
+                    <div class="form-group span-full"><label>${_t('default_cost')}</label><input type="number" name="cost" step="0.01" min="0" value="${record.cost}" required></div>
+                    ${cutsSection}
+                </div>`;
+            editModalBody.innerHTML = formHtml;
+            populateOptions(document.getElementById('edit-item-supplier'), state.suppliers, _t('select_supplier'), 'supplierCode', 'name');
+            document.getElementById('edit-item-supplier').value = record.supplierCode;
+            break;
+            
+        case 'supplier':
+            record = findByKey(state.suppliers, 'supplierCode', id);
+            editModalTitle.textContent = _t('edit_supplier');
+            formHtml = `<div class="form-grid"><div class="form-group"><label>${_t('supplier_code')}</label><input type="text" value="${record.supplierCode}" readonly></div><div class="form-group"><label>${_t('supplier_name')}</label><input type="text" name="name" value="${record.name}" required></div><div class="form-group"><label>${_t('contact_info')}</label><input type="text" name="contact" value="${record.contact || ''}"></div></div>`;
+            editModalBody.innerHTML = formHtml;
+            break;
+            
+        case 'user':
+            record = findByKey(state.allUsers, 'Username', id);
+            editModalTitle.textContent = id ? _t('edit_user') : _t('add_new_user_title');
+            const currentRole = record ? record.RoleName : '';
+            const roleOptions = state.allRoles.map(r => `<option value="${r.RoleName}" ${r.RoleName === currentRole ? 'selected' : ''}>${r.RoleName}</option>`).join('');
+            
+            formHtml = `
+                <div class="form-grid">
+                    <div class="form-group"><label>${_t('username')}</label><input type="text" name="Username" value="${record ? record.Username : ''}" ${id ? 'readonly' : 'required'}></div>
+                    <div class="form-group"><label>${_t('table_h_fullname')}</label><input type="text" name="Name" value="${record ? record.Name : ''}" required></div>
+                    <div class="form-group"><label>${_t('table_h_role')}</label><select name="RoleName" required>${roleOptions}</select></div>
+                    <div class="form-group span-full"><label>${_t('edit_user_password_label')}</label><input type="password" name="LoginCode" ${!id ? 'required' : ''}></div>
+                </div>`;
+            editModalBody.innerHTML = formHtml;
+            break;
     }
 }
 
+export function renderItemsInModal(filter = '') {
+    const listEl = document.getElementById('modal-item-list');
+    const modal = document.getElementById('item-selector-modal');
+    if(!listEl) return;
+    listEl.innerHTML = '';
+    
+    const lowerFilter = filter.toLowerCase();
+    const allowedItemsJson = modal.dataset.allowedItems; 
+    let allowedCodes = null;
+    if (allowedItemsJson && allowedItemsJson !== "undefined" && allowedItemsJson !== "") {
+        try { allowedCodes = JSON.parse(allowedItemsJson); } catch (e) { console.error("Error parsing allowed items", e); }
+    }
+
+    state.items.filter(item => {
+        const matchesText = item.name.toLowerCase().includes(lowerFilter) || item.code.toLowerCase().includes(lowerFilter);
+        let matchesContext = true;
+        if (allowedCodes && Array.isArray(allowedCodes) && allowedCodes.length > 0) {
+            matchesContext = allowedCodes.includes(item.code);
+        }
+        return matchesText && matchesContext;
+    }).forEach(item => {
+        const isChecked = state.modalSelections.has(item.code);
+        listEl.innerHTML += `<div class="modal-item"><input type="checkbox" id="modal-item-${item.code}" data-code="${item.code}" ${isChecked ? 'checked' : ''}><label for="modal-item-${item.code}"><strong>${item.name}</strong><br><small style="color:var(--text-light-color)">${item.code}</small></label></div>`;
+    });
+}
+
+// --- STOCK VIEW (FIXED) ---
+
+export function renderItemCentricStockView() {
+    const container = document.getElementById('item-centric-stock-container');
+    if (!container) return;
+    
+    const stock = calculateStockLevels();
+    
+    let branchesToDisplay = [];
+    if (userCan('viewAllBranches')) {
+        branchesToDisplay = state.branches;
+    } else {
+        const userBranch = state.currentUser.AssignedBranchCode;
+        if (userBranch) {
+            branchesToDisplay = state.branches.filter(b => b.branchCode === userBranch);
+        } else {
+            container.innerHTML = '<p>No branch assigned.</p>'; return;
+        }
+    }
+    
+    let html = '<table><thead><tr><th>Code</th><th>Item</th>';
+    branchesToDisplay.forEach(b => html += `<th>${b.branchName}</th>`);
+    html += `<th>Total Value</th></tr></thead><tbody>`;
+    
+    state.items.forEach(item => {
+        let rowTotalVal = 0;
+        let rowHtml = `<tr><td>${item.code}</td><td>${item.name}</td>`;
+        
+        branchesToDisplay.forEach(b => {
+            const data = stock[b.branchCode]?.[item.code];
+            const qty = data?.quantity || 0;
+            const val = qty * (data?.avgCost || 0);
+            rowTotalVal += val;
+            rowHtml += `<td>${qty.toFixed(3)}</td>`;
+        });
+        
+        rowHtml += `<td><strong>${formatCurrency(rowTotalVal)}</strong></td></tr>`;
+        html += rowHtml;
+    });
+    html += `</tbody></table>`;
+    container.innerHTML = html;
+}
+
 export function renderInvoicesInModal() {
-    const el = document.getElementById('modal-invoice-list'); if(!el) return; el.innerHTML = '';
-    const sc = document.getElementById('payment-supplier-select')?.value;
-    if(!sc) { el.innerHTML = '<p>Select Supplier First</p>'; return; }
+    const listEl = document.getElementById('modal-invoice-list');
+    const supplierCode = document.getElementById('payment-supplier-select')?.value;
+    if (!listEl) return;
+    listEl.innerHTML = '';
     
-    const fin = calculateSupplierFinancials();
-    const invs = Object.values(fin[sc]?.invoices || {}).filter(i => i.status !== 'Paid');
+    if (!supplierCode) { 
+        listEl.innerHTML = '<p style="padding:10px">Please select a supplier first.</p>'; 
+        return; 
+    }
     
-    if(invs.length === 0) { el.innerHTML = '<p>No unpaid invoices.</p>'; return; }
-    
-    invs.forEach(i => {
-        const chk = state.invoiceModalSelections.has(i.number) ? 'checked' : '';
-        el.innerHTML += `<div class="modal-item"><input type="checkbox" id="inv-${i.number}" data-number="${i.number}" ${chk}><label for="inv-${i.number}">${i.number} (${formatCurrency(i.balance)})</label></div>`;
+    const financials = calculateSupplierFinancials();
+    const invoices = financials[supplierCode]?.invoices || {};
+    const unpaidInvoices = Object.values(invoices).filter(i => i.status !== 'Paid');
+
+    if (unpaidInvoices.length === 0) {
+        listEl.innerHTML = '<p style="padding:10px">No unpaid invoices found for this supplier.</p>';
+        return;
+    }
+
+    unpaidInvoices.forEach(inv => {
+        const isChecked = state.invoiceModalSelections.has(inv.number) ? 'checked' : '';
+        listEl.innerHTML += `
+            <div class="modal-item">
+                <input type="checkbox" id="inv-${inv.number}" data-number="${inv.number}" ${isChecked}>
+                <label for="inv-${inv.number}">
+                    <strong>Invoice #${inv.number}</strong><br>
+                    <small>Date: ${formatDate(inv.date)} | Due: ${formatCurrency(inv.balance)}</small>
+                </label>
+            </div>`;
     });
 }
 
 export function renderPaymentList() {
     const container = document.getElementById('payment-invoice-list-container');
-    const tb = document.getElementById('table-payment-list')?.querySelector('tbody');
-    if(!container || !tb) return;
+    const table = document.getElementById('table-payment-list');
+    if (!container || !table) return;
     
-    const sc = document.getElementById('payment-supplier-select')?.value;
-    if(!sc || state.invoiceModalSelections.size === 0) { container.style.display = 'none'; return; }
+    const tbody = table.querySelector('tbody');
+    const supplierCode = document.getElementById('payment-supplier-select')?.value;
     
-    container.style.display = 'block'; 
-    tb.innerHTML = '';
-    let tot = 0;
-    const fin = calculateSupplierFinancials();
-    
-    state.invoiceModalSelections.forEach(id => {
-        const inv = fin[sc]?.invoices[id];
-        if(inv) { 
-            tot += inv.balance; 
-            tb.innerHTML += `<tr><td>${inv.number}</td><td>${formatCurrency(inv.balance)}</td><td><input type="number" class="payment-amount-input" value="${inv.balance.toFixed(2)}" data-invoice="${inv.number}"></td></tr>`; 
+    tbody.innerHTML = '';
+    if (!supplierCode || state.invoiceModalSelections.size === 0) {
+        container.style.display = 'none';
+        return;
+    }
+
+    const financials = calculateSupplierFinancials();
+    const invoices = financials[supplierCode]?.invoices || {};
+    let total = 0;
+
+    state.invoiceModalSelections.forEach(invNum => {
+        const inv = invoices[invNum];
+        if (inv) {
+            total += inv.balance;
+            tbody.innerHTML += `
+                <tr>
+                    <td>${inv.number}</td>
+                    <td>${formatCurrency(inv.balance)}</td>
+                    <td><input type="number" class="table-input payment-amount-input" data-invoice="${inv.number}" value="${inv.balance.toFixed(2)}" max="${inv.balance.toFixed(2)}"></td>
+                </tr>`;
         }
     });
-    document.getElementById('payment-total-amount').textContent = formatCurrency(tot);
+    
+    document.getElementById('payment-total-amount').textContent = formatCurrency(total);
+    container.style.display = 'block';
 }
 
 export function renderSupplierStatement(code, d1, d2) {
-    const con = document.getElementById('supplier-statement-results'); if(!con) return;
-    const fin = calculateSupplierFinancials();
-    const s = fin[code];
-    if(!s) { con.innerHTML='<p>No Data</p>'; con.style.display='block'; return; }
+    const container = document.getElementById('supplier-statement-results');
+    if (!container) return;
     
-    let html = ''; let bal = 0;
-    s.events.forEach(e => {
-        // Basic filtering could go here
-        bal += (e.debit - e.credit);
-        html += `<tr><td>${formatDate(e.date)}</td><td>${e.type}</td><td>${e.ref}</td><td>${formatCurrency(e.debit)}</td><td>${formatCurrency(e.credit)}</td><td>${formatCurrency(bal)}</td></tr>`;
-    });
+    const supplier = findByKey(state.suppliers, 'supplierCode', code);
+    if (!supplier) return;
     
-    con.innerHTML = `<div class="printable-document"><h3>${s.name}</h3><table><thead><tr><th>Date</th><th>Type</th><th>Ref</th><th>Debit</th><th>Credit</th><th>Bal</th></tr></thead><tbody>${html}</tbody></table></div>`;
-    con.style.display = 'block';
-}
+    const financials = calculateSupplierFinancials();
+    const data = financials[code];
+    const sDate = d1 ? new Date(d1) : null;
+    const eDate = d2 ? new Date(d2) : null;
+    if(eDate) eDate.setHours(23, 59, 59);
 
-export function renderItemCentricStockView() {
-    const con = document.getElementById('item-centric-stock-container'); if(!con) return;
-    const stock = calculateStockLevels();
-    let html = '<table><thead><tr><th>Code</th><th>Item</th><th>Total Qty</th><th>Avg Cost</th><th>Total Value</th></tr></thead><tbody>';
-    state.items.forEach(i => {
-        let q = 0; let v = 0;
-        Object.values(stock).forEach(b => {
-            const data = b[i.code];
-            if(data) { q += data.quantity; v += (data.quantity * data.avgCost); }
+    let runningBalance = 0;
+    let tableHtml = '';
+    let openingBalance = 0;
+
+    if (sDate) {
+        data.events.forEach(e => {
+            if (new Date(e.date) < sDate) {
+                openingBalance += (e.debit - e.credit); 
+            }
         });
-        if(q !== 0) {
-            html += `<tr><td>${i.code}</td><td>${i.name}</td><td>${q.toFixed(3)}</td><td>${q>0?(v/q).toFixed(2):'-'}</td><td>${formatCurrency(v)}</td></tr>`;
+        runningBalance = openingBalance;
+        tableHtml += `<tr style="background:#eee; font-weight:bold;"><td colspan="3">Opening Balance</td><td>-</td><td>-</td><td>${formatCurrency(openingBalance)}</td></tr>`;
+    }
+
+    data.events.forEach(e => {
+        const d = new Date(e.date);
+        if ((!sDate || d >= sDate) && (!eDate || d <= eDate)) {
+            runningBalance += (e.debit - e.credit);
+            tableHtml += `<tr><td>${formatDate(e.date)}</td><td>${e.type}</td><td>${e.ref}</td><td>${e.debit > 0 ? formatCurrency(e.debit) : '-'}</td><td>${e.credit > 0 ? formatCurrency(e.credit) : '-'}</td><td>${formatCurrency(runningBalance)}</td></tr>`;
         }
     });
-    con.innerHTML = html + '</tbody></table>';
+
+    container.innerHTML = `<div class="printable-document"><h3>Statement: ${supplier.name}</h3><table><thead><tr><th>Date</th><th>Type</th><th>Ref</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead><tbody>${tableHtml}</tbody></table></div>`;
+    container.style.display = 'block';
 }
 
-export function renderEditModalContent(type, id) {
-    const body = document.getElementById('edit-modal-body'); 
-    document.getElementById('edit-modal-title').textContent = `Edit ${type}`;
-    
-    if (type === 'item') {
-        const i = findByKey(state.items, 'code', id);
-        let cutsHtml = '';
-        if(i.ItemType === 'Main') {
-            const cuts = state.items.filter(x => x.ItemType === 'Cut');
-            const linked = (i.DefinedCuts||'').split(',');
-            cuts.forEach(c => {
-                const chk = linked.includes(c.code) ? 'checked' : '';
-                cutsHtml += `<div style="padding:2px"><input type="checkbox" name="DefinedCuts" value="${c.code}" ${chk}> ${c.name}</div>`;
-            });
-        }
-        body.innerHTML = `<div class="form-grid">
-            <div class="form-group"><label>Name</label><input name="name" value="${i.name}"></div>
-            <div class="form-group"><label>Cost</label><input name="cost" value="${i.cost}"></div>
-            <div class="form-group"><label>Category</label><input name="category" value="${i.category}"></div>
-            ${cutsHtml ? `<div class="form-group span-full"><label>Linked Cuts</label><div style="border:1px solid #ccc;padding:5px;max-height:100px;overflow:auto">${cutsHtml}</div></div>` : ''}
-        </div>`;
-    } 
-    else if (type === 'user') {
-        const u = findByKey(state.allUsers, 'Username', id);
-        body.innerHTML = `<div class="form-grid">
-            <div class="form-group"><label>Name</label><input name="Name" value="${u.Name}"></div>
-            <div class="form-group"><label>Password (New)</label><input name="LoginCode" type="password"></div>
-        </div>`;
+export function renderActivityLog() {
+    const table = document.getElementById('table-activity-log');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    tbody.innerHTML = '';
+    if (!state.activityLog || state.activityLog.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;">No activity logged.</td></tr>`;
+        return;
     }
-}
-
-export function renderItemsInModal(filter='') {
-    const el = document.getElementById('modal-item-list'); if(!el) return; el.innerHTML = '';
-    const ctx = document.getElementById('item-selector-modal').dataset.allowedItems;
-    const allow = ctx ? JSON.parse(ctx) : null;
-    
-    state.items.filter(i => {
-        const matchName = i.name.toLowerCase().includes(filter.toLowerCase());
-        const matchAllow = !allow || allow.includes(i.code);
-        return matchName && matchAllow;
-    }).forEach(i => {
-        el.innerHTML += `<div class="modal-item"><input type="checkbox" data-code="${i.code}"><label>${i.name}</label></div>`;
+    state.activityLog.slice().reverse().forEach(log => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${new Date(log.Timestamp).toLocaleString()}</td><td>${log.User || 'N/A'}</td><td>${log.Action}</td><td>${log.Description}</td>`;
+        tbody.appendChild(tr);
     });
 }
 
 export function renderPendingTransfers() {
     const container = document.getElementById('pending-transfers-card'); if (!container) return;
-    const tbody = document.getElementById('table-pending-transfers')?.querySelector('tbody'); if (!tbody) return; 
-    tbody.innerHTML = '';
-    
+    const tbody = document.getElementById('table-pending-transfers')?.querySelector('tbody'); if (!tbody) return; tbody.innerHTML = '';
     const groups = {};
-    (state.transactions || []).filter(t => t.type === 'transfer_out' && t.Status === 'In Transit').forEach(t => {
-        if (!groups[t.batchId]) groups[t.batchId] = { ...t, items: [] };
-        groups[t.batchId].items.push(t);
-    });
-    
-    if(Object.keys(groups).length === 0) { container.style.display = 'none'; return; }
-    container.style.display = 'block';
-    
+    (state.transactions || []).filter(t => t.type === 'transfer_out' && t.Status === 'In Transit').forEach(t => { if (!groups[t.batchId]) groups[t.batchId] = { ...t, items: [] }; groups[t.batchId].items.push(t); });
     Object.values(groups).forEach(t => {
         const from = findByKey(state.branches, 'branchCode', t.fromBranchCode)?.branchName || t.fromBranchCode;
         tbody.innerHTML += `<tr><td>${formatDate(t.date)}</td><td>${from}</td><td>${t.ref}</td><td>${t.items.length}</td><td><button class="primary small btn-receive-transfer" data-batch-id="${t.batchId}">View</button></td></tr>`;
     });
+    container.style.display = Object.keys(groups).length ? 'block' : 'none';
 }
 
 export function renderInTransitReport() {
-    const tbody = document.getElementById('table-in-transit')?.querySelector('tbody'); if (!tbody) return; 
-    tbody.innerHTML = '';
-    
+    const tbody = document.getElementById('table-in-transit')?.querySelector('tbody'); if (!tbody) return; tbody.innerHTML = '';
     const groups = {};
-    (state.transactions || []).filter(t => t.type === 'transfer_out').forEach(t => {
-        if (!groups[t.batchId]) groups[t.batchId] = { ...t, items: [] };
-        groups[t.batchId].items.push(t);
-    });
-    
+    (state.transactions || []).filter(t => t.type === 'transfer_out').forEach(t => { if (!groups[t.batchId]) groups[t.batchId] = { ...t, items: [] }; groups[t.batchId].items.push(t); });
     Object.values(groups).forEach(t => {
-        const from = findByKey(state.branches, 'branchCode', t.fromBranchCode)?.branchName || 'N/A';
-        const to = findByKey(state.branches, 'branchCode', t.toBranchCode)?.branchName || 'N/A';
+        const from = findByKey(state.branches, 'branchCode', t.fromBranchCode)?.branchName;
+        const to = findByKey(state.branches, 'branchCode', t.toBranchCode)?.branchName;
         tbody.innerHTML += `<tr><td>${formatDate(t.date)}</td><td>${from}</td><td>${to}</td><td>${t.ref}</td><td>${t.items.length}</td><td>${t.Status}</td><td>-</td></tr>`;
+    });
+}
+
+export function renderPurchaseOrdersViewer() {
+    const tbody = document.getElementById('table-po-viewer')?.querySelector('tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    (state.purchaseOrders || []).slice().reverse().forEach(po => {
+        const sup = findByKey(state.suppliers, 'supplierCode', po.supplierCode)?.name || po.supplierCode;
+        const items = state.purchaseOrderItems.filter(i => i.poId === po.poId);
+        tbody.innerHTML += `<tr><td>${po.poId}</td><td>${formatDate(po.date)}</td><td>${sup}</td><td>${items.length}</td><td>${formatCurrency(po.totalValue)}</td><td>${po.Status}</td><td><button class="secondary small btn-view-tx" data-batch-id="${po.poId}" data-type="po">View</button></td></tr>`;
     });
 }
