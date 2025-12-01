@@ -54,62 +54,73 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- 2. GLOBAL CLICK LISTENER (Buttons) ---
+    // --- 2. GLOBAL CLICK LISTENER (Event Delegation) ---
     document.body.addEventListener('click', (e) => {
         const btn = e.target.closest('button');
         if (!btn) return;
 
-        // --- MODAL NAVIGATION ---
+        // Modal Close
         if (btn.classList.contains('close-button') || btn.classList.contains('modal-cancel')) {
              document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
         }
-        
+
+        // Open Edit Modals
         if (btn.classList.contains('btn-edit')) {
              Renderers.renderEditModalContent(btn.dataset.type, btn.dataset.id);
              document.getElementById('edit-modal').classList.add('active');
         }
+        
+        // Open History
+        if (btn.classList.contains('btn-history')) {
+            const modal = document.getElementById('history-modal');
+            document.getElementById('history-modal-title').textContent = `${_t('history')}: ${btn.dataset.id}`;
+            // Trigger data fetch for history here if needed
+            postData('getItemHistory', { itemCode: btn.dataset.id }, null).then(res => {
+                if(res && res.data) {
+                    const container = document.getElementById('subview-price-history');
+                    let html = '<table><thead><tr><th>Date</th><th>Old</th><th>New</th><th>User</th></tr></thead><tbody>';
+                    res.data.priceHistory.forEach(h => {
+                        html += `<tr><td>${new Date(h.Timestamp).toLocaleDateString()}</td><td>${h.OldCost}</td><td>${h.NewCost}</td><td>${h.UpdatedBy}</td></tr>`;
+                    });
+                    container.innerHTML = html + '</tbody></table>';
+                }
+            });
+            modal.classList.add('active');
+        }
 
-        // --- OPEN ITEM SELECTOR ---
+        // OPEN ITEM SELECTOR
         if (btn.classList.contains('btn-select-items')) {
              state.currentSelectionModal.type = 'item-selector';
              const m = document.getElementById('item-selector-modal');
-             const context = btn.dataset.context;
-             
-             m.dataset.context = context; // Important: Store context on modal DOM
+             m.dataset.context = btn.dataset.context;
              m.dataset.allowedItems = "";
              
-             // Butchery Filter Logic
-             if (context === 'butchery-child') {
+             // Filter for Butchery Child
+             if (btn.dataset.context === 'butchery-child') {
                  const pc = document.getElementById('butchery-parent-code').value;
                  if (!pc) { showToast('Please select a Parent Item first', 'error'); return; }
-                 
                  const p = findByKey(state.items, 'code', pc);
-                 // If parent has defined cuts, strictly filter. Otherwise show all.
                  if(p && p.DefinedCuts) m.dataset.allowedItems = JSON.stringify(p.DefinedCuts.split(','));
              }
              
-             state.modalSelections.clear(); // Clear previous selections
-             Renderers.renderItemsInModal(); // Render fresh list
+             state.modalSelections.clear();
+             Renderers.renderItemsInModal();
              m.classList.add('active');
         }
 
-        // --- CONFIRM ITEM SELECTION ---
+        // CONFIRM ITEM SELECTION
         if (btn.id === 'btn-confirm-modal-selection') {
             const m = document.getElementById('item-selector-modal');
             const ctx = m.dataset.context;
             const sel = Array.from(state.modalSelections);
             
-            console.log(`Confirming selection for context: ${ctx}. Items: ${sel.join(', ')}`); // Debug
-
             if (ctx === 'butchery-parent') {
-                // Single Select logic for Parent
                 const i = findByKey(state.items, 'code', sel[0]);
                 if(i) { 
                     document.getElementById('butchery-parent-display').value = i.name; 
                     document.getElementById('butchery-parent-code').value = i.code; 
                 }
             } else {
-                // Multi Select logic for Tables
                 const map = { 
                     'receive': 'currentReceiveList', 
                     'butchery-child': 'currentButcheryList', 
@@ -119,47 +130,43 @@ document.addEventListener('DOMContentLoaded', () => {
                     'adjustment': 'currentAdjustmentList',
                     'request': 'currentRequestList'
                 };
-                
                 const listName = map[ctx];
                 
-                if(listName && state[listName]) {
+                if(listName) {
                     sel.forEach(c => {
                         const i = findByKey(state.items, 'code', c);
-                        // Prevent duplicates
                         if(i && !state[listName].find(x => x.itemCode === c)) {
                             state[listName].push({ 
                                 itemCode: i.code, 
                                 itemName: i.name, 
-                                quantity: '', // User enters this
-                                cost: parseFloat(i.cost) || 0 // Default cost from master
+                                quantity: '', 
+                                cost: parseFloat(i.cost) || 0 
                             });
                         }
                     });
-
-                    // Force Re-render based on context
                     if(ctx === 'receive') Renderers.renderReceiveListTable();
-                    else if(ctx === 'butchery-child') Renderers.renderButcheryListTable();
-                    else if(ctx === 'transfer') Renderers.renderTransferListTable();
-                    else if(ctx === 'return') Renderers.renderReturnListTable();
-                    else if(ctx === 'adjustment') Renderers.renderAdjustmentListTable();
-                    else if(ctx === 'po') Renderers.renderPOListTable();
-                    else if(ctx === 'request') Renderers.renderRequestListTable();
-                } else {
-                    console.error(`List not found for context: ${ctx}`);
+                    if(ctx === 'butchery-child') Renderers.renderButcheryListTable();
+                    if(ctx === 'transfer') Renderers.renderTransferListTable();
+                    if(ctx === 'return') Renderers.renderReturnListTable();
+                    if(ctx === 'adjustment') Renderers.renderAdjustmentListTable();
+                    if(ctx === 'po') Renderers.renderPOListTable();
+                    if(ctx === 'request') Renderers.renderRequestListTable();
                 }
             }
             m.classList.remove('active');
             state.modalSelections.clear();
         }
 
-        // ... (Keep Reports, Payments, Auto-Gen logic here) ...
+        // Reports & Payments
         if (btn.id === 'btn-select-invoices') { Renderers.renderInvoicesInModal(); document.getElementById('invoice-selector-modal').classList.add('active'); }
         if (btn.id === 'btn-confirm-invoice-selection') { document.getElementById('invoice-selector-modal').classList.remove('active'); Renderers.renderPaymentList(); }
         if (btn.id === 'btn-generate-supplier-statement') { Renderers.renderSupplierStatement(document.getElementById('supplier-statement-select').value, document.getElementById('statement-start-date').value, document.getElementById('statement-end-date').value); }
-        if (btn.id === 'btn-gen-item-code') document.getElementById('item-code').value = `ITM-${Math.floor(Math.random()*9999)}`;
-        if (btn.id === 'btn-gen-invoice') document.getElementById('receive-invoice').value = `INV-${Date.now().toString().slice(-6)}`;
+        
+        // Auto Generators
+        if(btn.id === 'btn-gen-item-code') document.getElementById('item-code').value = `ITM-${Math.floor(Math.random()*9999)}`;
+        if(btn.id === 'btn-gen-invoice') document.getElementById('receive-invoice').value = `INV-${Date.now().toString().slice(-6)}`;
 
-        // Remove Row Logic
+        // Remove Row
         if (btn.classList.contains('danger') && btn.dataset.index !== undefined && btn.textContent === 'X') {
             const row = btn.closest('tr');
             const tableId = row.closest('table').id;
@@ -171,7 +178,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 'table-transfer-list': { list: 'currentTransferList', render: Renderers.renderTransferListTable },
                 'table-po-list': { list: 'currentPOList', render: Renderers.renderPOListTable },
                 'table-return-list': { list: 'currentReturnList', render: Renderers.renderReturnListTable },
-                'table-adjustment-list': { list: 'currentAdjustmentList', render: Renderers.renderAdjustmentListTable }
+                'table-adjustment-list': { list: 'currentAdjustmentList', render: Renderers.renderAdjustmentListTable },
+                'table-request-list': { list: 'currentRequestList', render: Renderers.renderRequestListTable }
             };
             
             const config = tableMap[tableId];
@@ -185,21 +193,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btn.classList.contains('btn-view-tx')) {
             const batchId = btn.dataset.batchId;
             const type = btn.dataset.type;
-            
-            if (type === 'po') {
-                const data = findByKey(state.purchaseOrders, 'poId', batchId);
+            const group = state.transactions.filter(t => t.batchId === batchId);
+            if (group.length > 0) {
+                const first = group[0];
+                const data = { ...first, items: group.map(t => ({...t, itemName: findByKey(state.items, 'code', t.itemCode)?.name })) };
+                if (type === 'receive') Documents.generateReceiveDocument(data);
+                else if (type.includes('transfer')) Documents.generateTransferDocument(data);
+                else if (type === 'return_out') Documents.generateReturnDocument(data);
+            } else if (type === 'po') {
+                const po = findByKey(state.purchaseOrders, 'poId', batchId);
                 const items = state.purchaseOrderItems.filter(i => i.poId === batchId);
-                if (data) Documents.generatePODocument({ ...data, items });
-            } else {
-                const group = state.transactions.filter(t => t.batchId === batchId);
-                if (group.length > 0) {
-                    const first = group[0];
-                    const data = { ...first, items: group.map(t => ({...t, itemName: findByKey(state.items, 'code', t.itemCode)?.name })) };
-                    
-                    if (type === 'receive') Documents.generateReceiveDocument(data);
-                    else if (type.includes('transfer')) Documents.generateTransferDocument(data);
-                    else if (type === 'return_out') Documents.generateReturnDocument(data);
-                }
+                if(po) Documents.generatePODocument({...po, items});
             }
         }
 
@@ -208,24 +212,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const id = btn.dataset.id;
             const type = btn.dataset.type;
             const action = btn.classList.contains('btn-approve-financial') ? 'approveFinancial' : 'rejectFinancial';
-            
             if (confirm(`Confirm ${action}?`)) {
                 postData(action, { id, type }, btn).then(res => {
                     if(res) {
-                        showToast('Success');
-                        // Optimistic update
-                        if(type === 'receive') {
-                             state.transactions.forEach(t => { if(t.batchId===id) { t.isApproved = (action==='approveFinancial'); t.Status = (action==='approveFinancial'?'Completed':'Rejected'); }});
-                        } else if(type === 'po') {
-                             const p = findByKey(state.purchaseOrders, 'poId', id);
-                             if(p) p.Status = (action==='approveFinancial'?'Approved':'Rejected');
+                        showToast('Updated', 'success');
+                        if (type === 'receive') {
+                            state.transactions.forEach(t => { if (t.batchId === id) { t.isApproved = (action==='approveFinancial'); t.Status = (action==='approveFinancial'?'Completed':'Rejected'); } });
+                        } else if (type === 'po') {
+                            const p = findByKey(state.purchaseOrders, 'poId', id);
+                            if(p) p.Status = (action==='approveFinancial'?'Approved':'Rejected');
                         }
                         Renderers.renderPendingFinancials();
                     }
                 });
             }
         }
-
+        
         // Admin Context Confirm
         if (btn.id === 'btn-confirm-context') {
             const modal = document.getElementById('context-selector-modal');
@@ -237,28 +239,28 @@ document.addEventListener('DOMContentLoaded', () => {
             if (state.adminContextPromise.resolve) state.adminContextPromise.resolve(ctx);
             modal.classList.remove('active');
         }
+
+        // Transfer Actions (Receive/Cancel)
+        if (btn.classList.contains('btn-receive-transfer')) { Transactions.openTransferModal(btn.dataset.batchId); }
+        if (btn.id === 'btn-confirm-receive-transfer') { Transactions.processTransferAction('receiveTransfer', btn.dataset.batchId, btn); }
+        if (btn.id === 'btn-reject-transfer') { Transactions.processTransferAction('rejectTransfer', btn.dataset.batchId, btn); }
+        if (btn.classList.contains('btn-cancel-transfer')) { Transactions.handleCancelTransfer(btn.dataset.batchId, btn); }
+
+        // Notification Click
+        if (btn.id === 'pending-requests-widget' || btn.closest('#pending-requests-widget')) {
+             const widget = document.getElementById('pending-requests-widget');
+             if (widget.dataset.actionType === 'transfer') {
+                 showView('operations');
+                 const tab = document.querySelector('[data-subview="receive"]');
+                 if(tab) tab.click();
+             } else {
+                 showView('requests');
+             }
+        }
     });
 
-    // --- 3. GLOBAL CHANGE LISTENER (Fix for Checkboxes & Inputs) ---
+    // --- 3. TABLE INPUT LISTENER (Real-time Data Entry) ---
     document.body.addEventListener('change', (e) => {
-        // A. Modal Item Checkboxes (Fix for "Select Items" not populating)
-        if (e.target.closest('#modal-item-list') && e.target.type === 'checkbox') {
-            const code = e.target.dataset.code;
-            if (e.target.checked) {
-                state.modalSelections.add(code);
-            } else {
-                state.modalSelections.delete(code);
-            }
-            console.log('Current Selections:', Array.from(state.modalSelections));
-        }
-
-        // B. Invoice Modal Checkboxes
-        if (e.target.closest('#modal-invoice-list') && e.target.type === 'checkbox') {
-             const num = e.target.dataset.number;
-             e.target.checked ? state.invoiceModalSelections.add(num) : state.invoiceModalSelections.delete(num);
-        }
-
-        // C. Table Inputs (Live Updates)
         if (e.target.classList.contains('table-input')) {
             const input = e.target;
             const row = input.closest('tr');
@@ -273,31 +275,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 'table-transfer-list': { list: 'currentTransferList', render: Renderers.renderTransferListTable },
                 'table-po-list': { list: 'currentPOList', render: Renderers.renderPOListTable },
                 'table-return-list': { list: 'currentReturnList', render: Renderers.renderReturnListTable },
-                'table-adjustment-list': { list: 'currentAdjustmentList', render: Renderers.renderAdjustmentListTable }
+                'table-adjustment-list': { list: 'currentAdjustmentList', render: Renderers.renderAdjustmentListTable },
+                'table-request-list': { list: 'currentRequestList', render: Renderers.renderRequestListTable }
             };
 
             const config = tableMap[tableId];
             if (config && state[config.list][index]) {
                 state[config.list][index][field] = isNaN(val) ? 0 : val;
-                config.render();
+                config.render(); // Re-render to update totals
             }
         }
         
         if(e.target.id === 'butchery-parent-qty') Renderers.renderButcheryListTable();
-        if(e.target.id === 'item-type') {
-            const g = document.getElementById('group-item-parent');
-            if(e.target.value === 'Cut') {
-                g.style.display = 'block';
-                populateOptions(document.getElementById('item-parent'), state.items.filter(i=>i.ItemType==='Main'), 'Parent', 'code', 'name');
-            } else { g.style.display = 'none'; }
+        
+        // Invoice Modal
+        if (e.target.closest('#modal-invoice-list') && e.target.type === 'checkbox') {
+             const num = e.target.dataset.number;
+             e.target.checked ? state.invoiceModalSelections.add(num) : state.invoiceModalSelections.delete(num);
+        }
+        
+        // Item Modal
+        if (e.target.closest('#modal-item-list') && e.target.type === 'checkbox') {
+             const code = e.target.dataset.code;
+             e.target.checked ? state.modalSelections.add(code) : state.modalSelections.delete(code);
         }
     });
 
-    // --- 4. SEARCH LISTENER ---
-    const searchInput = document.getElementById('modal-search-items');
-    if(searchInput) searchInput.addEventListener('input', e => Renderers.renderItemsInModal(e.target.value));
-
-    // --- 5. FORM SUBMITS ---
+    // --- 4. FORM SUBMITS ---
     const attachFormHandler = (formId, actionName, dataExtractor) => {
         const form = document.getElementById(formId);
         if(!form) return;
@@ -333,11 +337,11 @@ document.addEventListener('DOMContentLoaded', () => {
         supplierCode: getValue('item-supplier'),
         cost: parseFloat(getValue('item-cost')) || 0
     }));
-
+    
     attachFormHandler('form-add-supplier', 'addSupplier', () => ({ supplierCode: getValue('supplier-code'), name: getValue('supplier-name'), contact: getValue('supplier-contact') }));
     attachFormHandler('form-add-branch', 'addBranch', () => ({ branchCode: getValue('branch-code'), branchName: getValue('branch-name') }));
     attachFormHandler('form-add-section', 'addSection', () => ({ sectionCode: getValue('section-code'), sectionName: getValue('section-name') }));
-
+    
     // Edit Form
     const editForm = document.getElementById('form-edit-record');
     if (editForm) {
@@ -395,7 +399,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Transaction Buttons
-    const bindBtn = (id, handler) => { const btn = document.getElementById(id); if(btn) btn.addEventListener('click', handler); };
+    const bindBtn = (id, fn) => { const el = document.getElementById(id); if(el) el.addEventListener('click', fn); };
     bindBtn('btn-submit-receive-batch', Transactions.handleReceiveSubmit);
     bindBtn('btn-submit-butchery', Transactions.handleButcherySubmit);
     bindBtn('btn-submit-transfer-batch', Transactions.handleTransferSubmit);
@@ -427,6 +431,16 @@ document.addEventListener('DOMContentLoaded', () => {
             refreshViewData(view.id.replace('view-', ''));
         });
     });
+
+    // Dynamic Parent
+    const ts = document.getElementById('item-type');
+    if(ts) ts.addEventListener('change', e => {
+        const g = document.getElementById('group-item-parent');
+        if(e.target.value === 'Cut') {
+            g.style.display = 'block';
+            populateOptions(document.getElementById('item-parent'), state.items.filter(i=>i.ItemType==='Main'), 'Parent', 'code', 'name');
+        } else { g.style.display = 'none'; }
+    });
 });
 
 function initializeAppUI() {
@@ -437,20 +451,26 @@ function initializeAppUI() {
     populateOptions(document.getElementById('receive-supplier'), state.suppliers, 'Supplier', 'supplierCode', 'name');
     populateOptions(document.getElementById('butchery-branch'), state.branches, 'Branch', 'branchCode', 'branchName');
     populateOptions(document.getElementById('item-supplier'), state.suppliers, 'Supplier', 'supplierCode', 'name');
+    
+    Renderers.updateNotifications();
     showView('dashboard');
 }
 
 function showView(id) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.querySelectorAll('.nav-item a').forEach(l => l.classList.remove('active'));
+    
     const v = document.getElementById(`view-${id}`);
     if(v) v.classList.add('active');
     const l = document.querySelector(`a[data-view="${id}"]`);
     if(l) l.classList.add('active');
+    
     refreshViewData(id);
 }
 
 function refreshViewData(id) {
+    Renderers.updateNotifications();
+
     if(id === 'dashboard') {
         const stock = calculateStockLevels();
         let val = 0;
