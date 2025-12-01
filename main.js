@@ -53,6 +53,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.body.addEventListener('click', (e) => {
         const btn = e.target.closest('button');
+        
+        // --- NOTIFICATION CLICK LOGIC (Updated) ---
+        if (e.target.id === 'pending-requests-widget' || e.target.closest('#pending-requests-widget')) {
+             const widget = document.getElementById('pending-requests-widget');
+             if (widget.dataset.actionType === 'transfer') {
+                 // 1. Switch to Operations View
+                 showView('operations');
+                 
+                 // 2. Wait a tiny bit for DOM update, then click the sub-tab
+                 setTimeout(() => {
+                     const tab = document.querySelector('button[data-subview="in-transit"]');
+                     if(tab) tab.click();
+                 }, 100);
+             } else {
+                 showView('requests');
+             }
+             return; // Stop here
+        }
+        
         if (!btn) return;
 
         if (btn.classList.contains('close-button') || btn.classList.contains('modal-cancel')) {
@@ -86,7 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
              
              if (btn.dataset.context === 'butchery-child') {
                  const pc = document.getElementById('butchery-parent-code').value;
-                 if (!pc) { showToast('Please select a Parent Item first', 'error'); return; }
+                 if (!pc) { showToast('Select Parent First', 'error'); return; }
                  const p = findByKey(state.items, 'code', pc);
                  if(p && p.DefinedCuts) m.dataset.allowedItems = JSON.stringify(p.DefinedCuts.split(','));
              }
@@ -152,19 +171,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const idx = parseInt(btn.dataset.index);
             
             const tableMap = {
-                'table-receive-list': { l: 'currentReceiveList', r: Renderers.renderReceiveListTable },
-                'table-butchery-children': { l: 'currentButcheryList', r: Renderers.renderButcheryListTable },
-                'table-transfer-list': { l: 'currentTransferList', r: Renderers.renderTransferListTable },
-                'table-po-list': { l: 'currentPOList', r: Renderers.renderPOListTable },
-                'table-return-list': { l: 'currentReturnList', r: Renderers.renderReturnListTable },
-                'table-adjustment-list': { l: 'currentAdjustmentList', r: Renderers.renderAdjustmentListTable },
-                'table-request-list': { l: 'currentRequestList', r: Renderers.renderRequestListTable }
+                'table-receive-list': { list: 'currentReceiveList', render: Renderers.renderReceiveListTable },
+                'table-butchery-children': { list: 'currentButcheryList', render: Renderers.renderButcheryListTable },
+                'table-transfer-list': { list: 'currentTransferList', render: Renderers.renderTransferListTable },
+                'table-po-list': { list: 'currentPOList', render: Renderers.renderPOListTable },
+                'table-return-list': { list: 'currentReturnList', render: Renderers.renderReturnListTable },
+                'table-adjustment-list': { list: 'currentAdjustmentList', render: Renderers.renderAdjustmentListTable },
+                'table-request-list': { list: 'currentRequestList', render: Renderers.renderRequestListTable }
             };
             
             const config = tableMap[tableId];
             if (config) {
-                state[config.l].splice(idx, 1);
-                config.r();
+                state[config.list].splice(idx, 1);
+                config.render();
             }
         }
 
@@ -216,17 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btn.id === 'btn-reject-transfer') { Transactions.processTransferAction('rejectTransfer', btn.dataset.batchId, btn); }
         if (btn.classList.contains('btn-cancel-transfer')) { Transactions.handleCancelTransfer(btn.dataset.batchId, btn); }
 
-        // Notifications
-        if (btn.id === 'pending-requests-widget' || btn.closest('#pending-requests-widget')) {
-             const widget = document.getElementById('pending-requests-widget');
-             if (widget.dataset.actionType === 'transfer') {
-                 showView('operations');
-                 document.querySelector('[data-subview="in-transit"]').click();
-             } else {
-                 showView('requests');
-             }
-        }
-
+        // Admin Context
         if (btn.id === 'btn-confirm-context') {
             const modal = document.getElementById('context-selector-modal');
             const ctx = {
@@ -249,19 +258,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const val = parseFloat(input.value);
 
             const tableMap = {
-                'table-receive-list': { l: 'currentReceiveList', r: Renderers.renderReceiveListTable },
-                'table-butchery-children': { l: 'currentButcheryList', r: Renderers.renderButcheryListTable },
-                'table-transfer-list': { l: 'currentTransferList', r: Renderers.renderTransferListTable },
-                'table-po-list': { l: 'currentPOList', r: Renderers.renderPOListTable },
-                'table-return-list': { l: 'currentReturnList', r: Renderers.renderReturnListTable },
-                'table-adjustment-list': { l: 'currentAdjustmentList', r: Renderers.renderAdjustmentListTable },
-                'table-request-list': { l: 'currentRequestList', r: Renderers.renderRequestListTable }
+                'table-receive-list': { list: 'currentReceiveList', render: Renderers.renderReceiveListTable },
+                'table-butchery-children': { list: 'currentButcheryList', render: Renderers.renderButcheryListTable },
+                'table-transfer-list': { list: 'currentTransferList', render: Renderers.renderTransferListTable },
+                'table-po-list': { list: 'currentPOList', render: Renderers.renderPOListTable },
+                'table-return-list': { list: 'currentReturnList', render: Renderers.renderReturnListTable },
+                'table-adjustment-list': { list: 'currentAdjustmentList', render: Renderers.renderAdjustmentListTable },
+                'table-request-list': { list: 'currentRequestList', render: Renderers.renderRequestListTable }
             };
 
             const config = tableMap[tableId];
-            if (config && state[config.l][index]) {
-                state[config.l][index][field] = isNaN(val) ? 0 : val;
-                config.r();
+            if (config && state[config.list][index]) {
+                state[config.list][index][field] = isNaN(val) ? 0 : val;
+                config.render();
             }
         }
         
