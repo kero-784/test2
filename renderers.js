@@ -21,7 +21,6 @@ const renderDynamicListTable = (tbodyId, list, columnsConfig, emptyMessage, tota
     
     list.forEach((item, index) => {
         const tr = document.createElement('tr');
-        let cellsHtml = '';
         columnsConfig.forEach(col => {
             let content = '';
             const fromBranch = col.branchSelectId ? document.getElementById(col.branchSelectId)?.value : null;
@@ -721,14 +720,12 @@ export function renderPendingTransfers() {
     });
 }
 
-// --- UPDATED: IN-TRANSIT REPORT ---
 export function renderInTransitReport() {
     const tbody = document.getElementById('table-in-transit')?.querySelector('tbody'); 
     if (!tbody) return; 
     tbody.innerHTML = '';
     
     const groups = {};
-    // FILTER: Strictly 'In Transit' only
     (state.transactions || []).filter(t => t.type === 'transfer_out' && t.Status === 'In Transit').forEach(t => {
         if (!groups[t.batchId]) groups[t.batchId] = { ...t, items: [] };
         groups[t.batchId].items.push(t);
@@ -750,7 +747,6 @@ export function renderInTransitReport() {
 
         let actionHtml = `<span class="status-tag status-intransit">In Transit</span>`;
 
-        // Logic: If Receiver -> Show Receive. If Sender/Admin -> Show Cancel.
         if (t.toBranchCode === myBranch) {
             actionHtml = `<button class="primary small btn-receive-transfer" data-batch-id="${t.batchId}">Receive Stock</button>`;
         } else if (t.fromBranchCode === myBranch || isAdmin) {
@@ -810,13 +806,19 @@ export function updateNotifications() {
     }
 }
 
-// --- USER MANAGEMENT (Exported now) ---
+// --- USER MANAGEMENT (Added missing function) ---
 export function renderUserManagementUI() {
     const usersTbody = document.getElementById('table-users');
     if (!usersTbody) return;
     const tbody = usersTbody.querySelector('tbody');
     tbody.innerHTML = '';
-    (state.allUsers || []).forEach(user => {
+    
+    if (!state.allUsers || state.allUsers.length === 0) {
+         tbody.innerHTML = '<tr><td colspan="6">No users found.</td></tr>';
+         return;
+    }
+
+    state.allUsers.forEach(user => {
         const tr = document.createElement('tr');
         const assigned = findByKey(state.branches, 'branchCode', user.AssignedBranchCode)?.branchName || 'N/A';
         const statusText = (user.isDisabled === true || String(user.isDisabled).toUpperCase() === 'TRUE') ? 'Disabled' : 'Active';
