@@ -27,8 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await response.json();
                 
                 if (data.status !== 'error' && data.user) {
-                    const isDisabled = data.user.isDisabled === true || String(data.user.isDisabled).toUpperCase() === 'TRUE';
-                    if (isDisabled) throw new Error('Account disabled.');
+                    if (String(data.user.isDisabled).toUpperCase() === 'TRUE') throw new Error('Account disabled.');
                     
                     setState('currentUser', data.user);
                     setState('username', username);
@@ -124,12 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     sel.forEach(c => {
                         const i = findByKey(state.items, 'code', c);
                         if(i && !state[listName].find(x => x.itemCode === c)) {
-                            state[listName].push({ 
-                                itemCode: i.code, 
-                                itemName: i.name, 
-                                quantity: '', 
-                                cost: parseFloat(i.cost) || 0 
-                            });
+                            state[listName].push({ itemCode: i.code, itemName: i.name, quantity: '', cost: parseFloat(i.cost) || 0 });
                         }
                     });
                     if(ctx === 'receive') Renderers.renderReceiveListTable();
@@ -158,19 +152,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const idx = parseInt(btn.dataset.index);
             
             const tableMap = {
-                'table-receive-list': { list: 'currentReceiveList', render: Renderers.renderReceiveListTable },
-                'table-butchery-children': { list: 'currentButcheryList', render: Renderers.renderButcheryListTable },
-                'table-transfer-list': { list: 'currentTransferList', render: Renderers.renderTransferListTable },
-                'table-po-list': { list: 'currentPOList', render: Renderers.renderPOListTable },
-                'table-return-list': { list: 'currentReturnList', render: Renderers.renderReturnListTable },
-                'table-adjustment-list': { list: 'currentAdjustmentList', render: Renderers.renderAdjustmentListTable },
-                'table-request-list': { list: 'currentRequestList', render: Renderers.renderRequestListTable }
+                'table-receive-list': { l: 'currentReceiveList', r: Renderers.renderReceiveListTable },
+                'table-butchery-children': { l: 'currentButcheryList', r: Renderers.renderButcheryListTable },
+                'table-transfer-list': { l: 'currentTransferList', r: Renderers.renderTransferListTable },
+                'table-po-list': { l: 'currentPOList', r: Renderers.renderPOListTable },
+                'table-return-list': { l: 'currentReturnList', r: Renderers.renderReturnListTable },
+                'table-adjustment-list': { l: 'currentAdjustmentList', r: Renderers.renderAdjustmentListTable },
+                'table-request-list': { l: 'currentRequestList', r: Renderers.renderRequestListTable }
             };
             
             const config = tableMap[tableId];
             if (config) {
-                state[config.list].splice(idx, 1);
-                config.render();
+                state[config.l].splice(idx, 1);
+                config.r();
             }
         }
 
@@ -203,14 +197,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (confirm(`Confirm ${action}?`)) {
                 postData(action, { id, type }, btn).then(res => {
                     if(res) {
-                        showToast(`${type} ${action === 'approveFinancial' ? 'Approved' : 'Rejected'}`);
+                        showToast('Updated', 'success');
                         if (type === 'receive') {
-                            state.transactions.forEach(t => {
-                                if (t.batchId === id) {
-                                    t.isApproved = (action === 'approveFinancial');
-                                    t.Status = action === 'approveFinancial' ? 'Completed' : 'Rejected';
-                                }
-                            });
+                            state.transactions.forEach(t => { if (t.batchId === id) { t.isApproved = (action==='approveFinancial'); t.Status = (action==='approveFinancial'?'Completed':'Rejected'); } });
                         } else if (type === 'po') {
                             const po = findByKey(state.purchaseOrders, 'poId', id);
                             if(po) po.Status = action === 'approveFinancial' ? 'Approved' : 'Rejected';
@@ -232,13 +221,12 @@ document.addEventListener('DOMContentLoaded', () => {
              const widget = document.getElementById('pending-requests-widget');
              if (widget.dataset.actionType === 'transfer') {
                  showView('operations');
-                 // Optionally click receive tab if logic allows, or user navigates manually
+                 document.querySelector('[data-subview="in-transit"]').click();
              } else {
                  showView('requests');
              }
         }
 
-        // Admin Context
         if (btn.id === 'btn-confirm-context') {
             const modal = document.getElementById('context-selector-modal');
             const ctx = {
@@ -261,19 +249,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const val = parseFloat(input.value);
 
             const tableMap = {
-                'table-receive-list': { list: 'currentReceiveList', render: Renderers.renderReceiveListTable },
-                'table-butchery-children': { list: 'currentButcheryList', render: Renderers.renderButcheryListTable },
-                'table-transfer-list': { list: 'currentTransferList', render: Renderers.renderTransferListTable },
-                'table-po-list': { list: 'currentPOList', render: Renderers.renderPOListTable },
-                'table-return-list': { list: 'currentReturnList', render: Renderers.renderReturnListTable },
-                'table-adjustment-list': { list: 'currentAdjustmentList', render: Renderers.renderAdjustmentListTable },
-                'table-request-list': { list: 'currentRequestList', render: Renderers.renderRequestListTable }
+                'table-receive-list': { l: 'currentReceiveList', r: Renderers.renderReceiveListTable },
+                'table-butchery-children': { l: 'currentButcheryList', r: Renderers.renderButcheryListTable },
+                'table-transfer-list': { l: 'currentTransferList', r: Renderers.renderTransferListTable },
+                'table-po-list': { l: 'currentPOList', r: Renderers.renderPOListTable },
+                'table-return-list': { l: 'currentReturnList', r: Renderers.renderReturnListTable },
+                'table-adjustment-list': { l: 'currentAdjustmentList', r: Renderers.renderAdjustmentListTable },
+                'table-request-list': { l: 'currentRequestList', r: Renderers.renderRequestListTable }
             };
 
             const config = tableMap[tableId];
-            if (config && state[config.list][index]) {
-                state[config.list][index][field] = isNaN(val) ? 0 : val;
-                config.render();
+            if (config && state[config.l][index]) {
+                state[config.l][index][field] = isNaN(val) ? 0 : val;
+                config.r();
             }
         }
         
@@ -384,7 +372,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    const bindBtn = (id, fn) => { const el = document.getElementById(id); if(el) el.addEventListener('click', fn); };
+    const bindBtn = (id, handler) => { const btn = document.getElementById(id); if(btn) btn.addEventListener('click', handler); };
     bindBtn('btn-submit-receive-batch', Transactions.handleReceiveSubmit);
     bindBtn('btn-submit-butchery', Transactions.handleButcherySubmit);
     bindBtn('btn-submit-transfer-batch', Transactions.handleTransferSubmit);
