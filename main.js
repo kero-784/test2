@@ -1,6 +1,7 @@
+
 import { SCRIPT_URL } from './config.js';
 import { state, setState, resetStateLists } from './state.js';
-import { Logger, showToast, applyTranslations, populateOptions, findByKey, postData, formatCurrency, _t } from './utils.js';
+import { Logger, showToast, applyTranslations, populateOptions, findByKey, postData, formatCurrency, _t, userCan } from './utils.js';
 import { calculateStockLevels } from './calculations.js';
 import * as Renderers from './renderers.js';
 import * as Transactions from './transactions.js';
@@ -430,8 +431,33 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+function applyUIPermissions() {
+    const user = state.currentUser;
+    if (!user || !user.permissions) return;
+
+    // 1. Handle Sidebar items and elements with 'data-permission' attribute
+    document.querySelectorAll('[data-permission]').forEach(el => {
+        const requiredPerms = el.dataset.permission.split(',');
+        const hasAccess = requiredPerms.some(perm => userCan(perm.trim()));
+        
+        if (!hasAccess) {
+            el.style.display = 'none';
+        } else {
+            el.style.display = el.tagName === 'LI' ? 'block' : ''; 
+        }
+    });
+
+    // 2. Hide specific forms in Setup view if user lacks specific creation rights
+    if (!userCan('createItem')) document.getElementById('card-add-item').style.display = 'none';
+    if (!userCan('createSupplier')) document.getElementById('card-add-supplier').style.display = 'none';
+    if (!userCan('createBranch')) document.getElementById('card-add-branch').style.display = 'none';
+    if (!userCan('createSection')) document.getElementById('card-add-section').style.display = 'none';
+}
+
 function initializeAppUI() {
     applyTranslations();
+    applyUIPermissions(); // Enforce permissions on UI elements
+    
     const u = state.currentUser;
     document.querySelector('.sidebar-header h1').textContent = `Hi, ${u.Name.split(' ')[0]}`;
     populateOptions(document.getElementById('receive-branch'), state.branches, 'Branch', 'branchCode', 'branchName');
@@ -443,6 +469,17 @@ function initializeAppUI() {
 }
 
 function showView(id) {
+    // Check permission before showing view
+    const navItem = document.querySelector(`.nav-item a[data-view="${id}"]`)?.parentElement;
+    if (navItem && navItem.hasAttribute('data-permission')) {
+        const perms = navItem.dataset.permission.split(',');
+        const hasAccess = perms.some(p => userCan(p.trim()));
+        if (!hasAccess) {
+            showToast('Access Denied', 'error');
+            return;
+        }
+    }
+
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.querySelectorAll('.nav-item a').forEach(l => l.classList.remove('active'));
     const v = document.getElementById(`view-${id}`);
