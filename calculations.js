@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { findByKey } from './utils.js';
+import { findByKey, Logger } from './utils.js';
 
 /**
  * Calculates current stock quantity and average cost for every item at every branch.
@@ -20,89 +20,88 @@ export const calculateStockLevels = () => {
     const tempAvgCosts = {}; 
 
     sortedTransactions.forEach(t => {
-        // Skip unapproved Receives (they don't affect stock yet)
-        const isApproved = t.isApproved === true || String(t.isApproved).toUpperCase() === 'TRUE';
-        if (t.type === 'receive' && !isApproved) return;
-        
-        const item = findByKey(state.items, 'code', t.itemCode);
-        if (!item) return;
+        try {
+            // Skip unapproved Receives (they don't affect stock yet)
+            const isApproved = t.isApproved === true || String(t.isApproved).toUpperCase() === 'TRUE';
+            if (t.type === 'receive' && !isApproved) return;
+            
+            // Skip deleted transactions
+            if (t.is_deleted === true || String(t.is_deleted).toUpperCase() === 'TRUE') return;
+            if (t.Status === 'Rejected' || t.Status === 'Cancelled') return;
 
-        /**
-         * Helper to update a specific branch's stock record
-         */
-        const processStockUpdate = (branchCode, qtyChange, cost) => {
-            if (!branchCode || !stock.hasOwnProperty(branchCode)) return;
-            
-            // Get current state or initialize with 0
-            const current = stock[branchCode][t.itemCode] || { 
-                quantity: 0, 
-                avgCost: parseFloat(item.cost) || 0, 
-                itemName: item.name 
-            };
-            
-            if(qtyChange > 0) {
-                // Weighted Average Cost Calculation (INCOMING)
-                const currentTotalValue = current.quantity * current.avgCost;
-                const newTransactionValue = qtyChange * cost;
-                const totalQty = current.quantity + qtyChange;
+            const item = findByKey(state.items, 'code', t.itemCode);
+            if (!item) return;
+
+            const processStockUpdate = (branchCode, qtyChange, cost) => {
+                if (!branchCode || !stock.hasOwnProperty(branchCode)) return;
                 
-                // Prevent division by zero
-                const newAvgCost = totalQty > 0 
-                    ? (currentTotalValue + newTransactionValue) / totalQty 
-                    : current.avgCost;
-
-                stock[branchCode][t.itemCode] = { 
-                    itemCode: t.itemCode, 
-                    quantity: totalQty, 
-                    avgCost: newAvgCost, 
+                // Get current state or initialize with 0
+                const current = stock[branchCode][t.itemCode] || { 
+                    quantity: 0, 
+                    avgCost: parseFloat(item.cost) || 0, 
                     itemName: item.name 
                 };
                 
-                // Store this cost for potential transfers out
-                if (!tempAvgCosts[branchCode]) tempAvgCosts[branchCode] = {};
-                tempAvgCosts[branchCode][t.itemCode] = newAvgCost;
+                if(qtyChange > 0) {
+                    // Weighted Average Cost Calculation (INCOMING)
+                    const currentTotalValue = current.quantity * current.avgCost;
+                    const newTransactionValue = qtyChange * cost;
+                    const totalQty = current.quantity + qtyChange;
+                    
+                    // Prevent division by zero
+                    const newAvgCost = totalQty > 0 
+                        ? (currentTotalValue + newTransactionValue) / totalQty 
+                        : current.avgCost;
 
-            } else {
-                // Outgoing stock reduces quantity but maintains Average Cost
-                current.quantity += qtyChange;
-                stock[branchCode][t.itemCode] = current;
-            }
-        };
+                    stock[branchCode][t.itemCode] = { 
+                        itemCode: t.itemCode, 
+                        quantity: totalQty, 
+                        avgCost: newAvgCost, 
+                        itemName: item.name 
+                    };
+                    
+                    // Store this cost for potential transfers out
+                    if (!tempAvgCosts[branchCode]) tempAvgCosts[branchCode] = {};
+                    tempAvgCosts[branchCode][t.itemCode] = newAvgCost;
 
-        const qty = parseFloat(t.quantity) || 0;
-        const transactionCost = parseFloat(t.cost) || 0;
+                } else {
+                    // Outgoing stock reduces quantity but maintains Average Cost
+                    current.quantity += qtyChange;
+                    stock[branchCode][t.itemCode] = current;
+                }
+            };
 
-        switch (t.type) {
-            case 'receive': 
-                processStockUpdate(t.branchCode, qty, transactionCost); 
-                break;
-            case 'issue': 
-            case 'transfer_out': 
-            case 'return_out': 
-            case 'adjustment_out': 
-                processStockUpdate(t.fromBranchCode, -qty, 0); 
-                break;
-            
-            // Butchery: Parent item leaves inventory
-            case 'production_out': 
-                processStockUpdate(t.branchCode, -qty, 0); 
-                break; 
-            
-            // Butchery: Child items enter inventory
-            case 'production_in': 
-                processStockUpdate(t.branchCode, qty, transactionCost); 
-                break; 
-            
-            case 'transfer_in':
-                // Incoming transfer inherits the cost from the sender branch at that moment
-                // Fallback to Master Item Default Cost if live tracking fails
-                const fromCost = tempAvgCosts[t.fromBranchCode]?.[t.itemCode] || findByKey(state.items, 'code', t.itemCode)?.cost || 0;
-                processStockUpdate(t.toBranchCode, qty, parseFloat(fromCost));
-                break;
+            const qty = parseFloat(t.quantity) || 0;
+            const transactionCost = parseFloat(t.cost) || 0;
+
+            switch (t.type) {
+                case 'receive': 
+                    processStockUpdate(t.branchCode, qty, transactionCost); 
+                    break;
+                case 'transfer_out': 
+                case 'issue':
+                case 'return_out': 
+                case 'adjustment_out': 
+                case 'production_out':
+                    processStockUpdate(t.fromBranchCode || t.branchCode, -qty, 0); 
+                    break;
                 
-            case 'adjustment_in':
-                processStockUpdate(t.fromBranchCode, qty, transactionCost);
-                break;
+                case 'production_in': 
+                    processStockUpdate(t.branchCode, qty, transactionCost); 
+                    break; 
+                
+                case 'transfer_in':
+                    // Incoming transfer inherits the cost from the sender branch
+                    const fromCost = tempAvgCosts[t.fromBranchCode]?.[t.itemCode] || findByKey(state.items, 'code', t.itemCode)?.cost || 0;
+                    processStockUpdate(t.toBranchCode, qty, parseFloat(fromCost));
+                    break;
+                    
+                case 'adjustment_in':
+                    processStockUpdate(t.fromBranchCode || t.branchCode, qty, transactionCost);
+                    break;
+            }
+        } catch (e) {
+            Logger.warn(`Calc error on tx ${t.batchId}`, e);
         }
     });
     
@@ -110,7 +109,7 @@ export const calculateStockLevels = () => {
 };
 
 /**
- * Calculates financial standing with suppliers (Invoices vs Payments).
+ * Calculates financial standing with suppliers.
  */
 export const calculateSupplierFinancials = () => {
     const financials = {};
@@ -129,24 +128,22 @@ export const calculateSupplierFinancials = () => {
         }; 
     });
     
-    // Process Bills (Receives) and Credits (Returns)
+    // Process Bills and Credits
     (state.transactions || []).forEach(t => {
         const isApproved = t.isApproved === true || String(t.isApproved).toUpperCase() === 'TRUE';
+        const isDeleted = t.is_deleted === true || String(t.is_deleted).toUpperCase() === 'TRUE';
         
-        // Skip if not related to a supplier or no cost data
-        if (!t.supplierCode || !financials[t.supplierCode] || t.cost === undefined) return;
+        if (isDeleted || !t.supplierCode || !financials[t.supplierCode] || t.cost === undefined) return;
         
         const value = (parseFloat(t.quantity) || 0) * (parseFloat(t.cost) || 0);
         
         if (t.type === 'receive' && isApproved) {
             financials[t.supplierCode].totalBilled += value;
             const invNum = t.invoiceNumber || 'Unknown';
-            
             if (!financials[t.supplierCode].invoices[invNum]) { 
                 financials[t.supplierCode].invoices[invNum] = { number: invNum, date: t.date, total: 0, paid: 0 }; 
             }
             financials[t.supplierCode].invoices[invNum].total += value;
-            // Log event for statement
             financials[t.supplierCode].events.push({ date: t.date, type: 'Bill', ref: invNum, debit: value, credit: 0 });
             
         } else if (t.type === 'return_out') {
@@ -162,17 +159,20 @@ export const calculateSupplierFinancials = () => {
             
             if (p.method === 'OPENING BALANCE') {
                 financials[p.supplierCode].totalBilled += amount;
+                // Create a virtual invoice for opening balance
+                if(p.invoiceNumber) {
+                    financials[p.supplierCode].invoices[p.invoiceNumber] = { number: p.invoiceNumber, date: p.date, total: amount, paid: 0 };
+                }
             } else {
                 financials[p.supplierCode].totalPaid += amount;
                 financials[p.supplierCode].events.push({ date: p.date, type: 'Pay', ref: p.paymentId, debit: 0, credit: amount });
             }
             
-            // Allocate payment to specific invoice if indicated
+            // Allocate payment to specific invoice
             if (p.invoiceNumber && financials[p.supplierCode].invoices[p.invoiceNumber]) { 
-                financials[p.supplierCode].invoices[p.invoiceNumber].paid += amount;
-            } else if (p.method === 'OPENING BALANCE') {
-                // Create a virtual invoice for opening balance
-                financials[p.supplierCode].invoices[p.invoiceNumber] = { number: p.invoiceNumber, date: p.date, total: amount, paid: 0 };
+                if(p.method !== 'OPENING BALANCE') {
+                    financials[p.supplierCode].invoices[p.invoiceNumber].paid += amount;
+                }
             }
         } 
     });
@@ -181,7 +181,6 @@ export const calculateSupplierFinancials = () => {
     Object.values(financials).forEach(s => {
         s.balance = s.totalBilled - s.totalPaid - s.totalCredited;
         
-        // Calculate status for each invoice
         Object.values(s.invoices).forEach(inv => { 
             inv.balance = inv.total - inv.paid; 
             if (Math.abs(inv.balance) < 0.01) { 
@@ -192,9 +191,7 @@ export const calculateSupplierFinancials = () => {
                 inv.status = 'Unpaid'; 
             } 
         });
-
-        // Sort events
-        s.events = s.events.sort((a,b) => new Date(a.date) - new Date(b.date));
+        s.events.sort((a,b) => new Date(a.date) - new Date(b.date));
     });
     
     return financials;
