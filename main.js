@@ -9,8 +9,9 @@ import * as Documents from './documents.js';
 document.addEventListener('DOMContentLoaded', () => {
     Logger.info('Initializing Meat Stock Manager...');
 
+    // --- LOGIN HANDLER ---
     const loginForm = document.getElementById('login-form');
-    if(loginForm) {
+    if (loginForm) {
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const username = document.getElementById('login-username').value.trim();
@@ -51,17 +52,41 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- GLOBAL CLICK LISTENER ---
     document.body.addEventListener('click', (e) => {
         const btn = e.target.closest('button');
-        
-        // --- NOTIFICATION CLICK LOGIC (Updated) ---
+        if (!btn) return;
+
+        // Modals
+        if (btn.classList.contains('close-button') || btn.classList.contains('modal-cancel')) {
+             document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
+        }
+        if (btn.classList.contains('btn-edit')) {
+             Renderers.renderEditModalContent(btn.dataset.type, btn.dataset.id);
+             document.getElementById('edit-modal').classList.add('active');
+        }
+
+        // --- TRANSFER ACTIONS (OPEN MODAL, CONFIRM, REJECT) ---
+        if (btn.classList.contains('btn-receive-transfer')) {
+             Transactions.openTransferModal(btn.dataset.batchId);
+        }
+        if (btn.id === 'btn-confirm-receive-transfer') {
+             Transactions.processTransferAction('receiveTransfer', btn.dataset.batchId, btn);
+        }
+        if (btn.id === 'btn-reject-transfer') {
+             Transactions.processTransferAction('rejectTransfer', btn.dataset.batchId, btn);
+        }
+        if (btn.classList.contains('btn-cancel-transfer')) {
+             Transactions.handleCancelTransfer(btn.dataset.batchId, btn);
+        }
+
+        // --- NOTIFICATION CLICK LOGIC (FIXED NAVIGATION) ---
         if (e.target.id === 'pending-requests-widget' || e.target.closest('#pending-requests-widget')) {
              const widget = document.getElementById('pending-requests-widget');
              if (widget.dataset.actionType === 'transfer') {
                  // 1. Switch to Operations View
                  showView('operations');
-                 
-                 // 2. Wait a tiny bit for DOM update, then click the sub-tab
+                 // 2. Force click the "In-Transit" sub-tab after short delay
                  setTimeout(() => {
                      const tab = document.querySelector('button[data-subview="in-transit"]');
                      if(tab) tab.click();
@@ -72,31 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
              return; // Stop here
         }
         
-        if (!btn) return;
-
-        if (btn.classList.contains('close-button') || btn.classList.contains('modal-cancel')) {
-             document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
-        }
-        if (btn.classList.contains('btn-edit')) {
-             Renderers.renderEditModalContent(btn.dataset.type, btn.dataset.id);
-             document.getElementById('edit-modal').classList.add('active');
-        }
-        if (btn.classList.contains('btn-history')) {
-            const modal = document.getElementById('history-modal');
-            document.getElementById('history-modal-title').textContent = `${_t('history')}: ${btn.dataset.id}`;
-            postData('getItemHistory', { itemCode: btn.dataset.id }, null).then(res => {
-                if(res && res.data) {
-                    const container = document.getElementById('subview-price-history');
-                    let html = '<table><thead><tr><th>Date</th><th>Old</th><th>New</th><th>User</th></tr></thead><tbody>';
-                    res.data.priceHistory.forEach(h => {
-                        html += `<tr><td>${new Date(h.Timestamp).toLocaleDateString()}</td><td>${h.OldCost}</td><td>${h.NewCost}</td><td>${h.UpdatedBy}</td></tr>`;
-                    });
-                    container.innerHTML = html + '</tbody></table>';
-                }
-            });
-            modal.classList.add('active');
-        }
-
+        // --- SELECT ITEMS ---
         if (btn.classList.contains('btn-select-items')) {
              state.currentSelectionModal.type = 'item-selector';
              const m = document.getElementById('item-selector-modal');
@@ -109,12 +110,12 @@ document.addEventListener('DOMContentLoaded', () => {
                  const p = findByKey(state.items, 'code', pc);
                  if(p && p.DefinedCuts) m.dataset.allowedItems = JSON.stringify(p.DefinedCuts.split(','));
              }
-             
              state.modalSelections.clear();
              Renderers.renderItemsInModal();
              m.classList.add('active');
         }
 
+        // --- CONFIRM ITEM SELECTION ---
         if (btn.id === 'btn-confirm-modal-selection') {
             const m = document.getElementById('item-selector-modal');
             const ctx = m.dataset.context;
@@ -142,7 +143,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     sel.forEach(c => {
                         const i = findByKey(state.items, 'code', c);
                         if(i && !state[listName].find(x => x.itemCode === c)) {
-                            state[listName].push({ itemCode: i.code, itemName: i.name, quantity: '', cost: parseFloat(i.cost) || 0 });
+                            state[listName].push({ 
+                                itemCode: i.code, 
+                                itemName: i.name, 
+                                quantity: '', 
+                                cost: parseFloat(i.cost) || 0 
+                            });
                         }
                     });
                     if(ctx === 'receive') Renderers.renderReceiveListTable();
@@ -158,13 +164,14 @@ document.addEventListener('DOMContentLoaded', () => {
             state.modalSelections.clear();
         }
 
+        // ... (Keep existing Report/Payment/Auto-Gen logic) ...
         if (btn.id === 'btn-select-invoices') { Renderers.renderInvoicesInModal(); document.getElementById('invoice-selector-modal').classList.add('active'); }
         if (btn.id === 'btn-confirm-invoice-selection') { document.getElementById('invoice-selector-modal').classList.remove('active'); Renderers.renderPaymentList(); }
         if (btn.id === 'btn-generate-supplier-statement') { Renderers.renderSupplierStatement(document.getElementById('supplier-statement-select').value, document.getElementById('statement-start-date').value, document.getElementById('statement-end-date').value); }
-        
-        if(btn.id === 'btn-gen-item-code') document.getElementById('item-code').value = `ITM-${Math.floor(Math.random()*9999)}`;
-        if(btn.id === 'btn-gen-invoice') document.getElementById('receive-invoice').value = `INV-${Date.now().toString().slice(-6)}`;
+        if (btn.id === 'btn-gen-item-code') document.getElementById('item-code').value = `ITM-${Math.floor(Math.random()*9999)}`;
+        if (btn.id === 'btn-gen-invoice') document.getElementById('receive-invoice').value = `INV-${Date.now().toString().slice(-6)}`;
 
+        // Remove Row Logic
         if (btn.classList.contains('danger') && btn.dataset.index !== undefined && btn.textContent === 'X') {
             const row = btn.closest('tr');
             const tableId = row.closest('table').id;
@@ -187,6 +194,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
+        // View/Print Transaction Documents
         if (btn.classList.contains('btn-view-tx')) {
             const batchId = btn.dataset.batchId;
             const type = btn.dataset.type;
@@ -208,6 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
+        // Approve/Reject Financials
         if (btn.classList.contains('btn-approve-financial') || btn.classList.contains('btn-reject-financial')) {
             const id = btn.dataset.id;
             const type = btn.dataset.type;
@@ -229,12 +238,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
-        // Transfer Actions
-        if (btn.classList.contains('btn-receive-transfer')) { Transactions.openTransferModal(btn.dataset.batchId); }
-        if (btn.id === 'btn-confirm-receive-transfer') { Transactions.processTransferAction('receiveTransfer', btn.dataset.batchId, btn); }
-        if (btn.id === 'btn-reject-transfer') { Transactions.processTransferAction('rejectTransfer', btn.dataset.batchId, btn); }
-        if (btn.classList.contains('btn-cancel-transfer')) { Transactions.handleCancelTransfer(btn.dataset.batchId, btn); }
-
         // Admin Context
         if (btn.id === 'btn-confirm-context') {
             const modal = document.getElementById('context-selector-modal');
@@ -248,6 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // --- 3. TABLE INPUT LISTENER ---
     document.body.addEventListener('change', (e) => {
         if (e.target.classList.contains('table-input')) {
             const input = e.target;
@@ -287,6 +291,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // --- 4. FORM SUBMITS ---
     const attachFormHandler = (formId, actionName, dataExtractor) => {
         const form = document.getElementById(formId);
         if(!form) return;
@@ -327,6 +332,7 @@ document.addEventListener('DOMContentLoaded', () => {
     attachFormHandler('form-add-branch', 'addBranch', () => ({ branchCode: getValue('branch-code'), branchName: getValue('branch-name') }));
     attachFormHandler('form-add-section', 'addSection', () => ({ sectionCode: getValue('section-code'), sectionName: getValue('section-name') }));
     
+    // Edit Form
     const editForm = document.getElementById('form-edit-record');
     if (editForm) {
         editForm.addEventListener('submit', async (e) => {
@@ -359,6 +365,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
+    // Payment Form
     const pf = document.getElementById('form-record-payment');
     if(pf) pf.addEventListener('submit', async (e) => {
         e.preventDefault();
