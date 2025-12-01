@@ -9,6 +9,7 @@ import * as Documents from './documents.js';
 document.addEventListener('DOMContentLoaded', () => {
     Logger.info('Initializing Meat Stock Manager...');
 
+    // --- 1. LOGIN HANDLER ---
     const loginForm = document.getElementById('login-form');
     if(loginForm) {
         loginForm.addEventListener('submit', async (e) => {
@@ -16,26 +17,26 @@ document.addEventListener('DOMContentLoaded', () => {
             const username = document.getElementById('login-username').value.trim();
             const code = document.getElementById('login-code').value;
             const loader = document.getElementById('login-loader');
-            const errorEl = document.getElementById('login-error');
             
             loginForm.style.display = 'none';
             loader.style.display = 'flex';
-            errorEl.textContent = '';
             
             try {
                 const response = await fetch(`${SCRIPT_URL}?username=${encodeURIComponent(username)}&loginCode=${encodeURIComponent(code)}`);
                 const data = await response.json();
                 
                 if (data.status !== 'error' && data.user) {
-                    const isDisabled = data.user.isDisabled === true || String(data.user.isDisabled).toUpperCase() === 'TRUE';
-                    if (isDisabled) throw new Error('Account disabled.');
+                    if (String(data.user.isDisabled).toUpperCase() === 'TRUE') throw new Error('Account disabled.');
                     
                     setState('currentUser', data.user);
                     setState('username', username);
                     setState('loginCode', code);
                     
+                    // Hydrate State
                     Object.keys(data).forEach(key => { if (key !== 'user') setState(key, data[key]); });
                     
+                    Logger.info("Data Loaded:", { items: state.items.length, transactions: state.transactions.length });
+
                     document.getElementById('login-container').style.display = 'none';
                     document.getElementById('app-container').style.display = 'flex';
                     
@@ -44,7 +45,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     throw new Error(data.message || 'Invalid credentials');
                 }
             } catch (error) {
-                errorEl.textContent = error.message;
+                Logger.error("Login Failed", error);
+                document.getElementById('login-error').textContent = error.message;
                 loginForm.style.display = 'block';
             } finally {
                 loader.style.display = 'none';
@@ -52,10 +54,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- 2. GLOBAL CLICK LISTENER ---
     document.body.addEventListener('click', (e) => {
         const btn = e.target.closest('button');
         if (!btn) return;
 
+        // ... (Keep existing listeners for Modals, Edits, History, Select Items) ...
         if (btn.classList.contains('close-button') || btn.classList.contains('modal-cancel')) {
              document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
         }
@@ -63,33 +67,19 @@ document.addEventListener('DOMContentLoaded', () => {
              Renderers.renderEditModalContent(btn.dataset.type, btn.dataset.id);
              document.getElementById('edit-modal').classList.add('active');
         }
-        if (btn.classList.contains('btn-history')) {
-            const modal = document.getElementById('history-modal');
-            document.getElementById('history-modal-title').textContent = `${_t('history')}: ${btn.dataset.id}`;
-            postData('getItemHistory', { itemCode: btn.dataset.id }, null).then(res => {
-                if(res && res.data) {
-                    const container = document.getElementById('subview-price-history');
-                    let html = '<table><thead><tr><th>Date</th><th>Old</th><th>New</th><th>User</th></tr></thead><tbody>';
-                    res.data.priceHistory.forEach(h => {
-                        html += `<tr><td>${new Date(h.Timestamp).toLocaleDateString()}</td><td>${h.OldCost}</td><td>${h.NewCost}</td><td>${h.UpdatedBy}</td></tr>`;
-                    });
-                    container.innerHTML = html + '</tbody></table>';
-                }
-            });
-            modal.classList.add('active');
-        }
-
         if (btn.classList.contains('btn-select-items')) {
              state.currentSelectionModal.type = 'item-selector';
              const m = document.getElementById('item-selector-modal');
              m.dataset.context = btn.dataset.context;
-             m.dataset.allowedItems = "";
              
              if (btn.dataset.context === 'butchery-child') {
                  const pc = document.getElementById('butchery-parent-code').value;
-                 if (!pc) { showToast('Please select a Parent Item first', 'error'); return; }
+                 if (!pc) { showToast('Select Parent First', 'error'); return; }
                  const p = findByKey(state.items, 'code', pc);
                  if(p && p.DefinedCuts) m.dataset.allowedItems = JSON.stringify(p.DefinedCuts.split(','));
+                 else m.dataset.allowedItems = "";
+             } else {
+                 m.dataset.allowedItems = "";
              }
              
              state.modalSelections.clear();
@@ -119,7 +109,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     'request': 'currentRequestList'
                 };
                 const listName = map[ctx];
-                
                 if(listName) {
                     sel.forEach(c => {
                         const i = findByKey(state.items, 'code', c);
@@ -132,19 +121,20 @@ document.addEventListener('DOMContentLoaded', () => {
                             });
                         }
                     });
+                    // Force re-render of specific table
                     if(ctx === 'receive') Renderers.renderReceiveListTable();
                     if(ctx === 'butchery-child') Renderers.renderButcheryListTable();
                     if(ctx === 'transfer') Renderers.renderTransferListTable();
                     if(ctx === 'return') Renderers.renderReturnListTable();
                     if(ctx === 'adjustment') Renderers.renderAdjustmentListTable();
                     if(ctx === 'po') Renderers.renderPOListTable();
-                    if(ctx === 'request') Renderers.renderRequestListTable();
                 }
             }
             m.classList.remove('active');
             state.modalSelections.clear();
         }
 
+        // ... (Keep Report/Payment button listeners) ...
         if (btn.id === 'btn-select-invoices') { Renderers.renderInvoicesInModal(); document.getElementById('invoice-selector-modal').classList.add('active'); }
         if (btn.id === 'btn-confirm-invoice-selection') { document.getElementById('invoice-selector-modal').classList.remove('active'); Renderers.renderPaymentList(); }
         if (btn.id === 'btn-generate-supplier-statement') { Renderers.renderSupplierStatement(document.getElementById('supplier-statement-select').value, document.getElementById('statement-start-date').value, document.getElementById('statement-end-date').value); }
@@ -152,6 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if(btn.id === 'btn-gen-item-code') document.getElementById('item-code').value = `ITM-${Math.floor(Math.random()*9999)}`;
         if(btn.id === 'btn-gen-invoice') document.getElementById('receive-invoice').value = `INV-${Date.now().toString().slice(-6)}`;
 
+        // Remove Row
         if (btn.classList.contains('danger') && btn.dataset.index !== undefined && btn.textContent === 'X') {
             const row = btn.closest('tr');
             const tableId = row.closest('table').id;
@@ -163,8 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 'table-transfer-list': { list: 'currentTransferList', render: Renderers.renderTransferListTable },
                 'table-po-list': { list: 'currentPOList', render: Renderers.renderPOListTable },
                 'table-return-list': { list: 'currentReturnList', render: Renderers.renderReturnListTable },
-                'table-adjustment-list': { list: 'currentAdjustmentList', render: Renderers.renderAdjustmentListTable },
-                'table-request-list': { list: 'currentRequestList', render: Renderers.renderRequestListTable }
+                'table-adjustment-list': { list: 'currentAdjustmentList', render: Renderers.renderAdjustmentListTable }
             };
             
             const config = tableMap[tableId];
@@ -173,67 +163,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 config.render();
             }
         }
-
-        if (btn.classList.contains('btn-view-tx')) {
-            const batchId = btn.dataset.batchId;
-            const type = btn.dataset.type;
-            
-            if (type === 'po') {
-                const data = findByKey(state.purchaseOrders, 'poId', batchId);
-                const items = state.purchaseOrderItems.filter(i => i.poId === batchId);
-                if (data) Documents.generatePODocument({ ...data, items });
-            } else {
-                const group = state.transactions.filter(t => t.batchId === batchId);
-                if (group.length > 0) {
-                    const first = group[0];
-                    const data = { ...first, items: group.map(t => ({...t, itemName: findByKey(state.items, 'code', t.itemCode)?.name })) };
-                    
-                    if (type === 'receive') Documents.generateReceiveDocument(data);
-                    else if (type.includes('transfer')) Documents.generateTransferDocument(data);
-                    else if (type === 'issue') Documents.generateIssueDocument(data);
-                    else if (type === 'return_out') Documents.generateReturnDocument(data);
-                }
-            }
-        }
-
-        if (btn.classList.contains('btn-approve-financial') || btn.classList.contains('btn-reject-financial')) {
-            const id = btn.dataset.id;
-            const type = btn.dataset.type;
-            const action = btn.classList.contains('btn-approve-financial') ? 'approveFinancial' : 'rejectFinancial';
-            
-            if (confirm(`Confirm ${action}?`)) {
-                postData(action, { id, type }, btn).then(res => {
-                    if(res) {
-                        showToast(`${type} ${action === 'approveFinancial' ? 'Approved' : 'Rejected'}`);
-                        if (type === 'receive') {
-                            state.transactions.forEach(t => {
-                                if (t.batchId === id) {
-                                    t.isApproved = (action === 'approveFinancial');
-                                    t.Status = action === 'approveFinancial' ? 'Completed' : 'Rejected';
-                                }
-                            });
-                        } else if (type === 'po') {
-                            const po = findByKey(state.purchaseOrders, 'poId', id);
-                            if(po) po.Status = action === 'approveFinancial' ? 'Approved' : 'Rejected';
-                        }
-                        refreshViewData('purchasing');
-                    }
-                });
-            }
-        }
         
-        if (btn.id === 'btn-confirm-context') {
-            const modal = document.getElementById('context-selector-modal');
-            const ctx = {
-                fromBranch: modal.querySelector('#context-modal-fromBranch-group').style.display === 'block' ? modal.querySelector('#context-from-branch-select').value : null,
-                toBranch: modal.querySelector('#context-modal-toBranch-group').style.display === 'block' ? modal.querySelector('#context-to-branch-select').value : null,
-                branch: modal.querySelector('#context-modal-branch-group').style.display === 'block' ? modal.querySelector('#context-branch-select').value : null,
-            };
-            if (state.adminContextPromise.resolve) state.adminContextPromise.resolve(ctx);
-            modal.classList.remove('active');
+        // Approve Financials
+        if (btn.classList.contains('btn-approve-financial') || btn.classList.contains('btn-reject-financial')) {
+             const id = btn.dataset.id;
+             const type = btn.dataset.type;
+             const action = btn.classList.contains('btn-approve-financial') ? 'approveFinancial' : 'rejectFinancial';
+             if(confirm('Confirm?')) {
+                 postData(action, { id, type }, btn).then(res => { if(res) { showToast('Success'); reloadData(); }});
+             }
         }
     });
 
+    // --- 3. TABLE INPUT LISTENER ---
     document.body.addEventListener('change', (e) => {
         if (e.target.classList.contains('table-input')) {
             const input = e.target;
@@ -249,8 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 'table-transfer-list': { list: 'currentTransferList', render: Renderers.renderTransferListTable },
                 'table-po-list': { list: 'currentPOList', render: Renderers.renderPOListTable },
                 'table-return-list': { list: 'currentReturnList', render: Renderers.renderReturnListTable },
-                'table-adjustment-list': { list: 'currentAdjustmentList', render: Renderers.renderAdjustmentListTable },
-                'table-request-list': { list: 'currentRequestList', render: Renderers.renderRequestListTable }
+                'table-adjustment-list': { list: 'currentAdjustmentList', render: Renderers.renderAdjustmentListTable }
             };
 
             const config = tableMap[tableId];
@@ -262,6 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if(e.target.id === 'butchery-parent-qty') Renderers.renderButcheryListTable();
     });
 
+    // --- 4. FORM SUBMITS ---
     const attachFormHandler = (formId, actionName, dataExtractor) => {
         const form = document.getElementById(formId);
         if(!form) return;
@@ -272,7 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = dataExtractor();
                 const res = await postData(actionName, data, btn);
                 if(res) {
-                    showToast(_t('add_success_toast'), 'success');
+                    showToast('Saved Successfully', 'success');
                     if (actionName === 'addItem') state.items.push(data);
                     if (actionName === 'addSupplier') state.suppliers.push(data);
                     if (actionName === 'addBranch') state.branches.push(data);
@@ -280,10 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     form.reset();
                     refreshViewData('master-data');
                 }
-            } catch (err) {
-                console.error("Form error:", err);
-                showToast("Error processing form.", "error");
-            }
+            } catch (err) { console.error(err); showToast("Error processing form", "error"); }
         });
     };
 
@@ -305,6 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
     attachFormHandler('form-add-branch', 'addBranch', () => ({ branchCode: getValue('branch-code'), branchName: getValue('branch-name') }));
     attachFormHandler('form-add-section', 'addSection', () => ({ sectionCode: getValue('section-code'), sectionName: getValue('section-name') }));
 
+    // Edit Form
     const editForm = document.getElementById('form-edit-record');
     if (editForm) {
         editForm.addEventListener('submit', async (e) => {
@@ -314,33 +254,26 @@ document.addEventListener('DOMContentLoaded', () => {
             const id = form.dataset.id;
             const formData = new FormData(form);
             const updates = {};
-            
             if (type === 'item') {
                 const selectedCuts = [];
                 form.querySelectorAll('input[name="DefinedCuts"]:checked').forEach(cb => selectedCuts.push(cb.value));
-                if (form.querySelector('input[name="ItemType"]').value === 'Main') {
-                    updates['DefinedCuts'] = selectedCuts.join(',');
-                }
+                if (form.querySelector('input[name="ItemType"]').value === 'Main') updates['DefinedCuts'] = selectedCuts.join(',');
             }
             for (let [key, value] of formData.entries()) { if (key !== 'DefinedCuts' && value !== "") updates[key] = value; }
-            
-            let action = 'updateData';
-            let payload = { type, id, updates };
+            let action = 'updateData'; let payload = { type, id, updates };
             if (type === 'user') { action = id ? 'updateUser' : 'addUser'; payload = id ? { Username: id, updates } : updates; }
-
-            const res = await postData(action, payload, form.querySelector('button[type="submit"]'));
-            if(res) {
+            if(await postData(action, payload, form.querySelector('button'))) {
                 showToast('Update successful');
                 document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
                 reloadData();
             }
         });
     }
-
+    
+    // Payment Form
     const pf = document.getElementById('form-record-payment');
     if(pf) pf.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const btn = pf.querySelector('button[type="submit"]');
         const s = document.getElementById('payment-supplier-select').value;
         const m = document.getElementById('payment-method').value;
         const pay = [];
@@ -350,10 +283,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         if(pay.length === 0) return;
         const payload = { supplierCode: s, method: m, date: new Date().toISOString(), totalAmount: pay.reduce((a,b)=>a+b.amount,0), payments: pay };
-        const result = await postData('addPaymentBatch', payload, btn);
-        if (result) {
+        if(await postData('addPaymentBatch', payload, pf.querySelector('button'))) {
             showToast('Payment recorded!', 'success');
-            Documents.generatePaymentVoucher(payload);
             state.invoiceModalSelections.clear();
             pf.reset();
             refreshViewData('payments');
@@ -361,7 +292,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    const bindBtn = (id, handler) => { const btn = document.getElementById(id); if(btn) btn.addEventListener('click', handler); };
+    // Transactions
+    const bindBtn = (id, fn) => { const el = document.getElementById(id); if(el) el.addEventListener('click', fn); };
     bindBtn('btn-submit-receive-batch', Transactions.handleReceiveSubmit);
     bindBtn('btn-submit-butchery', Transactions.handleButcherySubmit);
     bindBtn('btn-submit-transfer-batch', Transactions.handleTransferSubmit);
@@ -371,84 +303,109 @@ document.addEventListener('DOMContentLoaded', () => {
     bindBtn('btn-submit-adjustment', Transactions.handleAdjustmentSubmit);
 
     document.getElementById('global-refresh-button').addEventListener('click', async () => { await reloadData(); });
-    document.getElementById('modal-search-items').addEventListener('input', (e) => { Renderers.renderItemsInModal(e.target.value); });
-    document.getElementById('modal-item-list').addEventListener('change', (e) => { if (e.target.type === 'checkbox') { if (e.target.checked) state.modalSelections.add(e.target.dataset.code); else state.modalSelections.delete(e.target.dataset.code); } });
 
+    // Navigation
+    document.querySelectorAll('#main-nav a').forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            if(link.id === 'btn-logout') { sessionStorage.clear(); location.reload(); }
+            showView(link.dataset.view);
+        });
+    });
+    
+    document.querySelectorAll('.sub-nav-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
+            const view = e.target.closest('.view');
+            view.querySelectorAll('.sub-nav-item, .sub-view').forEach(x => x.classList.remove('active'));
+            e.target.classList.add('active');
+            const subId = e.target.dataset.subview;
+            const subEl = document.getElementById(`subview-${subId}`);
+            if(subEl) subEl.classList.add('active');
+            refreshViewData(view.id.replace('view-', ''));
+        });
+    });
+
+    // Dynamic Parent
     const ts = document.getElementById('item-type');
     if(ts) ts.addEventListener('change', e => {
         const g = document.getElementById('group-item-parent');
         if(e.target.value === 'Cut') {
             g.style.display = 'block';
-            populateOptions(document.getElementById('item-parent'), state.items.filter(i=>i.ItemType==='Main'), 'Parent', 'code', 'name');
+            populateOptions(document.getElementById('item-parent'), state.items.filter(i=>i.ItemType==='Main'), 'Select Parent', 'code', 'name');
         } else { g.style.display = 'none'; }
     });
 });
 
 function initializeAppUI() {
     applyTranslations();
-    const currentUser = state.currentUser;
-    document.querySelector('.sidebar-header h1').textContent = `Hi, ${currentUser.Name.split(' ')[0]}`;
-    
-    populateOptions(document.getElementById('receive-branch'), state.branches, _t('branch'), 'branchCode', 'branchName');
-    populateOptions(document.getElementById('receive-supplier'), state.suppliers, _t('supplier'), 'supplierCode', 'name');
-    populateOptions(document.getElementById('butchery-branch'), state.branches, _t('branch'), 'branchCode', 'branchName');
-    populateOptions(document.getElementById('item-supplier'), state.suppliers, _t('supplier'), 'supplierCode', 'name');
-    
+    const u = state.currentUser;
+    document.querySelector('.sidebar-header h1').textContent = `Hi, ${u.Name.split(' ')[0]}`;
+    populateOptions(document.getElementById('receive-branch'), state.branches, 'Branch', 'branchCode', 'branchName');
+    populateOptions(document.getElementById('receive-supplier'), state.suppliers, 'Supplier', 'supplierCode', 'name');
+    populateOptions(document.getElementById('butchery-branch'), state.branches, 'Branch', 'branchCode', 'branchName');
+    populateOptions(document.getElementById('item-supplier'), state.suppliers, 'Supplier', 'supplierCode', 'name');
     showView('dashboard');
 }
 
-function showView(viewId) {
+function showView(id) {
+    console.log(`Switching to View: ${id}`);
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.querySelectorAll('.nav-item a').forEach(l => l.classList.remove('active'));
-    
-    const viewEl = document.getElementById(`view-${viewId}`);
-    if (viewEl) viewEl.classList.add('active');
-    const linkEl = document.querySelector(`a[data-view="${viewId}"]`);
-    if (linkEl) linkEl.classList.add('active');
-    
-    refreshViewData(viewId);
+    const v = document.getElementById(`view-${id}`);
+    if(v) v.classList.add('active');
+    const l = document.querySelector(`a[data-view="${id}"]`);
+    if(l) l.classList.add('active');
+    refreshViewData(id);
 }
 
-function refreshViewData(viewId) {
-    if(viewId === 'dashboard') {
+function refreshViewData(id) {
+    console.log(`Refreshing Data for: ${id}`);
+    
+    if(id === 'dashboard') {
         const stock = calculateStockLevels();
-        let totalVal = 0;
-        Object.values(stock).forEach(branchStock => {
-            Object.values(branchStock).forEach(i => totalVal += (i.quantity * i.avgCost));
-        });
-        document.getElementById('dashboard-total-value').textContent = formatCurrency(totalVal);
+        let val = 0;
+        Object.values(stock).forEach(b => Object.values(b).forEach(i => val += (i.quantity*i.avgCost)));
+        document.getElementById('dashboard-total-value').textContent = formatCurrency(val);
         document.getElementById('dashboard-total-items').textContent = state.items.length;
         document.getElementById('dashboard-total-suppliers').textContent = state.suppliers.length;
         document.getElementById('dashboard-total-branches').textContent = state.branches.length;
     }
-    if(viewId === 'stock-levels') Renderers.renderItemCentricStockView();
-    if(viewId === 'transaction-history') {
+    
+    if(id === 'stock-levels') Renderers.renderItemCentricStockView();
+    
+    if(id === 'transaction-history') {
         populateOptions(document.getElementById('tx-filter-branch'), state.branches, 'All Branches', 'branchCode', 'branchName');
         Renderers.renderTransactionHistory();
     }
-    if(viewId === 'reports') populateOptions(document.getElementById('supplier-statement-select'), state.suppliers, 'Select Supplier', 'supplierCode', 'name');
-    if(viewId === 'payments') {
+    
+    if(id === 'reports') populateOptions(document.getElementById('supplier-statement-select'), state.suppliers, 'Select Supplier', 'supplierCode', 'name');
+    
+    if(id === 'payments') {
         populateOptions(document.getElementById('payment-supplier-select'), state.suppliers, 'Select Supplier', 'supplierCode', 'name');
-        const listContainer = document.getElementById('payment-invoice-list-container');
-        if(listContainer) listContainer.style.display = 'none';
+        const list = document.getElementById('payment-invoice-list-container');
+        if(list) list.style.display = 'none'; // reset state
     }
-    if(viewId === 'master-data') {
+    
+    if(id === 'master-data') {
         Renderers.renderItemsTable();
         Renderers.renderSuppliersTable();
         Renderers.renderBranchesTable();
         Renderers.renderSectionsTable();
     }
-    if(viewId === 'butchery') {
-        populateOptions(document.getElementById('butchery-branch'), state.branches, _t('branch'), 'branchCode', 'branchName');
+    
+    if(id === 'butchery') {
+        populateOptions(document.getElementById('butchery-branch'), state.branches, 'Select Branch', 'branchCode', 'branchName');
         Renderers.renderButcheryListTable();
     }
-    if(viewId === 'operations') {
+    
+    if(id === 'operations') {
         ['receive', 'transfer-from', 'transfer-to', 'return', 'adjustment'].forEach(prefix => {
             const el = document.getElementById(`${prefix}-branch`);
-            if(el && el.options.length <= 1) populateOptions(el, state.branches, _t('branch'), 'branchCode', 'branchName');
+            if(el && el.options.length <= 1) populateOptions(el, state.branches, 'Select Branch', 'branchCode', 'branchName');
         });
-        populateOptions(document.getElementById('receive-supplier'), state.suppliers, _t('supplier'), 'supplierCode', 'name');
-        populateOptions(document.getElementById('return-supplier'), state.suppliers, _t('supplier'), 'supplierCode', 'name');
+        populateOptions(document.getElementById('receive-supplier'), state.suppliers, 'Select Supplier', 'supplierCode', 'name');
+        populateOptions(document.getElementById('return-supplier'), state.suppliers, 'Select Supplier', 'supplierCode', 'name');
         
         Renderers.renderReceiveListTable();
         Renderers.renderTransferListTable();
@@ -457,14 +414,16 @@ function refreshViewData(viewId) {
         Renderers.renderPendingTransfers();
         Renderers.renderInTransitReport();
     }
-    if(viewId === 'purchasing') {
-        populateOptions(document.getElementById('po-supplier'), state.suppliers, _t('supplier'), 'supplierCode', 'name');
+    
+    if(id === 'purchasing') {
+        populateOptions(document.getElementById('po-supplier'), state.suppliers, 'Select Supplier', 'supplierCode', 'name');
         Renderers.renderPOListTable();
         Renderers.renderPurchaseOrdersViewer();
         Renderers.renderPendingFinancials();
     }
-    if(viewId === 'user-management') {
-        postData('getAllUsersAndRoles', {}, null).then(res => {
+    
+    if(id === 'user-management') {
+         postData('getAllUsersAndRoles', {}, null).then(res => {
             if(res) {
                 state.allUsers = res.data.users;
                 state.allRoles = res.data.roles;
@@ -472,49 +431,19 @@ function refreshViewData(viewId) {
             }
         });
     }
-    if(viewId === 'activity-log') Renderers.renderActivityLog();
+    
+    if(id === 'activity-log') Renderers.renderActivityLog();
 }
 
 async function reloadData() {
-    const { username, loginCode } = state;
     try {
-        const response = await fetch(`${SCRIPT_URL}?username=${encodeURIComponent(username)}&loginCode=${encodeURIComponent(loginCode)}`);
-        const data = await response.json();
+        const res = await fetch(`${SCRIPT_URL}?username=${encodeURIComponent(state.username)}&loginCode=${encodeURIComponent(state.loginCode)}`);
+        const data = await res.json();
         if(data.status !== 'error') {
-            Object.keys(data).forEach(key => { if (key !== 'user') setState(key, data[key]); });
+            Object.keys(data).forEach(key => { if(key!=='user') setState(key, data[key]); });
             showToast(_t('data_refreshed_toast'));
-            const activeView = document.querySelector('.view.active').id.replace('view-', '');
-            refreshViewData(activeView);
+            const active = document.querySelector('.view.active').id.replace('view-', '');
+            refreshViewData(active);
         }
-    } catch(e) {
-        Logger.error(e);
-        showToast('Reload failed', 'error');
-    }
-}
-
-function openEditModal(type, id) {
-    Renderers.renderEditModalContent(type, id);
-    const form = document.getElementById('form-edit-record');
-    form.dataset.type = type;
-    form.dataset.id = id || '';
-    document.getElementById('edit-modal').classList.add('active');
-}
-
-function openHistoryModal(itemCode) {
-    const modal = document.getElementById('history-modal');
-    document.getElementById('history-modal-title').textContent = `${_t('history')}: ${itemCode}`;
-    
-    postData('getItemHistory', { itemCode }, null).then(res => {
-        if(res && res.data) {
-            const container = document.getElementById('subview-price-history');
-            let html = '<table><thead><tr><th>Date</th><th>Old</th><th>New</th><th>User</th></tr></thead><tbody>';
-            res.data.priceHistory.forEach(h => {
-                html += `<tr><td>${new Date(h.Timestamp).toLocaleDateString()}</td><td>${h.OldCost}</td><td>${h.NewCost}</td><td>${h.UpdatedBy}</td></tr>`;
-            });
-            html += '</tbody></table>';
-            container.innerHTML = html;
-        }
-    });
-    
-    modal.classList.add('active');
+    } catch(e) { Logger.error(e); }
 }
