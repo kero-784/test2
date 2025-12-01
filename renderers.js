@@ -287,20 +287,35 @@ export function renderTransactionHistory(filters = {}) {
     let allTx = [...state.transactions];
     let allPo = [...state.purchaseOrders];
 
-    if (state.currentUser && !userCan('viewAllBranches')) {
-        const branchCode = state.currentUser.AssignedBranchCode;
-        if (branchCode) {
-            allTx = allTx.filter(t => String(t.branchCode) === branchCode || String(t.fromBranchCode) === branchCode || String(t.toBranchCode) === branchCode);
+    // --- FIX 1: STRICT BRANCH FILTERING ---
+    const currentUser = state.currentUser;
+    // Check if user has global view permission
+    const canViewAll = userCan('viewAllBranches'); 
+    
+    // If not admin, force filter by assigned branch
+    if (currentUser && !canViewAll) {
+        const userBranch = String(currentUser.AssignedBranchCode).trim();
+        
+        if (userBranch && userBranch !== 'undefined' && userBranch !== '') {
+            // Filter Transactions: Keep if Branch, FromBranch, or ToBranch matches user's branch
+            allTx = allTx.filter(t => 
+                String(t.branchCode) === userBranch || 
+                String(t.fromBranchCode) === userBranch || 
+                String(t.toBranchCode) === userBranch
+            );
+            
+    
             allPo = []; 
+            
+            const branchFilterEl = document.getElementById('tx-filter-branch');
+            if(branchFilterEl) branchFilterEl.style.display = 'none';
         }
     }
-    
+
     let allHistoryItems = [ 
         ...allTx, 
         ...allPo.map(po => ({...po, type: 'po', batchId: po.poId, ref: po.poId})) 
     ];
-
-    // Filter Logic
     const sDate = filters.startDate ? new Date(filters.startDate) : null;
     if(sDate) sDate.setHours(0,0,0,0);
     const eDate = filters.endDate ? new Date(filters.endDate) : null;
