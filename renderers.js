@@ -1,4 +1,3 @@
-
 import { state } from './state.js';
 import { _t, findByKey, userCan, populateOptions, formatCurrency, formatDate, Logger, printContent } from './utils.js';
 import { calculateStockLevels, calculateSupplierFinancials } from './calculations.js';
@@ -287,35 +286,30 @@ export function renderTransactionHistory(filters = {}) {
     let allTx = [...state.transactions];
     let allPo = [...state.purchaseOrders];
 
-    // --- FIX 1: STRICT BRANCH FILTERING ---
+    // Branch Restriction Logic
     const currentUser = state.currentUser;
-    // Check if user has global view permission
     const canViewAll = userCan('viewAllBranches'); 
     
-    // If not admin, force filter by assigned branch
     if (currentUser && !canViewAll) {
         const userBranch = String(currentUser.AssignedBranchCode).trim();
-        
         if (userBranch && userBranch !== 'undefined' && userBranch !== '') {
-            // Filter Transactions: Keep if Branch, FromBranch, or ToBranch matches user's branch
             allTx = allTx.filter(t => 
                 String(t.branchCode) === userBranch || 
                 String(t.fromBranchCode) === userBranch || 
                 String(t.toBranchCode) === userBranch
             );
-            
-    
-            allPo = []; 
-            
+            allPo = []; // Hide POs for branch users
             const branchFilterEl = document.getElementById('tx-filter-branch');
             if(branchFilterEl) branchFilterEl.style.display = 'none';
         }
     }
-
+    
     let allHistoryItems = [ 
         ...allTx, 
         ...allPo.map(po => ({...po, type: 'po', batchId: po.poId, ref: po.poId})) 
     ];
+
+    // Filter Logic
     const sDate = filters.startDate ? new Date(filters.startDate) : null;
     if(sDate) sDate.setHours(0,0,0,0);
     const eDate = filters.endDate ? new Date(filters.endDate) : null;
@@ -361,7 +355,6 @@ export function renderTransactionHistory(filters = {}) {
         const canEditInvoice = state.currentUser?.permissions?.opEditInvoice && first.type === 'receive' && (!first.isApproved);
         let actionsHtml = `<button class="secondary small btn-view-tx" data-batch-id="${group.batchId}" data-type="${first.type}">${_t('view_print')}</button>`;
         
-        // CHECK PERMISSION FOR EDIT
         if(canEditInvoice && userCan('opEditInvoice')){
             actionsHtml += `<button class="secondary small btn-edit-invoice" data-batch-id="${group.batchId}">${_t('edit')}</button>`;
         }
@@ -423,7 +416,6 @@ export function renderPendingFinancials() {
 
     allPending.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(item => {
         let actionButtons = '';
-        // CHECK PERMISSION FOR APPROVAL
         if (userCan('opApproveFinancials')) {
             actionButtons = `
                 <div class="action-buttons">
@@ -452,16 +444,20 @@ export function renderPendingFinancials() {
 export function renderEditModalContent(type, id) {
     const editModalBody = document.getElementById('edit-modal-body');
     const editModalTitle = document.getElementById('edit-modal-title');
+    const editForm = document.getElementById('form-edit-record');
+    
+    // Explicitly set type and ID on form for the submit handler
+    editForm.dataset.type = type;
+    editForm.dataset.id = id || '';
+
     let record, formHtml;
 
     switch (type) {
         case 'item':
             record = findByKey(state.items, 'code', id);
             editModalTitle.textContent = _t('edit_item');
-            
             const categories = ['Beef', 'Lamb', 'Poultry', 'Seafood', 'Offal', 'Processed', 'Consumables'];
             const catOptions = categories.map(c => `<option value="${c}" ${record.category === c ? 'selected' : ''}>${_t('cat_'+c.toLowerCase())}</option>`).join('');
-            
             let cutsSection = '';
             if (record.ItemType === 'Main') {
                 const cuts = state.items.filter(i => i.ItemType === 'Cut');
@@ -472,7 +468,6 @@ export function renderEditModalContent(type, id) {
                 }).join('');
                 cutsSection = `<div class="form-group span-full"><label>Linked Cuts</label><div style="max-height:100px;overflow-y:auto;border:1px solid #ccc;padding:5px;">${checkboxes}</div></div>`;
             }
-
             formHtml = `
                 <div class="form-grid">
                     <div class="form-group"><label>${_t('item_type')}</label><input type="text" name="ItemType" value="${record.ItemType || 'Main'}" readonly></div>
@@ -498,17 +493,38 @@ export function renderEditModalContent(type, id) {
             break;
             
         case 'user':
-            record = findByKey(state.allUsers, 'Username', id);
+            record = id ? findByKey(state.allUsers, 'Username', id) : null;
             editModalTitle.textContent = id ? _t('edit_user') : _t('add_new_user_title');
             const currentRole = record ? record.RoleName : '';
-            const roleOptions = state.allRoles.map(r => `<option value="${r.RoleName}" ${r.RoleName === currentRole ? 'selected' : ''}>${r.RoleName}</option>`).join('');
+            const roleOptions = (state.allRoles || []).map(r => `<option value="${r.RoleName}" ${r.RoleName === currentRole ? 'selected' : ''}>${r.RoleName}</option>`).join('');
+            const branchOptions = (state.branches || []).map(b => `<option value="${b.branchCode}" ${record && record.AssignedBranchCode === b.branchCode ? 'selected' : ''}>${b.branchName}</option>`).join('');
             
             formHtml = `
                 <div class="form-grid">
                     <div class="form-group"><label>${_t('username')}</label><input type="text" name="Username" value="${record ? record.Username : ''}" ${id ? 'readonly' : 'required'}></div>
                     <div class="form-group"><label>${_t('table_h_fullname')}</label><input type="text" name="Name" value="${record ? record.Name : ''}" required></div>
-                    <div class="form-group"><label>${_t('table_h_role')}</label><select name="RoleName" required>${roleOptions}</select></div>
+                    <div class="form-group"><label>${_t('table_h_role')}</label><select name="RoleName" required><option value="">Select Role</option>${roleOptions}</select></div>
+                    <div class="form-group"><label>Assigned Branch</label><select name="AssignedBranchCode"><option value="">None (HQ/Admin)</option>${branchOptions}</select></div>
                     <div class="form-group span-full"><label>${_t('edit_user_password_label')}</label><input type="password" name="LoginCode" ${!id ? 'required' : ''}></div>
+                    <div class="form-group-checkbox span-full">
+                        <input type="checkbox" name="isDisabled" id="user-disabled-check" ${record && (record.isDisabled === true || String(record.isDisabled) === 'TRUE') ? 'checked' : ''}>
+                        <label for="user-disabled-check">Disable Account</label>
+                    </div>
+                </div>`;
+            editModalBody.innerHTML = formHtml;
+            break;
+
+        case 'role':
+            editModalTitle.textContent = 'Add New Role';
+            formHtml = `
+                <div class="form-grid">
+                    <div class="form-group span-full">
+                        <label>${_t('table_h_rolename')}</label>
+                        <input type="text" name="RoleName" required placeholder="e.g., Accountant">
+                    </div>
+                    <p style="grid-column: 1/-1; color: #666; font-size: 0.9em;">
+                        Note: After adding a role, please configure its permissions in the Google Sheet 'Permissions' tab.
+                    </p>
                 </div>`;
             editModalBody.innerHTML = formHtml;
             break;
@@ -854,14 +870,38 @@ export function renderUserManagementUI() {
     
     if (!state.allUsers || state.allUsers.length === 0) {
          tbody.innerHTML = '<tr><td colspan="6">No users found.</td></tr>';
-         return;
+    } else {
+        state.allUsers.forEach(user => {
+            const tr = document.createElement('tr');
+            const assigned = findByKey(state.branches, 'branchCode', user.AssignedBranchCode)?.branchName || 'N/A';
+            const statusText = (user.isDisabled === true || String(user.isDisabled).toUpperCase() === 'TRUE') ? 'Disabled' : 'Active';
+            tr.innerHTML = `<td>${user.Username}</td><td>${user.Name}</td><td>${user.RoleName}</td><td>${assigned}</td><td>${statusText}</td><td><button class="secondary small btn-edit" data-type="user" data-id="${user.Username}">${_t('edit')}</button></td>`;
+            tbody.appendChild(tr);
+        });
     }
 
-    state.allUsers.forEach(user => {
+    renderRolesTable();
+}
+
+export function renderRolesTable() {
+    const table = document.getElementById('table-roles');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    if (!state.allRoles || state.allRoles.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="2">No roles found.</td></tr>';
+        return;
+    }
+
+    state.allRoles.forEach(role => {
         const tr = document.createElement('tr');
-        const assigned = findByKey(state.branches, 'branchCode', user.AssignedBranchCode)?.branchName || 'N/A';
-        const statusText = (user.isDisabled === true || String(user.isDisabled).toUpperCase() === 'TRUE') ? 'Disabled' : 'Active';
-        tr.innerHTML = `<td>${user.Username}</td><td>${user.Name}</td><td>${user.RoleName}</td><td>${assigned}</td><td>${statusText}</td><td><button class="secondary small btn-edit" data-type="user" data-id="${user.Username}">${_t('edit')}</button></td>`;
+        tr.innerHTML = `
+            <td>${role.RoleName}</td>
+            <td>
+                <button class="secondary small btn-delete-role" data-role="${role.RoleName}">Delete</button>
+            </td>`;
         tbody.appendChild(tr);
     });
 }
