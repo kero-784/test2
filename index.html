@@ -43,18 +43,30 @@
                 </div>
             </div>
             <ul class="sidebar-nav" id="main-nav">
+                <!-- Public/Common Views -->
                 <li class="nav-item"><a href="#" data-view="dashboard" class="active"><span data-translate-key="dashboard">Dashboard</span></a></li>
-                <li class="nav-item"><a href="#" data-view="operations"><span data-translate-key="stock_operations">Stock Operations</span></a></li>
-                <li class="nav-item"><a href="#" data-view="butchery"><span data-translate-key="butchery_production">Butchery & Yield</span></a></li>
+                
+                <!-- Operational Views (Requires specific perms) -->
+                <li class="nav-item" data-permission="opReceive,opTransfer,opReturn,opStockAdjustment"><a href="#" data-view="operations"><span data-translate-key="stock_operations">Stock Operations</span></a></li>
+                <li class="nav-item" data-permission="opStockAdjustment"><a href="#" data-view="butchery"><span data-translate-key="butchery_production">Butchery & Yield</span></a></li>
+                
+                <!-- Common Read Views -->
                 <li class="nav-item"><a href="#" data-view="stock-levels"><span data-translate-key="stock_levels">Stock Levels</span></a></li>
                 <li class="nav-item"><a href="#" data-view="transaction-history"><span data-translate-key="transaction_history">Transaction History</span></a></li>
-                <li class="nav-item"><a href="#" data-view="purchasing"><span data-translate-key="purchasing">Purchasing</span></a></li>
-                <li class="nav-item"><a href="#" data-view="payments"><span data-translate-key="payments">Payments</span></a></li>
+                
+                <!-- Financials -->
+                <li class="nav-item" data-permission="opCreatePO,opApproveFinancials"><a href="#" data-view="purchasing"><span data-translate-key="purchasing">Purchasing</span></a></li>
+                <li class="nav-item" data-permission="opRecordPayment"><a href="#" data-view="payments"><span data-translate-key="payments">Payments</span></a></li>
+                
+                <!-- Reporting (Usually public to logged in users, or restrict if needed) -->
                 <li class="nav-item"><a href="#" data-view="reports"><span data-translate-key="reports">Reports</span></a></li>
-                <li class="nav-item"><a href="#" data-view="setup"><span data-translate-key="add_data">Add Data</span></a></li>
+                
+                <!-- Setup / Admin -->
+                <li class="nav-item" data-permission="createItem,createSupplier,createBranch,createSection"><a href="#" data-view="setup"><span data-translate-key="add_data">Add Data</span></a></li>
                 <li class="nav-item"><a href="#" data-view="master-data"><span data-translate-key="master_data">Master Data</span></a></li>
-                <li class="nav-item"><a href="#" data-view="user-management"><span data-translate-key="user_management">User Management</span></a></li>
-                <li class="nav-item"><a href="#" data-view="backup"><span data-translate-key="backup_restore">Backup</span></a></li>
+                <li class="nav-item" data-permission="manageUsers"><a href="#" data-view="user-management"><span data-translate-key="user_management">User Management</span></a></li>
+                <li class="nav-item" data-permission="opBackupRestore"><a href="#" data-view="backup"><span data-translate-key="backup_restore">Backup</span></a></li>
+                
                 <li class="nav-item nav-item-logout"><a href="#" id="btn-logout"><span data-translate-key="logout">Logout</span></a></li>
             </ul>
         </aside>
@@ -72,7 +84,8 @@
             
             <div id="view-setup" class="view">
                 <div class="grid">
-                    <div class="card">
+                    <!-- Cards will be hidden via JS if permission missing -->
+                    <div class="card" id="card-add-item">
                         <h2 class="card-title" data-translate-key="add_new_item">Add New Item</h2>
                         <form id="form-add-item">
                             <div class="form-grid">
@@ -115,9 +128,9 @@
                             <button type="submit" class="primary" style="margin-top: 20px;" data-translate-key="add_item_btn">Add Item</button>
                         </form>
                     </div>
-                    <div class="card"><h2 data-translate-key="add_new_supplier">Add New Supplier</h2><form id="form-add-supplier"><div class="form-grid"><div class="form-group"><label for="supplier-code" data-translate-key="supplier_code">Code</label><input type="text" id="supplier-code" required></div><div class="form-group"><label for="supplier-name" data-translate-key="supplier_name">Name</label><input type="text" id="supplier-name" required></div><div class="form-group"><label for="supplier-contact" data-translate-key="contact_info">Contact</label><input type="text" id="supplier-contact"></div></div><button type="submit" class="primary" style="margin-top: 20px; width:100%;" data-translate-key="add_supplier_btn">Add</button></form></div>
-                    <div class="card"><h2 data-translate-key="add_new_branch">Add New Branch</h2><form id="form-add-branch"><div class="form-grid"><div class="form-group"><label for="branch-code" data-translate-key="branch_code">Code</label><input type="text" id="branch-code" required></div><div class="form-group"><label for="branch-name" data-translate-key="branch_name">Name</label><input type="text" id="branch-name" required></div></div><button type="submit" class="primary" style="margin-top: 20px;" data-translate-key="add_branch_btn">Add</button></form></div>
-                    <div class="card"><h2 data-translate-key="add_new_section">Add New Section</h2><form id="form-add-section"><div class="form-grid"><div class="form-group"><label for="section-code" data-translate-key="section_code">Code</label><input type="text" id="section-code" required></div><div class="form-group"><label for="section-name" data-translate-key="section_name">Name</label><input type="text" id="section-name" required></div></div><button type="submit" class="primary" style="margin-top: 20px;" data-translate-key="add_section_btn">Add</button></form></div>
+                    <div class="card" id="card-add-supplier"><h2 data-translate-key="add_new_supplier">Add New Supplier</h2><form id="form-add-supplier"><div class="form-grid"><div class="form-group"><label for="supplier-code" data-translate-key="supplier_code">Code</label><input type="text" id="supplier-code" required></div><div class="form-group"><label for="supplier-name" data-translate-key="supplier_name">Name</label><input type="text" id="supplier-name" required></div><div class="form-group"><label for="supplier-contact" data-translate-key="contact_info">Contact</label><input type="text" id="supplier-contact"></div></div><button type="submit" class="primary" style="margin-top: 20px; width:100%;" data-translate-key="add_supplier_btn">Add</button></form></div>
+                    <div class="card" id="card-add-branch"><h2 data-translate-key="add_new_branch">Add New Branch</h2><form id="form-add-branch"><div class="form-grid"><div class="form-group"><label for="branch-code" data-translate-key="branch_code">Code</label><input type="text" id="branch-code" required></div><div class="form-group"><label for="branch-name" data-translate-key="branch_name">Name</label><input type="text" id="branch-name" required></div></div><button type="submit" class="primary" style="margin-top: 20px;" data-translate-key="add_branch_btn">Add</button></form></div>
+                    <div class="card" id="card-add-section"><h2 data-translate-key="add_new_section">Add New Section</h2><form id="form-add-section"><div class="form-grid"><div class="form-group"><label for="section-code" data-translate-key="section_code">Code</label><input type="text" id="section-code" required></div><div class="form-group"><label for="section-name" data-translate-key="section_name">Name</label><input type="text" id="section-name" required></div></div><button type="submit" class="primary" style="margin-top: 20px;" data-translate-key="add_section_btn">Add</button></form></div>
                 </div>
             </div>
 
