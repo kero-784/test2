@@ -21,6 +21,7 @@ const renderDynamicListTable = (tbodyId, list, columnsConfig, emptyMessage, tota
     
     list.forEach((item, index) => {
         const tr = document.createElement('tr');
+        let cellsHtml = '';
         columnsConfig.forEach(col => {
             let content = '';
             const fromBranch = col.branchSelectId ? document.getElementById(col.branchSelectId)?.value : null;
@@ -698,13 +699,26 @@ export function renderActivityLog() {
 export function renderPendingTransfers() {
     const container = document.getElementById('pending-transfers-card'); if (!container) return;
     const tbody = document.getElementById('table-pending-transfers')?.querySelector('tbody'); if (!tbody) return; tbody.innerHTML = '';
+    const uBranch = state.currentUser?.AssignedBranchCode;
+    const isAdmin = userCan('viewAllBranches');
     const groups = {};
-    (state.transactions || []).filter(t => t.type === 'transfer_out' && t.Status === 'In Transit').forEach(t => { if (!groups[t.batchId]) groups[t.batchId] = { ...t, items: [] }; groups[t.batchId].items.push(t); });
-    Object.values(groups).forEach(t => {
-        const from = findByKey(state.branches, 'branchCode', t.fromBranchCode)?.branchName || t.fromBranchCode;
-        tbody.innerHTML += `<tr><td>${formatDate(t.date)}</td><td>${from}</td><td>${t.ref}</td><td>${t.items.length}</td><td><button class="primary small btn-receive-transfer" data-batch-id="${t.batchId}">View</button></td></tr>`;
+    
+    state.transactions.forEach(t => {
+        if (t.type === 'transfer_out' && t.Status === 'In Transit') {
+            if (isAdmin || t.toBranchCode === uBranch) {
+                if (!groups[t.batchId]) groups[t.batchId] = { ...t, items: [] };
+                groups[t.batchId].items.push(t);
+            }
+        }
     });
-    container.style.display = Object.keys(groups).length ? 'block' : 'none';
+    
+    const list = Object.values(groups);
+    if (!list.length) { container.style.display = 'none'; return; }
+    container.style.display = 'block';
+    list.forEach(t => {
+        const from = findByKey(state.branches, 'branchCode', t.fromBranchCode)?.branchName || t.fromBranchCode;
+        tbody.innerHTML += `<tr><td>${formatDate(t.date)}</td><td>Incoming from ${from}</td><td>${t.ref}</td><td>${t.items.length}</td><td><button class="primary small btn-receive-transfer" data-batch-id="${t.batchId}">Receive</button></td></tr>`;
+    });
 }
 
 export function renderInTransitReport() {
@@ -715,12 +729,19 @@ export function renderInTransitReport() {
         const from = findByKey(state.branches, 'branchCode', t.fromBranchCode)?.branchName || 'N/A';
         const to = findByKey(state.branches, 'branchCode', t.toBranchCode)?.branchName || 'N/A';
         
+        // FIX: Action Logic based on Role
+        const isReceiver = state.currentUser?.AssignedBranchCode === t.toBranchCode;
         const isSender = state.currentUser?.AssignedBranchCode === t.fromBranchCode;
         const isAdmin = userCan('viewAllBranches');
-        const canCancel = t.Status === 'In Transit' && (isSender || isAdmin);
-        
         let act = t.Status;
-        if (canCancel) act = `<button class="danger small btn-cancel-transfer" data-batch-id="${t.batchId}">Cancel</button>`;
+        
+        if (t.Status === 'In Transit') {
+            if (isReceiver) {
+                act = `<button class="primary small btn-receive-transfer" data-batch-id="${t.batchId}">Receive</button>`;
+            } else if (isSender || isAdmin) {
+                act = `<button class="danger small btn-cancel-transfer" data-batch-id="${t.batchId}">Cancel</button>`;
+            }
+        }
         
         tbody.innerHTML += `<tr><td>${formatDate(t.date)}</td><td>${from}</td><td>${to}</td><td>${t.ref}</td><td>${t.items.length}</td><td>${t.Status}</td><td>${act}</td></tr>`;
     });
@@ -755,11 +776,12 @@ export function updateNotifications() {
         if (incomingBatches.size > 0) {
             textEl.textContent = `${incomingBatches.size} Incoming Transfer(s)`;
             widget.style.backgroundColor = '#E65100';
+            widget.dataset.actionType = 'transfer';
         } else {
             textEl.textContent = "Pending Requests";
             widget.style.backgroundColor = '#FBC02D';
+            widget.dataset.actionType = 'request';
         }
-        widget.dataset.actionType = incomingBatches.size > 0 ? 'transfer' : 'request';
     } else {
         widget.style.display = 'none';
     }
