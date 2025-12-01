@@ -78,13 +78,19 @@ document.addEventListener('DOMContentLoaded', () => {
              document.getElementById('edit-modal').classList.add('active');
         }
 
-        // --- USER MANAGEMENT BUTTONS ---
+        // --- USER & ROLE MANAGEMENT BUTTONS ---
         if (btn.id === 'btn-add-new-user') {
             Renderers.renderEditModalContent('user', null); 
             document.getElementById('edit-modal').classList.add('active');
         }
         if (btn.id === 'btn-add-new-role') {
             Renderers.renderEditModalContent('role', null);
+            document.getElementById('edit-modal').classList.add('active');
+        }
+        // Permission Editor
+        if (btn.classList.contains('btn-edit-role-perms')) {
+            const roleName = btn.dataset.role;
+            Renderers.renderEditModalContent('role-permissions', roleName);
             document.getElementById('edit-modal').classList.add('active');
         }
         if (btn.classList.contains('btn-delete-role')) {
@@ -372,44 +378,58 @@ document.addEventListener('DOMContentLoaded', () => {
             const formData = new FormData(form);
             let type = form.dataset.type; // Set by renderEditModalContent
 
-            const updates = {};
-            // Item Links specific
-            if (type === 'item') {
-                const selectedCuts = [];
-                form.querySelectorAll('input[name="DefinedCuts"]:checked').forEach(cb => selectedCuts.push(cb.value));
-                if (form.querySelector('input[name="ItemType"]').value === 'Main') {
-                    updates['DefinedCuts'] = selectedCuts.join(',');
-                }
-            }
-            
-            // Collect standard fields
-            for (let [key, value] of formData.entries()) { if (key !== 'DefinedCuts' && value !== "") updates[key] = value; }
-            
-            // Handle Checkboxes specifically for User Disable
-            if (type === 'user') {
-                updates['isDisabled'] = form.querySelector('[name="isDisabled"]').checked;
-            }
-
             let action = 'updateData';
-            let payload = { type, id: form.dataset.id, updates };
+            let payload = {};
+            const updates = {};
 
-            if (type === 'user') {
-                const username = formData.get('Username');
-                // If ID exists in dataset, it's edit. Otherwise new.
-                const isNew = !form.dataset.id;
-                action = isNew ? 'addUser' : 'updateUser';
-                payload = isNew ? updates : { Username: username, updates };
+            // 1. Role Permission Update
+            if (type === 'role-permissions') {
+                action = 'updateRolePermissions';
+                const roleName = formData.get('RoleName');
+                // Iterate through checkboxes (inputs)
+                form.querySelectorAll('input[type="checkbox"]').forEach(input => {
+                    updates[input.name] = input.checked;
+                });
+                payload = { RoleName: roleName, updates: updates };
             } 
-            else if (type === 'role') {
-                action = 'addRole';
-                payload = updates;
+            // 2. Standard Updates
+            else {
+                // Item Links specific
+                if (type === 'item') {
+                    const selectedCuts = [];
+                    form.querySelectorAll('input[name="DefinedCuts"]:checked').forEach(cb => selectedCuts.push(cb.value));
+                    if (form.querySelector('input[name="ItemType"]').value === 'Main') {
+                        updates['DefinedCuts'] = selectedCuts.join(',');
+                    }
+                }
+                
+                // Collect standard fields
+                for (let [key, value] of formData.entries()) { if (key !== 'DefinedCuts' && value !== "") updates[key] = value; }
+                
+                // Handle Checkboxes specifically for User Disable
+                if (type === 'user') {
+                    updates['isDisabled'] = form.querySelector('[name="isDisabled"]').checked;
+                }
+
+                payload = { type, id: form.dataset.id, updates };
+
+                if (type === 'user') {
+                    const username = formData.get('Username');
+                    const isNew = !form.dataset.id;
+                    action = isNew ? 'addUser' : 'updateUser';
+                    payload = isNew ? updates : { Username: username, updates };
+                } 
+                else if (type === 'role') {
+                    action = 'addRole';
+                    payload = updates;
+                }
             }
 
             const res = await postData(action, payload, form.querySelector('button[type="submit"]'));
             if(res) {
                 showToast('Action successful');
                 document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
-                if (type === 'user' || type === 'role') {
+                if (type === 'user' || type === 'role' || type === 'role-permissions') {
                     refreshViewData('user-management');
                 } else {
                     reloadData();
