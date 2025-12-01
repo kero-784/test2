@@ -1,4 +1,3 @@
-// utils.js
 import { state, setState } from './state.js';
 import { SCRIPT_URL, translations } from './config.js';
 
@@ -46,9 +45,7 @@ export function setButtonLoading(isLoading, buttonEl) {
         buttonEl.innerHTML = `<div class="button-spinner"></div><span>...</span>`;
     } else {
         buttonEl.disabled = false;
-        if (buttonEl.dataset.originalText) {
-            buttonEl.innerHTML = buttonEl.dataset.originalText;
-        }
+        if (buttonEl.dataset.originalText) buttonEl.innerHTML = buttonEl.dataset.originalText;
     }
 }
 
@@ -59,22 +56,17 @@ export const generateId = (prefix) => `${prefix}-${Date.now()}`;
 export async function postData(action, data, buttonEl) {
     setButtonLoading(true, buttonEl);
     
-    // --- FIX: Check SessionStorage if State is empty ---
+    // Session Recovery
     if (!state.username) {
-        const savedUser = sessionStorage.getItem('meatUser');
-        const savedPass = sessionStorage.getItem('meatPass');
-        if (savedUser && savedPass) {
-            setState('username', savedUser);
-            setState('loginCode', savedPass);
-            // NOTE: currentUser object might still be null if we haven't re-fetched data, 
-            // but basic POST requests only need username/code for auth.
+        const u = sessionStorage.getItem('meatUser');
+        const p = sessionStorage.getItem('meatPass');
+        if (u && p) {
+            setState('username', u);
+            setState('loginCode', p);
         }
     }
-    // --------------------------------------------------
 
-    const { username, loginCode } = state;
-    
-    if (!username || !loginCode) {
+    if (!state.username || !state.loginCode) {
         showToast(_t('session_error_toast'), 'error');
         setButtonLoading(false, buttonEl);
         return null;
@@ -84,7 +76,7 @@ export async function postData(action, data, buttonEl) {
         const response = await fetch(SCRIPT_URL, {
             method: 'POST',
             mode: 'cors',
-            body: JSON.stringify({ username, loginCode, action, data })
+            body: JSON.stringify({ username: state.username, loginCode: state.loginCode, action, data })
         });
         const result = await response.json();
         if (result.status !== 'success') throw new Error(result.message || 'Server error.');
@@ -109,11 +101,11 @@ export function applyTranslations() {
     });
 }
 
-export function populateOptions(el, data, ph, valueKey, textKey, textKey2) { 
+export function populateOptions(el, data, ph, valueKey, textKey) { 
     if (!el) return;
     el.innerHTML = `<option value="">${ph}</option>`; 
     (data || []).forEach(item => { 
-        el.innerHTML += `<option value="${item[valueKey]}">${item[textKey]}${textKey2 && item[textKey2] ? ' (' + item[textKey2] + ')' : ''}</option>`;
+        el.innerHTML += `<option value="${item[valueKey]}">${item[textKey]}</option>`;
     }); 
 }
 
@@ -124,6 +116,14 @@ export function formatCurrency(amount) {
 export function formatDate(dateString) {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString();
+}
+
+export function printContent(content) {
+    const printArea = document.getElementById('print-area');
+    if(printArea) {
+        printArea.innerHTML = content;
+        setTimeout(() => window.print(), 200);
+    }
 }
 
 export async function requestAdminContext(config) {
