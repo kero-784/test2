@@ -11,22 +11,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- 1. LOGIN HANDLER ---
     const loginForm = document.getElementById('login-form');
-    if(loginForm) {
+    if (loginForm) {
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const username = document.getElementById('login-username').value.trim();
             const code = document.getElementById('login-code').value;
             const loader = document.getElementById('login-loader');
+            const errorEl = document.getElementById('login-error');
             
             loginForm.style.display = 'none';
             loader.style.display = 'flex';
+            errorEl.textContent = '';
             
             try {
                 const response = await fetch(`${SCRIPT_URL}?username=${encodeURIComponent(username)}&loginCode=${encodeURIComponent(code)}`);
                 const data = await response.json();
                 
                 if (data.status !== 'error' && data.user) {
-                    if (String(data.user.isDisabled).toUpperCase() === 'TRUE') throw new Error('Account disabled.');
+                    const isDisabled = data.user.isDisabled === true || String(data.user.isDisabled).toUpperCase() === 'TRUE';
+                    if (isDisabled) throw new Error('Account disabled.');
                     
                     setState('currentUser', data.user);
                     setState('username', username);
@@ -35,8 +38,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Hydrate State
                     Object.keys(data).forEach(key => { if (key !== 'user') setState(key, data[key]); });
                     
-                    Logger.info("Data Loaded:", { items: state.items.length, transactions: state.transactions.length });
-
                     document.getElementById('login-container').style.display = 'none';
                     document.getElementById('app-container').style.display = 'flex';
                     
@@ -45,8 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     throw new Error(data.message || 'Invalid credentials');
                 }
             } catch (error) {
-                Logger.error("Login Failed", error);
-                document.getElementById('login-error').textContent = error.message;
+                errorEl.textContent = error.message;
                 loginForm.style.display = 'block';
             } finally {
                 loader.style.display = 'none';
@@ -54,51 +54,62 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- 2. GLOBAL CLICK LISTENER ---
+    // --- 2. GLOBAL CLICK LISTENER (Buttons) ---
     document.body.addEventListener('click', (e) => {
         const btn = e.target.closest('button');
         if (!btn) return;
 
-        // ... (Keep existing listeners for Modals, Edits, History, Select Items) ...
+        // --- MODAL NAVIGATION ---
         if (btn.classList.contains('close-button') || btn.classList.contains('modal-cancel')) {
              document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
         }
+        
         if (btn.classList.contains('btn-edit')) {
              Renderers.renderEditModalContent(btn.dataset.type, btn.dataset.id);
              document.getElementById('edit-modal').classList.add('active');
         }
+
+        // --- OPEN ITEM SELECTOR ---
         if (btn.classList.contains('btn-select-items')) {
              state.currentSelectionModal.type = 'item-selector';
              const m = document.getElementById('item-selector-modal');
-             m.dataset.context = btn.dataset.context;
+             const context = btn.dataset.context;
              
-             if (btn.dataset.context === 'butchery-child') {
+             m.dataset.context = context; // Important: Store context on modal DOM
+             m.dataset.allowedItems = "";
+             
+             // Butchery Filter Logic
+             if (context === 'butchery-child') {
                  const pc = document.getElementById('butchery-parent-code').value;
-                 if (!pc) { showToast('Select Parent First', 'error'); return; }
+                 if (!pc) { showToast('Please select a Parent Item first', 'error'); return; }
+                 
                  const p = findByKey(state.items, 'code', pc);
+                 // If parent has defined cuts, strictly filter. Otherwise show all.
                  if(p && p.DefinedCuts) m.dataset.allowedItems = JSON.stringify(p.DefinedCuts.split(','));
-                 else m.dataset.allowedItems = "";
-             } else {
-                 m.dataset.allowedItems = "";
              }
              
-             state.modalSelections.clear();
-             Renderers.renderItemsInModal();
+             state.modalSelections.clear(); // Clear previous selections
+             Renderers.renderItemsInModal(); // Render fresh list
              m.classList.add('active');
         }
 
+        // --- CONFIRM ITEM SELECTION ---
         if (btn.id === 'btn-confirm-modal-selection') {
             const m = document.getElementById('item-selector-modal');
             const ctx = m.dataset.context;
             const sel = Array.from(state.modalSelections);
             
+            console.log(`Confirming selection for context: ${ctx}. Items: ${sel.join(', ')}`); // Debug
+
             if (ctx === 'butchery-parent') {
+                // Single Select logic for Parent
                 const i = findByKey(state.items, 'code', sel[0]);
                 if(i) { 
                     document.getElementById('butchery-parent-display').value = i.name; 
                     document.getElementById('butchery-parent-code').value = i.code; 
                 }
             } else {
+                // Multi Select logic for Tables
                 const map = { 
                     'receive': 'currentReceiveList', 
                     'butchery-child': 'currentButcheryList', 
@@ -108,41 +119,47 @@ document.addEventListener('DOMContentLoaded', () => {
                     'adjustment': 'currentAdjustmentList',
                     'request': 'currentRequestList'
                 };
+                
                 const listName = map[ctx];
-                if(listName) {
+                
+                if(listName && state[listName]) {
                     sel.forEach(c => {
                         const i = findByKey(state.items, 'code', c);
+                        // Prevent duplicates
                         if(i && !state[listName].find(x => x.itemCode === c)) {
                             state[listName].push({ 
                                 itemCode: i.code, 
                                 itemName: i.name, 
-                                quantity: '', 
-                                cost: parseFloat(i.cost) || 0 
+                                quantity: '', // User enters this
+                                cost: parseFloat(i.cost) || 0 // Default cost from master
                             });
                         }
                     });
-                    // Force re-render of specific table
+
+                    // Force Re-render based on context
                     if(ctx === 'receive') Renderers.renderReceiveListTable();
-                    if(ctx === 'butchery-child') Renderers.renderButcheryListTable();
-                    if(ctx === 'transfer') Renderers.renderTransferListTable();
-                    if(ctx === 'return') Renderers.renderReturnListTable();
-                    if(ctx === 'adjustment') Renderers.renderAdjustmentListTable();
-                    if(ctx === 'po') Renderers.renderPOListTable();
+                    else if(ctx === 'butchery-child') Renderers.renderButcheryListTable();
+                    else if(ctx === 'transfer') Renderers.renderTransferListTable();
+                    else if(ctx === 'return') Renderers.renderReturnListTable();
+                    else if(ctx === 'adjustment') Renderers.renderAdjustmentListTable();
+                    else if(ctx === 'po') Renderers.renderPOListTable();
+                    else if(ctx === 'request') Renderers.renderRequestListTable();
+                } else {
+                    console.error(`List not found for context: ${ctx}`);
                 }
             }
             m.classList.remove('active');
             state.modalSelections.clear();
         }
 
-        // ... (Keep Report/Payment button listeners) ...
+        // ... (Keep Reports, Payments, Auto-Gen logic here) ...
         if (btn.id === 'btn-select-invoices') { Renderers.renderInvoicesInModal(); document.getElementById('invoice-selector-modal').classList.add('active'); }
         if (btn.id === 'btn-confirm-invoice-selection') { document.getElementById('invoice-selector-modal').classList.remove('active'); Renderers.renderPaymentList(); }
         if (btn.id === 'btn-generate-supplier-statement') { Renderers.renderSupplierStatement(document.getElementById('supplier-statement-select').value, document.getElementById('statement-start-date').value, document.getElementById('statement-end-date').value); }
-        
-        if(btn.id === 'btn-gen-item-code') document.getElementById('item-code').value = `ITM-${Math.floor(Math.random()*9999)}`;
-        if(btn.id === 'btn-gen-invoice') document.getElementById('receive-invoice').value = `INV-${Date.now().toString().slice(-6)}`;
+        if (btn.id === 'btn-gen-item-code') document.getElementById('item-code').value = `ITM-${Math.floor(Math.random()*9999)}`;
+        if (btn.id === 'btn-gen-invoice') document.getElementById('receive-invoice').value = `INV-${Date.now().toString().slice(-6)}`;
 
-        // Remove Row
+        // Remove Row Logic
         if (btn.classList.contains('danger') && btn.dataset.index !== undefined && btn.textContent === 'X') {
             const row = btn.closest('tr');
             const tableId = row.closest('table').id;
@@ -163,20 +180,85 @@ document.addEventListener('DOMContentLoaded', () => {
                 config.render();
             }
         }
-        
-        // Approve Financials
+
+        // View/Print
+        if (btn.classList.contains('btn-view-tx')) {
+            const batchId = btn.dataset.batchId;
+            const type = btn.dataset.type;
+            
+            if (type === 'po') {
+                const data = findByKey(state.purchaseOrders, 'poId', batchId);
+                const items = state.purchaseOrderItems.filter(i => i.poId === batchId);
+                if (data) Documents.generatePODocument({ ...data, items });
+            } else {
+                const group = state.transactions.filter(t => t.batchId === batchId);
+                if (group.length > 0) {
+                    const first = group[0];
+                    const data = { ...first, items: group.map(t => ({...t, itemName: findByKey(state.items, 'code', t.itemCode)?.name })) };
+                    
+                    if (type === 'receive') Documents.generateReceiveDocument(data);
+                    else if (type.includes('transfer')) Documents.generateTransferDocument(data);
+                    else if (type === 'return_out') Documents.generateReturnDocument(data);
+                }
+            }
+        }
+
+        // Approve/Reject Financials
         if (btn.classList.contains('btn-approve-financial') || btn.classList.contains('btn-reject-financial')) {
-             const id = btn.dataset.id;
-             const type = btn.dataset.type;
-             const action = btn.classList.contains('btn-approve-financial') ? 'approveFinancial' : 'rejectFinancial';
-             if(confirm('Confirm?')) {
-                 postData(action, { id, type }, btn).then(res => { if(res) { showToast('Success'); reloadData(); }});
-             }
+            const id = btn.dataset.id;
+            const type = btn.dataset.type;
+            const action = btn.classList.contains('btn-approve-financial') ? 'approveFinancial' : 'rejectFinancial';
+            
+            if (confirm(`Confirm ${action}?`)) {
+                postData(action, { id, type }, btn).then(res => {
+                    if(res) {
+                        showToast('Success');
+                        // Optimistic update
+                        if(type === 'receive') {
+                             state.transactions.forEach(t => { if(t.batchId===id) { t.isApproved = (action==='approveFinancial'); t.Status = (action==='approveFinancial'?'Completed':'Rejected'); }});
+                        } else if(type === 'po') {
+                             const p = findByKey(state.purchaseOrders, 'poId', id);
+                             if(p) p.Status = (action==='approveFinancial'?'Approved':'Rejected');
+                        }
+                        Renderers.renderPendingFinancials();
+                    }
+                });
+            }
+        }
+
+        // Admin Context Confirm
+        if (btn.id === 'btn-confirm-context') {
+            const modal = document.getElementById('context-selector-modal');
+            const ctx = {
+                fromBranch: modal.querySelector('#context-modal-fromBranch-group').style.display === 'block' ? modal.querySelector('#context-from-branch-select').value : null,
+                toBranch: modal.querySelector('#context-modal-toBranch-group').style.display === 'block' ? modal.querySelector('#context-to-branch-select').value : null,
+                branch: modal.querySelector('#context-modal-branch-group').style.display === 'block' ? modal.querySelector('#context-branch-select').value : null,
+            };
+            if (state.adminContextPromise.resolve) state.adminContextPromise.resolve(ctx);
+            modal.classList.remove('active');
         }
     });
 
-    // --- 3. TABLE INPUT LISTENER ---
+    // --- 3. GLOBAL CHANGE LISTENER (Fix for Checkboxes & Inputs) ---
     document.body.addEventListener('change', (e) => {
+        // A. Modal Item Checkboxes (Fix for "Select Items" not populating)
+        if (e.target.closest('#modal-item-list') && e.target.type === 'checkbox') {
+            const code = e.target.dataset.code;
+            if (e.target.checked) {
+                state.modalSelections.add(code);
+            } else {
+                state.modalSelections.delete(code);
+            }
+            console.log('Current Selections:', Array.from(state.modalSelections));
+        }
+
+        // B. Invoice Modal Checkboxes
+        if (e.target.closest('#modal-invoice-list') && e.target.type === 'checkbox') {
+             const num = e.target.dataset.number;
+             e.target.checked ? state.invoiceModalSelections.add(num) : state.invoiceModalSelections.delete(num);
+        }
+
+        // C. Table Inputs (Live Updates)
         if (e.target.classList.contains('table-input')) {
             const input = e.target;
             const row = input.closest('tr');
@@ -200,10 +282,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 config.render();
             }
         }
+        
         if(e.target.id === 'butchery-parent-qty') Renderers.renderButcheryListTable();
+        if(e.target.id === 'item-type') {
+            const g = document.getElementById('group-item-parent');
+            if(e.target.value === 'Cut') {
+                g.style.display = 'block';
+                populateOptions(document.getElementById('item-parent'), state.items.filter(i=>i.ItemType==='Main'), 'Parent', 'code', 'name');
+            } else { g.style.display = 'none'; }
+        }
     });
 
-    // --- 4. FORM SUBMITS ---
+    // --- 4. SEARCH LISTENER ---
+    const searchInput = document.getElementById('modal-search-items');
+    if(searchInput) searchInput.addEventListener('input', e => Renderers.renderItemsInModal(e.target.value));
+
+    // --- 5. FORM SUBMITS ---
     const attachFormHandler = (formId, actionName, dataExtractor) => {
         const form = document.getElementById(formId);
         if(!form) return;
@@ -214,7 +308,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = dataExtractor();
                 const res = await postData(actionName, data, btn);
                 if(res) {
-                    showToast('Saved Successfully', 'success');
+                    showToast(_t('add_success_toast'), 'success');
                     if (actionName === 'addItem') state.items.push(data);
                     if (actionName === 'addSupplier') state.suppliers.push(data);
                     if (actionName === 'addBranch') state.branches.push(data);
@@ -254,15 +348,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const id = form.dataset.id;
             const formData = new FormData(form);
             const updates = {};
+            
             if (type === 'item') {
                 const selectedCuts = [];
                 form.querySelectorAll('input[name="DefinedCuts"]:checked').forEach(cb => selectedCuts.push(cb.value));
-                if (form.querySelector('input[name="ItemType"]').value === 'Main') updates['DefinedCuts'] = selectedCuts.join(',');
+                if (form.querySelector('input[name="ItemType"]').value === 'Main') {
+                    updates['DefinedCuts'] = selectedCuts.join(',');
+                }
             }
             for (let [key, value] of formData.entries()) { if (key !== 'DefinedCuts' && value !== "") updates[key] = value; }
-            let action = 'updateData'; let payload = { type, id, updates };
+            
+            let action = 'updateData';
+            let payload = { type, id, updates };
             if (type === 'user') { action = id ? 'updateUser' : 'addUser'; payload = id ? { Username: id, updates } : updates; }
-            if(await postData(action, payload, form.querySelector('button'))) {
+
+            const res = await postData(action, payload, form.querySelector('button[type="submit"]'));
+            if(res) {
                 showToast('Update successful');
                 document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
                 reloadData();
@@ -274,6 +375,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const pf = document.getElementById('form-record-payment');
     if(pf) pf.addEventListener('submit', async (e) => {
         e.preventDefault();
+        const btn = pf.querySelector('button[type="submit"]');
         const s = document.getElementById('payment-supplier-select').value;
         const m = document.getElementById('payment-method').value;
         const pay = [];
@@ -283,7 +385,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         if(pay.length === 0) return;
         const payload = { supplierCode: s, method: m, date: new Date().toISOString(), totalAmount: pay.reduce((a,b)=>a+b.amount,0), payments: pay };
-        if(await postData('addPaymentBatch', payload, pf.querySelector('button'))) {
+        if(await postData('addPaymentBatch', payload, btn)) {
             showToast('Payment recorded!', 'success');
             state.invoiceModalSelections.clear();
             pf.reset();
@@ -292,8 +394,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Transactions
-    const bindBtn = (id, fn) => { const el = document.getElementById(id); if(el) el.addEventListener('click', fn); };
+    // Transaction Buttons
+    const bindBtn = (id, handler) => { const btn = document.getElementById(id); if(btn) btn.addEventListener('click', handler); };
     bindBtn('btn-submit-receive-batch', Transactions.handleReceiveSubmit);
     bindBtn('btn-submit-butchery', Transactions.handleButcherySubmit);
     bindBtn('btn-submit-transfer-batch', Transactions.handleTransferSubmit);
@@ -325,16 +427,6 @@ document.addEventListener('DOMContentLoaded', () => {
             refreshViewData(view.id.replace('view-', ''));
         });
     });
-
-    // Dynamic Parent
-    const ts = document.getElementById('item-type');
-    if(ts) ts.addEventListener('change', e => {
-        const g = document.getElementById('group-item-parent');
-        if(e.target.value === 'Cut') {
-            g.style.display = 'block';
-            populateOptions(document.getElementById('item-parent'), state.items.filter(i=>i.ItemType==='Main'), 'Select Parent', 'code', 'name');
-        } else { g.style.display = 'none'; }
-    });
 });
 
 function initializeAppUI() {
@@ -349,7 +441,6 @@ function initializeAppUI() {
 }
 
 function showView(id) {
-    console.log(`Switching to View: ${id}`);
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.querySelectorAll('.nav-item a').forEach(l => l.classList.remove('active'));
     const v = document.getElementById(`view-${id}`);
@@ -360,8 +451,6 @@ function showView(id) {
 }
 
 function refreshViewData(id) {
-    console.log(`Refreshing Data for: ${id}`);
-    
     if(id === 'dashboard') {
         const stock = calculateStockLevels();
         let val = 0;
@@ -371,41 +460,34 @@ function refreshViewData(id) {
         document.getElementById('dashboard-total-suppliers').textContent = state.suppliers.length;
         document.getElementById('dashboard-total-branches').textContent = state.branches.length;
     }
-    
     if(id === 'stock-levels') Renderers.renderItemCentricStockView();
-    
     if(id === 'transaction-history') {
         populateOptions(document.getElementById('tx-filter-branch'), state.branches, 'All Branches', 'branchCode', 'branchName');
         Renderers.renderTransactionHistory();
     }
-    
     if(id === 'reports') populateOptions(document.getElementById('supplier-statement-select'), state.suppliers, 'Select Supplier', 'supplierCode', 'name');
-    
     if(id === 'payments') {
         populateOptions(document.getElementById('payment-supplier-select'), state.suppliers, 'Select Supplier', 'supplierCode', 'name');
-        const list = document.getElementById('payment-invoice-list-container');
-        if(list) list.style.display = 'none'; // reset state
+        const listContainer = document.getElementById('payment-invoice-list-container');
+        if(listContainer) listContainer.style.display = 'none';
     }
-    
     if(id === 'master-data') {
         Renderers.renderItemsTable();
         Renderers.renderSuppliersTable();
         Renderers.renderBranchesTable();
         Renderers.renderSectionsTable();
     }
-    
     if(id === 'butchery') {
-        populateOptions(document.getElementById('butchery-branch'), state.branches, 'Select Branch', 'branchCode', 'branchName');
+        populateOptions(document.getElementById('butchery-branch'), state.branches, _t('branch'), 'branchCode', 'branchName');
         Renderers.renderButcheryListTable();
     }
-    
     if(id === 'operations') {
         ['receive', 'transfer-from', 'transfer-to', 'return', 'adjustment'].forEach(prefix => {
             const el = document.getElementById(`${prefix}-branch`);
-            if(el && el.options.length <= 1) populateOptions(el, state.branches, 'Select Branch', 'branchCode', 'branchName');
+            if(el && el.options.length <= 1) populateOptions(el, state.branches, 'Branch', 'branchCode', 'branchName');
         });
-        populateOptions(document.getElementById('receive-supplier'), state.suppliers, 'Select Supplier', 'supplierCode', 'name');
-        populateOptions(document.getElementById('return-supplier'), state.suppliers, 'Select Supplier', 'supplierCode', 'name');
+        populateOptions(document.getElementById('receive-supplier'), state.suppliers, _t('supplier'), 'supplierCode', 'name');
+        populateOptions(document.getElementById('return-supplier'), state.suppliers, _t('supplier'), 'supplierCode', 'name');
         
         Renderers.renderReceiveListTable();
         Renderers.renderTransferListTable();
@@ -414,14 +496,12 @@ function refreshViewData(id) {
         Renderers.renderPendingTransfers();
         Renderers.renderInTransitReport();
     }
-    
     if(id === 'purchasing') {
-        populateOptions(document.getElementById('po-supplier'), state.suppliers, 'Select Supplier', 'supplierCode', 'name');
+        populateOptions(document.getElementById('po-supplier'), state.suppliers, 'Supplier', 'supplierCode', 'name');
         Renderers.renderPOListTable();
         Renderers.renderPurchaseOrdersViewer();
         Renderers.renderPendingFinancials();
     }
-    
     if(id === 'user-management') {
          postData('getAllUsersAndRoles', {}, null).then(res => {
             if(res) {
@@ -431,7 +511,6 @@ function refreshViewData(id) {
             }
         });
     }
-    
     if(id === 'activity-log') Renderers.renderActivityLog();
 }
 
