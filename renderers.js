@@ -721,6 +721,7 @@ export function renderPendingTransfers() {
     });
 }
 
+// --- UPDATED: IN-TRANSIT REPORT ---
 export function renderInTransitReport() {
     const tbody = document.getElementById('table-in-transit')?.querySelector('tbody'); 
     if (!tbody) return; 
@@ -807,4 +808,19 @@ export function updateNotifications() {
     } else {
         widget.style.display = 'none';
     }
+}
+
+// --- USER MANAGEMENT (Exported now) ---
+export function renderUserManagementUI() {
+    const usersTbody = document.getElementById('table-users');
+    if (!usersTbody) return;
+    const tbody = usersTbody.querySelector('tbody');
+    tbody.innerHTML = '';
+    (state.allUsers || []).forEach(user => {
+        const tr = document.createElement('tr');
+        const assigned = findByKey(state.branches, 'branchCode', user.AssignedBranchCode)?.branchName || 'N/A';
+        const statusText = (user.isDisabled === true || String(user.isDisabled).toUpperCase() === 'TRUE') ? 'Disabled' : 'Active';
+        tr.innerHTML = `<td>${user.Username}</td><td>${user.Name}</td><td>${user.RoleName}</td><td>${assigned}</td><td>${statusText}</td><td><button class="secondary small btn-edit" data-type="user" data-id="${user.Username}">${_t('edit')}</button></td>`;
+        tbody.appendChild(tr);
+    });
 }
