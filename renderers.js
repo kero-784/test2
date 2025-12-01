@@ -150,15 +150,13 @@ export function renderAdjustmentListTable() {
     }
     
     const stock = calculateStockLevels();
-    const branchCodeEl = document.getElementById('adjustment-branch');
-    const branchCode = branchCodeEl ? branchCodeEl.value : null;
+    const branchCode = document.getElementById('adjustment-branch')?.value;
 
     state.currentAdjustmentList.forEach((item, index) => {
         const systemQty = (branchCode && stock[branchCode]?.[item.itemCode]?.quantity) || 0;
         const physicalCount = typeof item.physicalCount !== 'undefined' ? item.physicalCount : '';
         const adjustment = (parseFloat(physicalCount) || 0) - systemQty;
         
-        // Sync physicalCount back to object in case it's missing
         item.physicalCount = physicalCount;
 
         const tr = document.createElement('tr');
@@ -281,7 +279,7 @@ export function renderSectionsTable(data = state.sections) {
 
 export function renderTransactionHistory(filters = {}) {
     const table = document.getElementById('table-transaction-history');
-    if (!table) return;
+    if (!table) return; 
     const tbody = table.querySelector('tbody');
     if (!tbody) return;
     tbody.innerHTML = '';
@@ -302,7 +300,7 @@ export function renderTransactionHistory(filters = {}) {
         ...allPo.map(po => ({...po, type: 'po', batchId: po.poId, ref: po.poId})) 
     ];
 
-    // Filtering Logic
+    // Filter Logic
     const sDate = filters.startDate ? new Date(filters.startDate) : null;
     if(sDate) sDate.setHours(0,0,0,0);
     const eDate = filters.endDate ? new Date(filters.endDate) : null;
@@ -519,6 +517,8 @@ export function renderItemsInModal(filter = '') {
     });
 }
 
+// --- STOCK VIEW ---
+
 export function renderItemCentricStockView() {
     const container = document.getElementById('item-centric-stock-container');
     if (!container) return;
@@ -680,29 +680,6 @@ export function renderPurchaseOrdersViewer() {
     });
 }
 
-export function renderPendingTransfers() {
-    const container = document.getElementById('pending-transfers-card'); if (!container) return;
-    const tbody = document.getElementById('table-pending-transfers')?.querySelector('tbody'); if (!tbody) return; tbody.innerHTML = '';
-    const groups = {};
-    (state.transactions || []).filter(t => t.type === 'transfer_out' && t.Status === 'In Transit').forEach(t => { if (!groups[t.batchId]) groups[t.batchId] = { ...t, items: [] }; groups[t.batchId].items.push(t); });
-    Object.values(groups).forEach(t => {
-        const from = findByKey(state.branches, 'branchCode', t.fromBranchCode)?.branchName || t.fromBranchCode;
-        tbody.innerHTML += `<tr><td>${formatDate(t.date)}</td><td>${from}</td><td>${t.ref}</td><td>${t.items.length}</td><td><button class="primary small btn-receive-transfer" data-batch-id="${t.batchId}">View</button></td></tr>`;
-    });
-    container.style.display = Object.keys(groups).length ? 'block' : 'none';
-}
-
-export function renderInTransitReport() {
-    const tbody = document.getElementById('table-in-transit')?.querySelector('tbody'); if (!tbody) return; tbody.innerHTML = '';
-    const groups = {};
-    (state.transactions || []).filter(t => t.type === 'transfer_out').forEach(t => { if (!groups[t.batchId]) groups[t.batchId] = { ...t, items: [] }; groups[t.batchId].items.push(t); });
-    Object.values(groups).forEach(t => {
-        const from = findByKey(state.branches, 'branchCode', t.fromBranchCode)?.branchName;
-        const to = findByKey(state.branches, 'branchCode', t.toBranchCode)?.branchName;
-        tbody.innerHTML += `<tr><td>${formatDate(t.date)}</td><td>${from}</td><td>${to}</td><td>${t.ref}</td><td>${t.items.length}</td><td>${t.Status}</td><td>-</td></tr>`;
-    });
-}
-
 export function renderActivityLog() {
     const table = document.getElementById('table-activity-log');
     if (!table) return;
@@ -716,5 +693,88 @@ export function renderActivityLog() {
         const tr = document.createElement('tr');
         tr.innerHTML = `<td>${new Date(log.Timestamp).toLocaleString()}</td><td>${log.User || 'N/A'}</td><td>${log.Action}</td><td>${log.Description}</td>`;
         tbody.appendChild(tr);
+    });
+}
+
+// --- HEADER NOTIFICATION ---
+export function updateNotifications() {
+    const widget = document.getElementById('pending-requests-widget');
+    const countEl = document.getElementById('pending-requests-count');
+    const textEl = document.getElementById('pending-requests-widget-text');
+    
+    if (!widget || !state.currentUser) return;
+    
+    const myBranch = state.currentUser.AssignedBranchCode;
+    const isAdmin = userCan('viewAllBranches');
+    
+    const pendingReqs = state.itemRequests.filter(r => r.Status === 'Pending').length;
+    
+    const incomingBatches = new Set();
+    state.transactions.forEach(t => {
+        if (t.type === 'transfer_out' && t.Status === 'In Transit') {
+            if (isAdmin || t.toBranchCode === myBranch) {
+                incomingBatches.add(t.batchId);
+            }
+        }
+    });
+
+    const totalCount = pendingReqs + incomingBatches.size;
+
+    if (totalCount > 0) {
+        widget.style.display = 'flex';
+        countEl.textContent = totalCount;
+        if (incomingBatches.size > 0) {
+            textEl.textContent = `${incomingBatches.size} Incoming Transfer(s)`;
+            widget.style.backgroundColor = '#E65100';
+        } else {
+            textEl.textContent = "Pending Requests";
+            widget.style.backgroundColor = '#FBC02D';
+        }
+        
+        widget.dataset.actionType = incomingBatches.size > 0 ? 'transfer' : 'request';
+    } else {
+        widget.style.display = 'none';
+    }
+}
+
+// --- DATA VIEWS ---
+export function renderPendingTransfers() {
+    const container = document.getElementById('pending-transfers-card'); if (!container) return;
+    const tbody = document.getElementById('table-pending-transfers')?.querySelector('tbody'); if (!tbody) return; tbody.innerHTML = '';
+    const uBranch = state.currentUser?.AssignedBranchCode;
+    const isAdmin = userCan('viewAllBranches');
+    const groups = {};
+    state.transactions.forEach(t => {
+        if (t.type === 'transfer_out' && t.Status === 'In Transit') {
+            if (isAdmin || t.toBranchCode === uBranch) {
+                if (!groups[t.batchId]) groups[t.batchId] = { ...t, items: [] };
+                groups[t.batchId].items.push(t);
+            }
+        }
+    });
+    const list = Object.values(groups);
+    if (!list.length) { container.style.display = 'none'; return; }
+    container.style.display = 'block';
+    list.forEach(t => {
+        const from = findByKey(state.branches, 'branchCode', t.fromBranchCode)?.branchName || t.fromBranchCode;
+        tbody.innerHTML += `<tr><td>${formatDate(t.date)}</td><td>Incoming from ${from}</td><td>${t.ref}</td><td>${t.items.length}</td><td><button class="primary small btn-receive-transfer" data-batch-id="${t.batchId}">Receive</button></td></tr>`;
+    });
+}
+
+export function renderInTransitReport() {
+    const tbody = document.getElementById('table-in-transit')?.querySelector('tbody'); if (!tbody) return; tbody.innerHTML = '';
+    const groups = {};
+    state.transactions.forEach(t => {
+        if (t.type === 'transfer_out') {
+            if (!groups[t.batchId]) groups[t.batchId] = { ...t, items: [] };
+            groups[t.batchId].items.push(t);
+        }
+    });
+    Object.values(groups).forEach(t => {
+        const from = findByKey(state.branches, 'branchCode', t.fromBranchCode)?.branchName;
+        const to = findByKey(state.branches, 'branchCode', t.toBranchCode)?.branchName;
+        const canCancel = t.Status === 'In Transit' && (userCan('viewAllBranches') || t.fromBranchCode === state.currentUser.AssignedBranchCode);
+        const act = canCancel ? `<button class="danger small btn-cancel-transfer" data-batch-id="${t.batchId}">Cancel</button>` : t.Status;
+        tbody.innerHTML += `<tr><td>${formatDate(t.date)}</td><td>${from}</td><td>${to}</td><td>${t.ref}</td><td>${t.items.length}</td><td>${t.Status}</td><td>${act}</td></tr>`;
     });
 }
