@@ -61,11 +61,7 @@ const renderDynamicListTable = (tbodyId, list, columnsConfig, emptyMessage, tota
 
 export function renderReceiveListTable() { 
     renderDynamicListTable('table-receive-list', state.currentReceiveList, [ 
-        { type: 'text', key: 'itemCode' }, 
-        { type: 'text', key: 'itemName' }, 
-        { type: 'number_input', key: 'quantity' }, 
-        { type: 'cost_input', key: 'cost' }, 
-        { type: 'calculated', calculator: item => formatCurrency((parseFloat(item.quantity)||0) * (parseFloat(item.cost)||0)) } 
+        { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated', calculator: item => formatCurrency((parseFloat(item.quantity)||0) * (parseFloat(item.cost)||0)) } 
     ], 'no_items_selected_toast', () => {
         let total = state.currentReceiveList.reduce((acc, i) => acc + ((parseFloat(i.quantity)||0) * (parseFloat(i.cost)||0)), 0);
         const el = document.getElementById('receive-grand-total');
@@ -75,15 +71,15 @@ export function renderReceiveListTable() {
 
 export function renderButcheryListTable() {
     renderDynamicListTable('table-butchery-children', state.currentButcheryList, [ 
-        { type: 'text', key: 'itemCode' }, 
-        { type: 'text', key: 'itemName' }, 
-        { type: 'number_input', key: 'quantity', step: 0.001 } 
+        { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity', step: 0.001 } 
     ], 'no_items_selected_toast', () => {
         let total = state.currentButcheryList.reduce((acc, i) => acc + (parseFloat(i.quantity)||0), 0);
         const totalEl = document.getElementById('butchery-total-weight');
         if(totalEl) totalEl.textContent = total.toFixed(3);
         
-        const parentQty = parseFloat(document.getElementById('butchery-parent-qty')?.value) || 0;
+        const parentQtyInput = document.getElementById('butchery-parent-qty');
+        const parentQty = parseFloat(parentQtyInput ? parentQtyInput.value : 0) || 0;
+        
         if (parentQty > 0) {
             const pct = (total / parentQty) * 100;
             const el = document.getElementById('butchery-yield-pct');
@@ -97,10 +93,7 @@ export function renderButcheryListTable() {
 
 export function renderTransferListTable() { 
     renderDynamicListTable('table-transfer-list', state.currentTransferList, [ 
-        { type: 'text', key: 'itemCode' }, 
-        { type: 'text', key: 'itemName' }, 
-        { type: 'available_stock', branchSelectId: 'transfer-from-branch' }, 
-        { type: 'number_input', key: 'quantity' } 
+        { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'available_stock', branchSelectId: 'transfer-from-branch' }, { type: 'number_input', key: 'quantity' } 
     ], 'no_items_selected_toast', () => {
         let total = state.currentTransferList.reduce((acc, i) => acc + (parseFloat(i.quantity)||0), 0);
         const el = document.getElementById('transfer-grand-total');
@@ -110,11 +103,7 @@ export function renderTransferListTable() {
 
 export function renderReturnListTable() { 
     renderDynamicListTable('table-return-list', state.currentReturnList, [ 
-        { type: 'text', key: 'itemCode' }, 
-        { type: 'text', key: 'itemName' }, 
-        { type: 'available_stock', branchSelectId: 'return-branch' }, 
-        { type: 'number_input', key: 'quantity' }, 
-        { type: 'cost_input', key: 'cost' }
+        { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'available_stock', branchSelectId: 'return-branch' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' } 
     ], 'no_items_selected_toast', () => {
         let total = state.currentReturnList.reduce((acc, i) => acc + ((parseFloat(i.quantity)||0) * (parseFloat(i.cost)||0)), 0);
         const el = document.getElementById('return-grand-total');
@@ -124,11 +113,7 @@ export function renderReturnListTable() {
 
 export function renderPOListTable() { 
     renderDynamicListTable('table-po-list', state.currentPOList, [ 
-        { type: 'text', key: 'itemCode' }, 
-        { type: 'text', key: 'itemName' }, 
-        { type: 'number_input', key: 'quantity' }, 
-        { type: 'cost_input', key: 'cost' }, 
-        { type: 'calculated', calculator: item => formatCurrency((parseFloat(item.quantity)||0) * (parseFloat(item.cost)||0)) } 
+        { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated', calculator: item => formatCurrency((parseFloat(item.quantity)||0) * (parseFloat(item.cost)||0)) } 
     ], 'no_items_selected_toast', () => {
         let total = state.currentPOList.reduce((acc, i) => acc + ((parseFloat(i.quantity)||0) * (parseFloat(i.cost)||0)), 0);
         const el = document.getElementById('po-grand-total');
@@ -138,11 +123,7 @@ export function renderPOListTable() {
 
 export function renderPOEditListTable() {
     renderDynamicListTable('table-edit-po-list', state.currentEditingPOList, [ 
-        { type: 'text', key: 'itemCode' }, 
-        { type: 'text', key: 'itemName' }, 
-        { type: 'number_input', key: 'quantity' }, 
-        { type: 'cost_input', key: 'cost' }, 
-        { type: 'calculated', calculator: item => formatCurrency((parseFloat(item.quantity)||0) * (parseFloat(item.cost)||0)) } 
+        { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated', calculator: item => formatCurrency((parseFloat(item.quantity)||0) * (parseFloat(item.cost)||0)) } 
     ], 'no_items_selected_toast', () => {
         let total = state.currentEditingPOList.reduce((acc, i) => acc + ((parseFloat(i.quantity)||0) * (parseFloat(i.cost)||0)), 0);
         const el = document.getElementById('edit-po-grand-total');
@@ -152,9 +133,7 @@ export function renderPOEditListTable() {
 
 export function renderRequestListTable() { 
     renderDynamicListTable('table-request-list', state.currentRequestList, [ 
-        { type: 'text', key: 'itemCode' }, 
-        { type: 'text', key: 'itemName' }, 
-        { type: 'number_input', key: 'quantity' } 
+        { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' } 
     ], 'no_items_selected_toast', null); 
 }
 
@@ -171,13 +150,15 @@ export function renderAdjustmentListTable() {
     }
     
     const stock = calculateStockLevels();
-    const branchCode = document.getElementById('adjustment-branch')?.value;
+    const branchCodeEl = document.getElementById('adjustment-branch');
+    const branchCode = branchCodeEl ? branchCodeEl.value : null;
 
     state.currentAdjustmentList.forEach((item, index) => {
         const systemQty = (branchCode && stock[branchCode]?.[item.itemCode]?.quantity) || 0;
         const physicalCount = typeof item.physicalCount !== 'undefined' ? item.physicalCount : '';
         const adjustment = (parseFloat(physicalCount) || 0) - systemQty;
         
+        // Sync physicalCount back to object in case it's missing
         item.physicalCount = physicalCount;
 
         const tr = document.createElement('tr');
@@ -232,12 +213,12 @@ export function renderSuppliersTable(data = state.suppliers) {
     if (!tbody) return;
     tbody.innerHTML = '';
     
-    const financials = calculateSupplierFinancials();
-    
     if (!data || data.length === 0) {
         tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">${_t('no_suppliers_found')}</td></tr>`;
         return;
     }
+    
+    const financials = calculateSupplierFinancials();
     
     data.forEach(supplier => {
         const balance = financials[supplier.supplierCode]?.balance || 0;
@@ -296,11 +277,11 @@ export function renderSectionsTable(data = state.sections) {
     });
 }
 
-// --- REPORT & HISTORY RENDERERS ---
+// --- REPORT RENDERERS ---
 
 export function renderTransactionHistory(filters = {}) {
     const table = document.getElementById('table-transaction-history');
-    if (!table) return; 
+    if (!table) return;
     const tbody = table.querySelector('tbody');
     if (!tbody) return;
     tbody.innerHTML = '';
@@ -321,7 +302,7 @@ export function renderTransactionHistory(filters = {}) {
         ...allPo.map(po => ({...po, type: 'po', batchId: po.poId, ref: po.poId})) 
     ];
 
-    // Filter Logic
+    // Filtering Logic
     const sDate = filters.startDate ? new Date(filters.startDate) : null;
     if(sDate) sDate.setHours(0,0,0,0);
     const eDate = filters.endDate ? new Date(filters.endDate) : null;
@@ -343,6 +324,7 @@ export function renderTransactionHistory(filters = {}) {
         });
     }
 
+    // Grouping
     const grouped = {};
     allHistoryItems.forEach(t => {
         const key = t.batchId;
@@ -365,7 +347,10 @@ export function renderTransactionHistory(filters = {}) {
         
         const canEditInvoice = state.currentUser?.permissions?.opEditInvoice && first.type === 'receive' && (!first.isApproved);
         let actionsHtml = `<button class="secondary small btn-view-tx" data-batch-id="${group.batchId}" data-type="${first.type}">${_t('view_print')}</button>`;
-        
+        if(canEditInvoice){
+            actionsHtml += `<button class="secondary small btn-edit-invoice" data-batch-id="${group.batchId}">${_t('edit')}</button>`;
+        }
+
         if(first.type === 'receive') {
             details = `Received from <strong>${findByKey(state.suppliers, 'supplierCode', first.supplierCode)?.name || 'N/A'}</strong>`;
             refNum = first.invoiceNumber;
@@ -392,7 +377,6 @@ export function renderPendingFinancials() {
     const table = document.getElementById('table-pending-financial-approval');
     if (!table) return;
     const tbody = table.querySelector('tbody');
-    if (!tbody) return;
     tbody.innerHTML = '';
     
     const pendingPOs = (state.purchaseOrders || []).filter(po => po.Status === 'Pending Approval');
@@ -534,8 +518,6 @@ export function renderItemsInModal(filter = '') {
         listEl.innerHTML += `<div class="modal-item"><input type="checkbox" id="modal-item-${item.code}" data-code="${item.code}" ${isChecked ? 'checked' : ''}><label for="modal-item-${item.code}"><strong>${item.name}</strong><br><small style="color:var(--text-light-color)">${item.code}</small></label></div>`;
     });
 }
-
-// --- STOCK VIEW (FIXED) ---
 
 export function renderItemCentricStockView() {
     const container = document.getElementById('item-centric-stock-container');
@@ -685,19 +667,16 @@ export function renderSupplierStatement(code, d1, d2) {
     container.style.display = 'block';
 }
 
-export function renderActivityLog() {
-    const table = document.getElementById('table-activity-log');
+export function renderPurchaseOrdersViewer() {
+    const table = document.getElementById('table-po-viewer');
     if (!table) return;
     const tbody = table.querySelector('tbody');
+    if (!tbody) return;
     tbody.innerHTML = '';
-    if (!state.activityLog || state.activityLog.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;">No activity logged.</td></tr>`;
-        return;
-    }
-    state.activityLog.slice().reverse().forEach(log => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${new Date(log.Timestamp).toLocaleString()}</td><td>${log.User || 'N/A'}</td><td>${log.Action}</td><td>${log.Description}</td>`;
-        tbody.appendChild(tr);
+    (state.purchaseOrders || []).slice().reverse().forEach(po => {
+        const sup = findByKey(state.suppliers, 'supplierCode', po.supplierCode)?.name || po.supplierCode;
+        const items = state.purchaseOrderItems.filter(i => i.poId === po.poId);
+        tbody.innerHTML += `<tr><td>${po.poId}</td><td>${formatDate(po.date)}</td><td>${sup}</td><td>${items.length}</td><td>${formatCurrency(po.totalValue)}</td><td>${po.Status}</td><td><button class="secondary small btn-view-tx" data-batch-id="${po.poId}" data-type="po">View</button></td></tr>`;
     });
 }
 
@@ -724,13 +703,18 @@ export function renderInTransitReport() {
     });
 }
 
-export function renderPurchaseOrdersViewer() {
-    const tbody = document.getElementById('table-po-viewer')?.querySelector('tbody');
-    if (!tbody) return;
+export function renderActivityLog() {
+    const table = document.getElementById('table-activity-log');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
     tbody.innerHTML = '';
-    (state.purchaseOrders || []).slice().reverse().forEach(po => {
-        const sup = findByKey(state.suppliers, 'supplierCode', po.supplierCode)?.name || po.supplierCode;
-        const items = state.purchaseOrderItems.filter(i => i.poId === po.poId);
-        tbody.innerHTML += `<tr><td>${po.poId}</td><td>${formatDate(po.date)}</td><td>${sup}</td><td>${items.length}</td><td>${formatCurrency(po.totalValue)}</td><td>${po.Status}</td><td><button class="secondary small btn-view-tx" data-batch-id="${po.poId}" data-type="po">View</button></td></tr>`;
+    if (!state.activityLog || state.activityLog.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;">No activity logged.</td></tr>`;
+        return;
+    }
+    state.activityLog.slice().reverse().forEach(log => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${new Date(log.Timestamp).toLocaleString()}</td><td>${log.User || 'N/A'}</td><td>${log.Action}</td><td>${log.Description}</td>`;
+        tbody.appendChild(tr);
     });
 }
