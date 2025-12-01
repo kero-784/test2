@@ -722,28 +722,50 @@ export function renderPendingTransfers() {
 }
 
 export function renderInTransitReport() {
-    const tbody = document.getElementById('table-in-transit')?.querySelector('tbody'); if (!tbody) return; tbody.innerHTML = '';
+    const tbody = document.getElementById('table-in-transit')?.querySelector('tbody'); 
+    if (!tbody) return; 
+    tbody.innerHTML = '';
+    
     const groups = {};
-    (state.transactions || []).filter(t => t.type === 'transfer_out').forEach(t => { if (!groups[t.batchId]) groups[t.batchId] = { ...t, items: [] }; groups[t.batchId].items.push(t); });
-    Object.values(groups).forEach(t => {
+    // FILTER: Strictly 'In Transit' only
+    (state.transactions || []).filter(t => t.type === 'transfer_out' && t.Status === 'In Transit').forEach(t => {
+        if (!groups[t.batchId]) groups[t.batchId] = { ...t, items: [] };
+        groups[t.batchId].items.push(t);
+    });
+
+    const sortedGroups = Object.values(groups).sort((a,b) => new Date(b.date) - new Date(a.date));
+
+    if(sortedGroups.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">No items currently in transit.</td></tr>`;
+        return;
+    }
+
+    sortedGroups.forEach(t => {
         const from = findByKey(state.branches, 'branchCode', t.fromBranchCode)?.branchName || 'N/A';
         const to = findByKey(state.branches, 'branchCode', t.toBranchCode)?.branchName || 'N/A';
         
-        // FIX: Action Logic based on Role
-        const isReceiver = state.currentUser?.AssignedBranchCode === t.toBranchCode;
-        const isSender = state.currentUser?.AssignedBranchCode === t.fromBranchCode;
+        const myBranch = state.currentUser?.AssignedBranchCode;
         const isAdmin = userCan('viewAllBranches');
-        let act = t.Status;
-        
-        if (t.Status === 'In Transit') {
-            if (isReceiver) {
-                act = `<button class="primary small btn-receive-transfer" data-batch-id="${t.batchId}">Receive</button>`;
-            } else if (isSender || isAdmin) {
-                act = `<button class="danger small btn-cancel-transfer" data-batch-id="${t.batchId}">Cancel</button>`;
-            }
+
+        let actionHtml = `<span class="status-tag status-intransit">In Transit</span>`;
+
+        // Logic: If Receiver -> Show Receive. If Sender/Admin -> Show Cancel.
+        if (t.toBranchCode === myBranch) {
+            actionHtml = `<button class="primary small btn-receive-transfer" data-batch-id="${t.batchId}">Receive Stock</button>`;
+        } else if (t.fromBranchCode === myBranch || isAdmin) {
+            actionHtml = `<button class="danger small btn-cancel-transfer" data-batch-id="${t.batchId}">Cancel Transfer</button>`;
         }
         
-        tbody.innerHTML += `<tr><td>${formatDate(t.date)}</td><td>${from}</td><td>${to}</td><td>${t.ref}</td><td>${t.items.length}</td><td>${t.Status}</td><td>${act}</td></tr>`;
+        tbody.innerHTML += `
+            <tr>
+                <td>${formatDate(t.date)}</td>
+                <td>${from}</td>
+                <td>${to}</td>
+                <td>${t.ref}</td>
+                <td>${t.items.length}</td>
+                <td>${t.Status}</td>
+                <td>${actionHtml}</td>
+            </tr>`;
     });
 }
 
