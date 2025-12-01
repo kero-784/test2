@@ -52,7 +52,24 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+// --- LANGUAGE SWITCHER HANDLER ---
+    const langSwitcher = document.getElementById('lang-switcher');
+    if (langSwitcher) {
+        // Set initial value based on default state
+        langSwitcher.value = state.currentLanguage || 'en';
 
+        langSwitcher.addEventListener('change', (e) => {
+            const newLang = e.target.value;
+            setState('currentLanguage', newLang);
+            
+            // 1. Apply text translations and flip direction (LTR/RTL)
+            applyTranslations();
+            
+            // 2. Re-initialize UI to refresh dropdown placeholders (e.g., "Select Branch")
+            // This ensures dynamic JS-generated dropdowns get translated headers
+            initializeAppUI();
+        });
+    }
     // --- GLOBAL CLICK LISTENER ---
     document.body.addEventListener('click', (e) => {
         const btn = e.target.closest('button');
