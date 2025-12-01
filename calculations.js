@@ -1,4 +1,3 @@
-// calculations.js
 import { state } from './state.js';
 import { findByKey } from './utils.js';
 
@@ -30,9 +29,6 @@ export const calculateStockLevels = () => {
 
         /**
          * Helper to update a specific branch's stock record
-         * @param {string} branchCode 
-         * @param {number} qtyChange (Positive for IN, Negative for OUT)
-         * @param {number} cost (Unit cost, required for IN transactions)
          */
         const processStockUpdate = (branchCode, qtyChange, cost) => {
             if (!branchCode || !stock.hasOwnProperty(branchCode)) return;
@@ -45,7 +41,7 @@ export const calculateStockLevels = () => {
             };
             
             if(qtyChange > 0) {
-                // Weighted Average Cost Calculation
+                // Weighted Average Cost Calculation (INCOMING)
                 const currentTotalValue = current.quantity * current.avgCost;
                 const newTransactionValue = qtyChange * cost;
                 const totalQty = current.quantity + qtyChange;
@@ -150,9 +146,12 @@ export const calculateSupplierFinancials = () => {
                 financials[t.supplierCode].invoices[invNum] = { number: invNum, date: t.date, total: 0, paid: 0 }; 
             }
             financials[t.supplierCode].invoices[invNum].total += value;
+            // Log event for statement
+            financials[t.supplierCode].events.push({ date: t.date, type: 'Bill', ref: invNum, debit: value, credit: 0 });
             
         } else if (t.type === 'return_out') {
             financials[t.supplierCode].totalCredited += value;
+            financials[t.supplierCode].events.push({ date: t.date, type: 'Credit', ref: t.ref, debit: 0, credit: value });
         }
     });
 
@@ -165,6 +164,7 @@ export const calculateSupplierFinancials = () => {
                 financials[p.supplierCode].totalBilled += amount;
             } else {
                 financials[p.supplierCode].totalPaid += amount;
+                financials[p.supplierCode].events.push({ date: p.date, type: 'Pay', ref: p.paymentId, debit: 0, credit: amount });
             }
             
             // Allocate payment to specific invoice if indicated
@@ -193,13 +193,8 @@ export const calculateSupplierFinancials = () => {
             } 
         });
 
-        // Build chronological event list for Statement generation
-        const allEvents = [
-            ...Object.values(s.invoices).map(i => ({ date: i.date, type: 'Invoice/OB', ref: i.number, debit: i.total, credit: 0 })),
-            ...(state.transactions || []).filter(t => t.type === 'return_out' && t.supplierCode === s.supplierCode).map(t => ({ date: t.date, type: 'Return (Credit)', ref: t.ref, debit: 0, credit: (parseFloat(t.quantity) || 0) * (parseFloat(t.cost) || 0) })),
-            ...(state.payments || []).filter(p => p.supplierCode === s.supplierCode && p.method !== 'OPENING BALANCE').map(p => ({ date: p.date, type: 'Payment', ref: p.paymentId, debit: 0, credit: (parseFloat(p.amount) || 0) }))
-        ];
-        s.events = allEvents.sort((a,b) => new Date(a.date) - new Date(b.date));
+        // Sort events
+        s.events = s.events.sort((a,b) => new Date(a.date) - new Date(b.date));
     });
     
     return financials;
