@@ -1,4 +1,3 @@
-
 import { SCRIPT_URL } from './config.js';
 import { state, setState, resetStateLists } from './state.js';
 import { Logger, showToast, applyTranslations, populateOptions, findByKey, postData, formatCurrency, _t, userCan } from './utils.js';
@@ -52,24 +51,19 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-// --- LANGUAGE SWITCHER HANDLER ---
+
+    // --- LANGUAGE SWITCHER HANDLER ---
     const langSwitcher = document.getElementById('lang-switcher');
     if (langSwitcher) {
-        // Set initial value based on default state
         langSwitcher.value = state.currentLanguage || 'en';
-
         langSwitcher.addEventListener('change', (e) => {
             const newLang = e.target.value;
             setState('currentLanguage', newLang);
-            
-            // 1. Apply text translations and flip direction (LTR/RTL)
             applyTranslations();
-            
-            // 2. Re-initialize UI to refresh dropdown placeholders (e.g., "Select Branch")
-            // This ensures dynamic JS-generated dropdowns get translated headers
             initializeAppUI();
         });
     }
+
     // --- GLOBAL CLICK LISTENER ---
     document.body.addEventListener('click', (e) => {
         const btn = e.target.closest('button');
@@ -82,6 +76,27 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btn.classList.contains('btn-edit')) {
              Renderers.renderEditModalContent(btn.dataset.type, btn.dataset.id);
              document.getElementById('edit-modal').classList.add('active');
+        }
+
+        // --- USER MANAGEMENT BUTTONS ---
+        if (btn.id === 'btn-add-new-user') {
+            Renderers.renderEditModalContent('user', null); 
+            document.getElementById('edit-modal').classList.add('active');
+        }
+        if (btn.id === 'btn-add-new-role') {
+            Renderers.renderEditModalContent('role', null);
+            document.getElementById('edit-modal').classList.add('active');
+        }
+        if (btn.classList.contains('btn-delete-role')) {
+            if(confirm('Are you sure you want to delete this role?')) {
+                const roleName = btn.dataset.role;
+                postData('deleteRole', { roleName: roleName }, btn).then(res => {
+                    if(res) {
+                         showToast('Role deleted');
+                         refreshViewData('user-management');
+                    }
+                });
+            }
         }
 
         // --- TRANSFER ACTIONS (OPEN MODAL, CONFIRM, REJECT) ---
@@ -98,13 +113,11 @@ document.addEventListener('DOMContentLoaded', () => {
              Transactions.handleCancelTransfer(btn.dataset.batchId, btn);
         }
 
-        // --- NOTIFICATION CLICK LOGIC (FIXED NAVIGATION) ---
+        // --- NOTIFICATION CLICK LOGIC ---
         if (e.target.id === 'pending-requests-widget' || e.target.closest('#pending-requests-widget')) {
              const widget = document.getElementById('pending-requests-widget');
              if (widget.dataset.actionType === 'transfer') {
-                 // 1. Switch to Operations View
                  showView('operations');
-                 // 2. Force click the "In-Transit" sub-tab after short delay
                  setTimeout(() => {
                      const tab = document.querySelector('button[data-subview="in-transit"]');
                      if(tab) tab.click();
@@ -112,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
              } else {
                  showView('requests');
              }
-             return; // Stop here
+             return; 
         }
         
         // --- SELECT ITEMS ---
@@ -182,7 +195,7 @@ document.addEventListener('DOMContentLoaded', () => {
             state.modalSelections.clear();
         }
 
-        // ... (Keep existing Report/Payment/Auto-Gen logic) ...
+        // ... Helpers ...
         if (btn.id === 'btn-select-invoices') { Renderers.renderInvoicesInModal(); document.getElementById('invoice-selector-modal').classList.add('active'); }
         if (btn.id === 'btn-confirm-invoice-selection') { document.getElementById('invoice-selector-modal').classList.remove('active'); Renderers.renderPaymentList(); }
         if (btn.id === 'btn-generate-supplier-statement') { Renderers.renderSupplierStatement(document.getElementById('supplier-statement-select').value, document.getElementById('statement-start-date').value, document.getElementById('statement-end-date').value); }
@@ -350,17 +363,17 @@ document.addEventListener('DOMContentLoaded', () => {
     attachFormHandler('form-add-branch', 'addBranch', () => ({ branchCode: getValue('branch-code'), branchName: getValue('branch-name') }));
     attachFormHandler('form-add-section', 'addSection', () => ({ sectionCode: getValue('section-code'), sectionName: getValue('section-name') }));
     
-    // Edit Form
+    // Edit Form (Generalized)
     const editForm = document.getElementById('form-edit-record');
     if (editForm) {
         editForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const form = e.target;
-            const type = form.dataset.type;
-            const id = form.dataset.id;
             const formData = new FormData(form);
+            let type = form.dataset.type; // Set by renderEditModalContent
+
             const updates = {};
-            
+            // Item Links specific
             if (type === 'item') {
                 const selectedCuts = [];
                 form.querySelectorAll('input[name="DefinedCuts"]:checked').forEach(cb => selectedCuts.push(cb.value));
@@ -368,17 +381,39 @@ document.addEventListener('DOMContentLoaded', () => {
                     updates['DefinedCuts'] = selectedCuts.join(',');
                 }
             }
+            
+            // Collect standard fields
             for (let [key, value] of formData.entries()) { if (key !== 'DefinedCuts' && value !== "") updates[key] = value; }
             
+            // Handle Checkboxes specifically for User Disable
+            if (type === 'user') {
+                updates['isDisabled'] = form.querySelector('[name="isDisabled"]').checked;
+            }
+
             let action = 'updateData';
-            let payload = { type, id, updates };
-            if (type === 'user') { action = id ? 'updateUser' : 'addUser'; payload = id ? { Username: id, updates } : updates; }
+            let payload = { type, id: form.dataset.id, updates };
+
+            if (type === 'user') {
+                const username = formData.get('Username');
+                // If ID exists in dataset, it's edit. Otherwise new.
+                const isNew = !form.dataset.id;
+                action = isNew ? 'addUser' : 'updateUser';
+                payload = isNew ? updates : { Username: username, updates };
+            } 
+            else if (type === 'role') {
+                action = 'addRole';
+                payload = updates;
+            }
 
             const res = await postData(action, payload, form.querySelector('button[type="submit"]'));
             if(res) {
-                showToast('Update successful');
+                showToast('Action successful');
                 document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
-                reloadData();
+                if (type === 'user' || type === 'role') {
+                    refreshViewData('user-management');
+                } else {
+                    reloadData();
+                }
             }
         });
     }
@@ -473,7 +508,7 @@ function applyUIPermissions() {
 
 function initializeAppUI() {
     applyTranslations();
-    applyUIPermissions(); // Enforce permissions on UI elements
+    applyUIPermissions();
     
     const u = state.currentUser;
     document.querySelector('.sidebar-header h1').textContent = `Hi, ${u.Name.split(' ')[0]}`;
@@ -486,7 +521,6 @@ function initializeAppUI() {
 }
 
 function showView(id) {
-    // Check permission before showing view
     const navItem = document.querySelector(`.nav-item a[data-view="${id}"]`)?.parentElement;
     if (navItem && navItem.hasAttribute('data-permission')) {
         const perms = navItem.dataset.permission.split(',');
