@@ -269,7 +269,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             const po = findByKey(state.purchaseOrders, 'poId', id);
                             if(po) po.Status = action === 'approveFinancial' ? 'Approved' : 'Rejected';
                         }
-                        refreshViewData('purchasing');
+                        if (type === 'receive') {
+                            refreshViewData('operations');
+                        } else {
+                            refreshViewData('purchasing');
+                        }
                     }
                 });
             }
@@ -606,12 +610,13 @@ function refreshViewData(id) {
         Renderers.renderAdjustmentListTable();
         Renderers.renderPendingTransfers();
         Renderers.renderInTransitReport();
+        Renderers.renderPendingInvoices();
     }
     if(id === 'purchasing') {
         populateOptions(document.getElementById('po-supplier'), state.suppliers, 'Supplier', 'supplierCode', 'name');
         Renderers.renderPOListTable();
         Renderers.renderPurchaseOrdersViewer();
-        Renderers.renderPendingFinancials();
+        Renderers.renderPendingPOs();
     }
     if(id === 'user-management') {
          postData('getAllUsersAndRoles', {}, null).then(res => {
