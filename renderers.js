@@ -25,7 +25,7 @@ const PERMISSION_GROUPS = {
         { key: 'opProduction', label: 'Butchery & Production' },
         { key: 'opApproveGRN', label: 'Approve Invoices/GRNs' }
     ],
-    'Financials & Reports': [
+    'Financials': [
         { key: 'opCreatePO', label: 'Create PO' },
         { key: 'opApprovePO', label: 'Approve Purchase Orders' },
         { key: 'opEditInvoice', label: 'Edit GRN/Invoice' },
@@ -519,7 +519,7 @@ export function renderEditModalContent(type, id) {
     editForm.dataset.type = type;
     editForm.dataset.id = id || '';
 
-    let record = {}; 
+    let record = {}; // Initialize as empty object
     let formHtml;
 
     // Helper to safely get data
@@ -815,7 +815,21 @@ export function renderSupplierStatement(code, d1, d2) {
         const d = new Date(e.date);
         if ((!sDate || d >= sDate) && (!eDate || d <= eDate)) {
             runningBalance += (e.debit - e.credit);
-            tableHtml += `<tr><td>${formatDate(e.date)}</td><td>${e.type}</td><td>${e.ref}</td><td>${e.debit > 0 ? formatCurrency(e.debit) : '-'}</td><td>${e.credit > 0 ? formatCurrency(e.credit) : '-'}</td><td>${formatCurrency(runningBalance)}</td></tr>`;
+            
+            // ACTION BUTTON LOGIC
+            let actionBtn = '';
+            if (e.type === 'Pay' && e.ref) {
+                actionBtn = `<button class="secondary small btn-print-voucher" data-id="${e.ref}" style="margin-left:10px; padding:4px 8px;">Print</button>`;
+            }
+
+            tableHtml += `<tr>
+                <td>${formatDate(e.date)}</td>
+                <td>${e.type}</td>
+                <td>${e.ref}</td>
+                <td>${e.debit > 0 ? formatCurrency(e.debit) : '-'}</td>
+                <td>${e.credit > 0 ? formatCurrency(e.credit) : '-'} ${actionBtn}</td>
+                <td>${formatCurrency(runningBalance)}</td>
+            </tr>`;
         }
     });
 
