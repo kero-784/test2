@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- GLOBAL CLICK LISTENER ---
-    document.body.addEventListener('click', (e) => {
+    document.body.addEventListener('click', async (e) => {
         const btn = e.target.closest('button');
         if (!btn) return;
 
@@ -87,7 +87,6 @@ document.addEventListener('DOMContentLoaded', () => {
             Renderers.renderEditModalContent('role', null);
             document.getElementById('edit-modal').classList.add('active');
         }
-        // Permission Editor
         if (btn.classList.contains('btn-edit-role-perms')) {
             const roleName = btn.dataset.role;
             Renderers.renderEditModalContent('role-permissions', roleName);
@@ -96,27 +95,30 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btn.classList.contains('btn-delete-role')) {
             if(confirm('Are you sure you want to delete this role?')) {
                 const roleName = btn.dataset.role;
-                postData('deleteRole', { roleName: roleName }, btn).then(res => {
-                    if(res) {
-                         showToast('Role deleted');
-                         refreshViewData('user-management');
-                    }
-                });
+                const res = await postData('deleteRole', { roleName: roleName }, btn);
+                if(res) {
+                     showToast('Role deleted');
+                     // LIVE UPDATE: Reload data to ensure sync
+                     await reloadData();
+                }
             }
         }
 
-        // --- TRANSFER ACTIONS (OPEN MODAL, CONFIRM, REJECT) ---
+        // --- TRANSFER ACTIONS ---
         if (btn.classList.contains('btn-receive-transfer')) {
              Transactions.openTransferModal(btn.dataset.batchId);
         }
         if (btn.id === 'btn-confirm-receive-transfer') {
-             Transactions.processTransferAction('receiveTransfer', btn.dataset.batchId, btn);
+             await Transactions.processTransferAction('receiveTransfer', btn.dataset.batchId, btn);
+             await reloadData(); // LIVE UPDATE
         }
         if (btn.id === 'btn-reject-transfer') {
-             Transactions.processTransferAction('rejectTransfer', btn.dataset.batchId, btn);
+             await Transactions.processTransferAction('rejectTransfer', btn.dataset.batchId, btn);
+             await reloadData(); // LIVE UPDATE
         }
         if (btn.classList.contains('btn-cancel-transfer')) {
-             Transactions.handleCancelTransfer(btn.dataset.batchId, btn);
+             await Transactions.handleCancelTransfer(btn.dataset.batchId, btn);
+             await reloadData(); // LIVE UPDATE
         }
 
         // --- NOTIFICATION CLICK LOGIC ---
@@ -260,22 +262,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const action = btn.classList.contains('btn-approve-financial') ? 'approveFinancial' : 'rejectFinancial';
             
             if (confirm(`Confirm ${action}?`)) {
-                postData(action, { id, type }, btn).then(res => {
-                    if(res) {
-                        showToast('Updated', 'success');
-                        if (type === 'receive') {
-                            state.transactions.forEach(t => { if (t.batchId === id) { t.isApproved = (action==='approveFinancial'); t.Status = (action==='approveFinancial'?'Completed':'Rejected'); } });
-                        } else if (type === 'po') {
-                            const po = findByKey(state.purchaseOrders, 'poId', id);
-                            if(po) po.Status = action === 'approveFinancial' ? 'Approved' : 'Rejected';
-                        }
-                        if (type === 'receive') {
-                            refreshViewData('operations');
-                        } else {
-                            refreshViewData('purchasing');
-                        }
-                    }
-                });
+                const res = await postData(action, { id, type }, btn);
+                if(res) {
+                    showToast('Updated', 'success');
+                    // LIVE UPDATE: Reload data immediately
+                    await reloadData();
+                }
             }
         }
         
@@ -344,12 +336,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await postData(actionName, data, btn);
                 if(res) {
                     showToast(_t('add_success_toast'), 'success');
-                    if (actionName === 'addItem') state.items.push(data);
-                    if (actionName === 'addSupplier') state.suppliers.push(data);
-                    if (actionName === 'addBranch') state.branches.push(data);
-                    if (actionName === 'addSection') state.sections.push(data);
                     form.reset();
-                    refreshViewData('master-data');
+                    // LIVE UPDATE
+                    await reloadData();
                 }
             } catch (err) { console.error(err); showToast("Error processing form", "error"); }
         });
@@ -433,11 +422,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if(res) {
                 showToast('Action successful');
                 document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
-                if (type === 'user' || type === 'role' || type === 'role-permissions') {
-                    refreshViewData('user-management');
-                } else {
-                    reloadData();
-                }
+                // LIVE UPDATE
+                await reloadData();
             }
         });
     }
@@ -460,12 +446,25 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast('Payment recorded!', 'success');
             state.invoiceModalSelections.clear();
             pf.reset();
-            refreshViewData('payments');
+            // LIVE UPDATE
             await reloadData();
         }
     });
 
-    const bindBtn = (id, handler) => { const btn = document.getElementById(id); if(btn) btn.addEventListener('click', handler); };
+    // --- TRANSACTION HANDLERS (With Automatic Refresh) ---
+    // This wrapper function adds the automatic reload logic to any handler
+    const bindBtn = (id, handler) => { 
+        const btn = document.getElementById(id); 
+        if(btn) {
+            btn.addEventListener('click', async (e) => {
+                // Execute logic
+                await handler(e); 
+                // Force Update
+                await reloadData();
+            });
+        }
+    };
+
     bindBtn('btn-submit-receive-batch', Transactions.handleReceiveSubmit);
     bindBtn('btn-submit-butchery', Transactions.handleButcherySubmit);
     bindBtn('btn-submit-transfer-batch', Transactions.handleTransferSubmit);
@@ -602,14 +601,29 @@ function refreshViewData(id) {
             if(el && el.options.length <= 1) populateOptions(el, state.branches, 'Branch', 'branchCode', 'branchName');
         });
         
-        // --- NEW: ENFORCE BRANCH RESTRICTION (LOCK DROPDOWNS) ---
+        // --- BRANCH RESTRICTION (LOCKING) ---
         const user = state.currentUser;
         if (user && user.AssignedBranchCode) {
+            // Receive Tab
             const rxBranch = document.getElementById('receive-branch');
-            if(rxBranch) { rxBranch.value = user.AssignedBranchCode; rxBranch.disabled = true; }
+            if(rxBranch) { 
+                rxBranch.value = user.AssignedBranchCode; 
+                rxBranch.disabled = true; 
+            }
             
+            // Transfer Tab
             const txFrom = document.getElementById('transfer-from-branch');
-            if(txFrom) { txFrom.value = user.AssignedBranchCode; txFrom.disabled = true; }
+            if(txFrom) { 
+                txFrom.value = user.AssignedBranchCode; 
+                txFrom.disabled = true; 
+            }
+            
+            // Return Tab
+            const retBranch = document.getElementById('return-branch');
+            if(retBranch) { 
+                retBranch.value = user.AssignedBranchCode; 
+                retBranch.disabled = true; 
+            }
         }
         
         populateOptions(document.getElementById('receive-supplier'), state.suppliers, _t('supplier'), 'supplierCode', 'name');
