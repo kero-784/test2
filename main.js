@@ -87,7 +87,6 @@ document.addEventListener('DOMContentLoaded', () => {
             Renderers.renderEditModalContent('role', null);
             document.getElementById('edit-modal').classList.add('active');
         }
-        // Permission Editor
         if (btn.classList.contains('btn-edit-role-perms')) {
             const roleName = btn.dataset.role;
             Renderers.renderEditModalContent('role-permissions', roleName);
@@ -99,7 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await postData('deleteRole', { roleName: roleName }, btn);
                 if(res) {
                      showToast('Role deleted');
-                     await reloadData(); // LIVE UPDATE
+                     await reloadData();
                      refreshViewData('user-management');
                 }
             }
@@ -111,27 +110,51 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (btn.id === 'btn-confirm-receive-transfer') {
              await Transactions.processTransferAction('receiveTransfer', btn.dataset.batchId, btn);
-             await reloadData(); // LIVE UPDATE
+             await reloadData();
         }
         if (btn.id === 'btn-reject-transfer') {
              await Transactions.processTransferAction('rejectTransfer', btn.dataset.batchId, btn);
-             await reloadData(); // LIVE UPDATE
+             await reloadData();
         }
         if (btn.classList.contains('btn-cancel-transfer')) {
              await Transactions.handleCancelTransfer(btn.dataset.batchId, btn);
-             await reloadData(); // LIVE UPDATE
+             await reloadData();
+        }
+
+        // --- FINANCIALS (PAY FROM REPORT) ---
+        if (btn.classList.contains('btn-pay-supplier')) {
+            const supplierCode = btn.dataset.supplier;
+            // Switch to Financials -> Record Payment
+            showView('financials');
+            const recordTab = document.querySelector('button[data-subview="record-payment"]');
+            if(recordTab) recordTab.click();
+            
+            // Pre-select supplier and trigger invoices
+            setTimeout(() => {
+                const select = document.getElementById('payment-supplier-select');
+                if(select) {
+                    select.value = supplierCode;
+                    // Open invoices modal
+                    Renderers.renderInvoicesInModal();
+                    document.getElementById('invoice-selector-modal').classList.add('active');
+                }
+            }, 300);
+        }
+
+        // --- REPORT GENERATOR ---
+        if (btn.id === 'btn-generate-yield-report') {
+            const type = document.getElementById('yield-report-type').value;
+            const search = document.getElementById('yield-report-search').value;
+            Renderers.renderYieldAnalysisReport(type, search);
         }
 
         // --- NOTIFICATION CLICK LOGIC ---
         if (e.target.id === 'pending-requests-widget' || e.target.closest('#pending-requests-widget')) {
-             const widget = document.getElementById('pending-requests-widget');
-             if (widget.dataset.actionType === 'transfer') {
-                 showView('operations');
-                 setTimeout(() => {
-                     const tab = document.querySelector('button[data-subview="in-transit"]');
-                     if(tab) tab.click();
-                 }, 100);
-             }
+             showView('operations');
+             setTimeout(() => {
+                 const tab = document.querySelector('button[data-subview="in-transit"]');
+                 if(tab) tab.click();
+             }, 100);
              return; 
         }
         
@@ -261,7 +284,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await postData(action, { id, type }, btn);
                 if(res) {
                     showToast('Updated', 'success');
-                    await reloadData(); // LIVE UPDATE
+                    await reloadData();
                     if (type === 'receive') {
                         refreshViewData('operations');
                     } else {
@@ -340,7 +363,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (actionName === 'addBranch') state.branches.push(data);
                     if (actionName === 'addSection') state.sections.push(data);
                     form.reset();
-                    await reloadData(); // LIVE UPDATE
+                    await reloadData();
                     refreshViewData('master-data');
                 }
             } catch (err) { console.error(err); showToast("Error processing form", "error"); }
@@ -425,7 +448,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if(res) {
                 showToast('Action successful');
                 document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
-                await reloadData(); // LIVE UPDATE
+                await reloadData();
                 if (type === 'user' || type === 'role' || type === 'role-permissions') {
                     refreshViewData('user-management');
                 } else {
@@ -453,20 +476,10 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast('Payment recorded!', 'success');
             state.invoiceModalSelections.clear();
             pf.reset();
-            await reloadData(); // LIVE UPDATE
+            await reloadData();
             refreshViewData('payments');
         }
     });
-
-    // --- REPORT GENERATOR ---
-    const btnGenYield = document.getElementById('btn-generate-yield-report');
-    if (btnGenYield) {
-        btnGenYield.addEventListener('click', () => {
-            const type = document.getElementById('yield-report-type').value;
-            const search = document.getElementById('yield-report-search').value;
-            Renderers.renderYieldAnalysisReport(type, search);
-        });
-    }
 
     // --- TRANSACTION HANDLERS WRAPPER (Auto-Refresh) ---
     const bindBtn = (id, handler) => { 
@@ -474,7 +487,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if(btn) {
             btn.addEventListener('click', async (e) => {
                 await handler(e); 
-                await reloadData(); // LIVE UPDATE
+                await reloadData();
             });
         }
     };
@@ -594,8 +607,9 @@ function refreshViewData(id) {
         Renderers.renderTransactionHistory();
     }
     if(id === 'reports') populateOptions(document.getElementById('supplier-statement-select'), state.suppliers, 'Select Supplier', 'supplierCode', 'name');
-    if(id === 'payments') {
+    if(id === 'financials') { // Replaced 'payments' with 'financials' to match new ID
         populateOptions(document.getElementById('payment-supplier-select'), state.suppliers, 'Select Supplier', 'supplierCode', 'name');
+        populateOptions(document.getElementById('supplier-statement-select'), state.suppliers, 'Select Supplier', 'supplierCode', 'name');
         const listContainer = document.getElementById('payment-invoice-list-container');
         if(listContainer) listContainer.style.display = 'none';
     }
