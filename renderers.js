@@ -923,7 +923,6 @@ export function updateNotifications() {
     const myBranch = state.currentUser.AssignedBranchCode;
     const isAdmin = userCan('viewAllBranches');
     
-    // Only track incoming transfers now
     const incomingBatches = new Set();
     state.transactions.forEach(t => {
         if (t.type === 'transfer_out' && t.Status === 'In Transit') {
