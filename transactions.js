@@ -35,7 +35,7 @@ export async function handleButcherySubmit(e) {
 
     if (parentQty > availableStock) {
         showToast(`Insufficient Stock! You only have ${availableStock.toFixed(3)} kg available.`, 'error');
-        return; // STOP PROCESS
+        return; 
     }
 
     // 1. Calculate Totals
@@ -52,10 +52,10 @@ export async function handleButcherySubmit(e) {
                     `• Click CANCEL to go back and modify the weights.`;
 
         if (!confirm(msg)) {
-            return; // User clicked Cancel -> Return to form
+            return; // User clicked Cancel
         }
         
-        // User clicked OK -> Auto-adjust input to match output (Preserve Stock)
+        // User clicked OK -> Adjust input to match output (Stock Preservation)
         parentQty = totalChildWeight; 
         showToast(`Processed. ${difference.toFixed(3)}kg remains in parent stock.`, 'info');
 
@@ -88,14 +88,15 @@ export async function handleButcherySubmit(e) {
     const result = await postData('processButchery', payload, btn);
     if (result) {
         showToast('Production Complete!', 'success');
-        // Optimistic Update
         const now = new Date().toISOString();
+        
         childItems.forEach(c => state.transactions.push({
             batchId: batchNo, date: now, type: 'production_in', itemCode: c.itemCode, quantity: c.quantity, cost: c.cost, branchCode: branchCode, Status: 'Completed', isApproved: true
         }));
+        
         state.transactions.push({
             batchId: batchNo, date: now, type: 'production_out', itemCode: parentCode, quantity: parentQty, cost: parentAvgCost, branchCode: branchCode, fromBranchCode: branchCode, Status: 'Completed', isApproved: true
-        }));
+        });
 
         state.currentButcheryList = [];
         document.getElementById('form-butchery').reset();
@@ -156,14 +157,9 @@ export async function handleReceiveSubmit(e) {
     if (result) {
         showToast('Stock Received!', 'success');
         
-        // Optimistic UI Update
-        const isAutoApproved = !state.currentUser.permissions.opApproveGRN; 
-        // Logic: If user has approval rights, maybe auto-approve? Or default pending?
-        // Let's assume Pending to require double check usually.
-        const status = 'Pending Approval';
-
+        // Assume pending approval unless told otherwise by backend reload
         payload.items.forEach(item => {
-            state.transactions.push({ ...item, branchCode, supplierCode, invoiceNumber, isApproved: false, Status: status });
+            state.transactions.push({ ...item, branchCode, supplierCode, invoiceNumber, isApproved: false, Status: 'Pending Approval' });
         });
         
         generateReceiveDocument(payload);
@@ -195,18 +191,16 @@ export async function handleTransferSubmit(e) {
         return;
     }
 
-    // --- VALIDATION: CHECK STOCK AVAILABILITY ---
+    // --- VALIDATION ---
     const stock = calculateStockLevels();
     const branchStock = stock[fromBranchCode] || {};
     
-    // Check every item in the list
     for (let item of state.currentTransferList) {
         const currentQty = branchStock[item.itemCode]?.quantity || 0;
         const transferQty = parseFloat(item.quantity);
-        
         if (transferQty > currentQty) {
             showToast(`Insufficient stock for ${item.itemName}. Available: ${currentQty.toFixed(3)}`, 'error');
-            return; // STOP
+            return;
         }
     }
 
@@ -299,7 +293,7 @@ export async function handleReturnSubmit(e) {
         return;
     }
 
-    // --- VALIDATION: CHECK STOCK AVAILABILITY ---
+    // --- VALIDATION ---
     const stock = calculateStockLevels();
     const branchStock = stock[fromBranchCode] || {};
 
@@ -308,7 +302,7 @@ export async function handleReturnSubmit(e) {
         const returnQty = parseFloat(item.quantity);
         if (returnQty > currentQty) {
             showToast(`Insufficient stock for ${item.itemName}. Available: ${currentQty.toFixed(3)}`, 'error');
-            return; // STOP
+            return;
         }
     }
 
@@ -366,12 +360,6 @@ export async function handleAdjustmentSubmit(e) {
         const adjustmentQty = physicalCount - systemQty;
         
         if (Math.abs(adjustmentQty) < 0.001) return null; 
-
-        // Validation for Negative Adjustment (Cannot reduce more than exists, theoretically impossible with physical count but logic holds)
-        if (adjustmentQty < 0 && Math.abs(adjustmentQty) > systemQty) {
-             // This case implies system thought we had 10, physical is -5? Impossible. 
-             // Physical count should be >= 0.
-        }
 
         return {
             itemCode: item.itemCode,
@@ -446,7 +434,6 @@ export function openTransferModal(batchId) {
 }
 
 export async function processTransferAction(action, batchId, btn) {
-    // action = 'receiveTransfer' or 'rejectTransfer'
     const txs = state.transactions.filter(t => t.batchId === batchId && t.type === 'transfer_out');
     if(!txs.length) return;
 
