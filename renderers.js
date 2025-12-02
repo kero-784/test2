@@ -22,11 +22,12 @@ const PERMISSION_GROUPS = {
         { key: 'opIssue', label: 'Issue Stock' },
         { key: 'opReturn', label: 'Return to Supplier' },
         { key: 'opStockAdjustment', label: 'Stock Adjustments' },
-        { key: 'opProduction', label: 'Butchery & Production' }
+        { key: 'opProduction', label: 'Butchery & Production' },
+        { key: 'opApproveGRN', label: 'Approve Invoices/GRNs' }
     ],
     'Financials': [
         { key: 'opCreatePO', label: 'Create PO' },
-        { key: 'opApproveFinancials', label: 'Approve POs & GRNs' },
+        { key: 'opApprovePO', label: 'Approve Purchase Orders' },
         { key: 'opEditInvoice', label: 'Edit GRN/Invoice' },
         { key: 'opRecordPayment', label: 'Record Payments' }
     ],
@@ -415,14 +416,53 @@ export function renderTransactionHistory(filters = {}) {
     });
 }
 
-export function renderPendingFinancials() {
-    const table = document.getElementById('table-pending-financial-approval');
+// --- NEW SEPARATED APPROVAL RENDERERS ---
+
+export function renderPendingPOs() {
+    const table = document.getElementById('table-pending-pos');
     if (!table) return;
     const tbody = table.querySelector('tbody');
     tbody.innerHTML = '';
     
+    // Filter only Purchase Orders
     const pendingPOs = (state.purchaseOrders || []).filter(po => po.Status === 'Pending Approval');
+
+    if (pendingPOs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">${_t('no_pending_financial_approval')}</td></tr>`;
+        return;
+    }
+
+    pendingPOs.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(item => {
+        let actionButtons = '';
+        if (userCan('opApprovePO')) {
+            actionButtons = `
+                <div class="action-buttons">
+                    <button class="primary small btn-approve-financial" data-id="${item.poId}" data-type="po">${_t('approve')}</button>
+                    <button class="danger small btn-reject-financial" data-id="${item.poId}" data-type="po">${_t('reject')}</button>
+                </div>`;
+        } else {
+            actionButtons = `<span style="color:var(--text-light-color); font-style:italic;">${_t('status_pending')}</span>`;
+        }
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${formatDate(item.date)}</td>
+            <td>${item.poId}</td>
+            <td>PO for ${findByKey(state.suppliers, 'supplierCode', item.supplierCode)?.name || item.supplierCode}</td>
+            <td>${formatCurrency(item.totalValue)}</td>
+            <td>${actionButtons}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+export function renderPendingInvoices() {
+    const table = document.getElementById('table-pending-invoices');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    tbody.innerHTML = '';
     
+    // Group Receives (GRNs)
     const pendingReceivesGroups = {};
     (state.transactions || []).filter(t => t.type === 'receive' && (t.isApproved === false || String(t.isApproved).toUpperCase() === 'FALSE')).forEach(t => {
         if (!pendingReceivesGroups[t.batchId]) {
@@ -438,23 +478,20 @@ export function renderPendingFinancials() {
         pendingReceivesGroups[t.batchId].totalValue += (parseFloat(t.quantity) || 0) * (parseFloat(t.cost) || 0);
     });
 
-    let allPending = [
-        ...pendingPOs.map(po => ({...po, txType: 'po', ref: po.poId, value: po.totalValue, details: `PO for ${po.supplierCode}`})),
-        ...Object.values(pendingReceivesGroups).map(rcv => ({...rcv, value: rcv.totalValue}))
-    ];
+    const allPendingGRNs = Object.values(pendingReceivesGroups);
 
-    if (allPending.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">${_t('no_pending_financial_approval')}</td></tr>`;
+    if (allPendingGRNs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">${_t('no_pending_financial_approval')}</td></tr>`;
         return;
     }
 
-    allPending.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(item => {
+    allPendingGRNs.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(item => {
         let actionButtons = '';
-        if (userCan('opApproveFinancials')) {
+        if (userCan('opApproveGRN')) {
             actionButtons = `
                 <div class="action-buttons">
-                    <button class="primary small btn-approve-financial" data-id="${item.txType === 'po' ? item.poId : item.batchId}" data-type="${item.txType}">${_t('approve')}</button>
-                    <button class="danger small btn-reject-financial" data-id="${item.txType === 'po' ? item.poId : item.batchId}" data-type="${item.txType}">${_t('reject')}</button>
+                    <button class="primary small btn-approve-financial" data-id="${item.batchId}" data-type="receive">${_t('approve')}</button>
+                    <button class="danger small btn-reject-financial" data-id="${item.batchId}" data-type="receive">${_t('reject')}</button>
                 </div>`;
         } else {
             actionButtons = `<span style="color:var(--text-light-color); font-style:italic;">${_t('status_pending')}</span>`;
@@ -463,10 +500,9 @@ export function renderPendingFinancials() {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td>${formatDate(item.date)}</td>
-            <td>${_t(item.txType)}</td>
             <td>${item.ref}</td>
             <td>${item.details}</td>
-            <td>${formatCurrency(item.value)}</td>
+            <td>${formatCurrency(item.totalValue)}</td>
             <td>${actionButtons}</td>
         `;
         tbody.appendChild(tr);
