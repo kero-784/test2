@@ -19,7 +19,7 @@ export async function handleButcherySubmit(e) {
     if (e) e.preventDefault();
     const btn = e.currentTarget;
     const parentCode = document.getElementById('butchery-parent-code').value;
-    const parentQty = parseFloat(document.getElementById('butchery-parent-qty').value);
+    let parentQty = parseFloat(document.getElementById('butchery-parent-qty').value); 
     const branchCode = document.getElementById('butchery-branch').value;
     let batchNo = document.getElementById('butchery-batch').value;
     const expiryDate = document.getElementById('butchery-expiry').value;
@@ -29,30 +29,53 @@ export async function handleButcherySubmit(e) {
         return;
     }
 
+    // 1. Calculate Totals
+    const totalChildWeight = state.currentButcheryList.reduce((a,b) => a + (parseFloat(b.quantity) || 0), 0);
+    const difference = parentQty - totalChildWeight;
+
+    // 2. Auto-Adjustment Logic
+    if (difference > 0.001) {
+        const msg = `Notice: Input (${parentQty}kg) > Output (${totalChildWeight.toFixed(3)}kg).\n\nDifference of ${difference.toFixed(3)}kg detected.\n\nClick OK to treat difference as WASTE (removed from stock).\nClick CANCEL to keep difference in STOCK (auto-adjust input).`;
+        
+        if (!confirm(msg)) {
+            // User cancelled -> Safety Mode (Keep difference in stock)
+            // We accomplish this by setting the input quantity equal to output quantity
+            parentQty = totalChildWeight; 
+            showToast('Input adjusted to match output. Difference remains in stock.', 'info');
+        } else {
+            showToast('Processing with waste/loss.', 'warning');
+        }
+    } else if (difference < -0.001) {
+        showToast(`Error: Output (${totalChildWeight}kg) cannot exceed Input (${parentQty}kg).`, 'error');
+        return;
+    }
+
     const stock = calculateStockLevels();
     const parentAvgCost = stock[branchCode]?.[parentCode]?.avgCost || 0;
     
-    if(!batchNo) batchNo = `BATCH-${new Date().toISOString().slice(2,10).replace(/-/g,'')}-${Math.floor(1000 + Math.random() * 9000)}`;
+    if(!batchNo) batchNo = `PRD-${Date.now().toString().slice(-8)}`;
 
     const childItems = state.currentButcheryList.map(c => ({
         itemCode: c.itemCode,
+        itemName: c.itemName, // Ensure name is passed
         quantity: parseFloat(c.quantity),
         cost: parentAvgCost 
     }));
 
     const payload = {
         parentItemCode: parentCode,
-        parentQuantity: parentQty,
+        parentQuantity: parentQty, // Adjusted quantity
         branchCode: branchCode,
         childItems: childItems,
         batchNo: batchNo,
         expiryDate: expiryDate,
-        notes: `Butchery Yield Process`
+        notes: `Yield Process: Input ${parentQty.toFixed(3)}kg`
     };
 
     const result = await postData('processButchery', payload, btn);
     if (result) {
-        showToast('Butchery production processed!', 'success');
+        showToast('Production Complete!', 'success');
+        // Optimistic Update
         const now = new Date().toISOString();
         childItems.forEach(c => state.transactions.push({
             batchId: batchNo, date: now, type: 'production_in', itemCode: c.itemCode, quantity: c.quantity, cost: c.cost, branchCode: branchCode, Status: 'Completed', isApproved: true
@@ -120,14 +143,12 @@ export async function handleReceiveSubmit(e) {
     if (result) {
         showToast('Stock Received!', 'success');
         
-        // Optimistic UI Update (Pending Approval status by default unless configured otherwise)
-        const isAutoApproved = !state.currentUser.permissions.opApproveGRN; 
-        // Logic: if user CAN approve, maybe they approve instantly? 
-        // For safety, usually GRNs go to pending. 
-        // Based on recent changes, let's assume Pending.
-        
+        // Optimistic UI Update
+        const isAutoApproved = userCan('opApproveGRN');
+        const status = isAutoApproved ? 'Completed' : 'Pending Approval';
+
         payload.items.forEach(item => {
-            state.transactions.push({ ...item, branchCode, supplierCode, invoiceNumber, isApproved: false, Status: 'Pending Approval' });
+            state.transactions.push({ ...item, branchCode, supplierCode, invoiceNumber, isApproved: isAutoApproved, Status: status });
         });
         
         generateReceiveDocument(payload);
