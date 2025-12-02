@@ -46,7 +46,7 @@
                 <!-- Public/Common Views -->
                 <li class="nav-item"><a href="#" data-view="dashboard" class="active"><span data-translate-key="dashboard">Dashboard</span></a></li>
                 
-                <!-- Operational Views (Requires specific perms) -->
+                <!-- Operational Views -->
                 <li class="nav-item" data-permission="opReceive,opTransfer,opReturn,opStockAdjustment,opApproveGRN"><a href="#" data-view="operations"><span data-translate-key="stock_operations">Stock Operations</span></a></li>
                 <li class="nav-item" data-permission="opProduction"><a href="#" data-view="butchery"><span data-translate-key="butchery_production">Butchery & Yield</span></a></li>
                 
@@ -225,6 +225,46 @@
                 </div>
             </div>
 
+            <div id="view-reports" class="view">
+                <div class="sub-nav">
+                    <button class="sub-nav-item active" data-subview="supplier-statement">Supplier Statement</button>
+                    <button class="sub-nav-item" data-subview="yield-analysis">Yield Analysis</button>
+                </div>
+                
+                <!-- Supplier Statement -->
+                <div id="subview-supplier-statement" class="sub-view active">
+                    <div class="card">
+                        <div class="report-generator-controls">
+                            <select id="supplier-statement-select"></select>
+                            <input type="date" id="statement-start-date">
+                            <input type="date" id="statement-end-date">
+                            <button id="btn-generate-supplier-statement" class="primary small">Generate</button>
+                        </div>
+                        <div id="supplier-statement-results" class="printable-area" style="display: none;"></div>
+                    </div>
+                </div>
+
+                <!-- NEW: Yield Analysis Report -->
+                <div id="subview-yield-analysis" class="sub-view">
+                    <div class="card">
+                        <div class="toolbar">
+                            <h2>Butchery Production History</h2>
+                            <div class="filters-container">
+                                <select id="yield-report-type" class="small">
+                                    <option value="batch">By Production Batch</option>
+                                    <option value="item">By Parent Item</option>
+                                </select>
+                                <input type="text" id="yield-report-search" class="small" placeholder="Search Batch or Item Name...">
+                                <button id="btn-generate-yield-report" class="primary small">Generate Report</button>
+                            </div>
+                        </div>
+                        <div id="yield-report-results" class="report-area">
+                            <p style="text-align:center; color:#888;">Select options and click Generate.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div id="view-stock-levels" class="view"><div class="card"><div class="toolbar"><h2 id="stock-levels-title" data-translate-key="stock_by_item">Stock by Item</h2><div class="search-bar"><input type="search" id="stock-levels-search" class="search-bar-input" data-translate-placeholder="search_items_stock_placeholder"></div><button id="btn-export-stock" class="secondary" data-translate-key="export_to_excel">Export to Excel</button></div><div id="item-centric-stock-container" class="report-area"></div></div><div class="card"><h2 data-translate-key="item_stock_inquiry">Item Stock Inquiry (Drill-down)</h2><input type="search" id="item-inquiry-search" class="search-bar-input" data-translate-placeholder="item_stock_inquiry_placeholder"><div id="item-inquiry-results" class="report-area"></div></div></div>
             <div id="view-transaction-history" class="view">
                 <div class="card">
@@ -252,7 +292,6 @@
             
             <!-- PAYMENTS & REPORTS -->
             <div id="view-payments" class="view"><div class="card"><h2 data-translate-key="record_payment">Record a Payment</h2><form id="form-record-payment"><div class="form-grid"><div class="form-group"><label>Supplier</label><select id="payment-supplier-select" required></select></div><div class="form-group"><label>Select Invoices</label><button type="button" id="btn-select-invoices" class="secondary" style="width: 100%;">Select...</button></div><div class="form-group"><label>Method</label><input type="text" id="payment-method" required></div></div><div id="payment-invoice-list-container" class="report-area" style="display:none; margin-top:24px;"><table id="table-payment-list"><thead><tr><th>Invoice #</th><th>Due</th><th>Pay</th></tr></thead><tbody></tbody><tfoot><tr><td colspan="2">Total:</td><td id="payment-total-amount">0.00</td></tr></tfoot></table></div><button type="submit" class="primary" style="margin-top: 24px; width:100%;" data-translate-key="submit_payment_btn">Submit Payment</button></form></div></div>
-            <div id="view-reports" class="view"><div class="sub-nav"><button class="sub-nav-item active" data-subview="supplier-statement">Supplier Statement</button></div><div id="subview-supplier-statement" class="sub-view active"><div class="card"><div class="report-generator-controls"><select id="supplier-statement-select"></select><input type="date" id="statement-start-date"><input type="date" id="statement-end-date"><button id="btn-generate-supplier-statement" class="primary small">Generate</button></div><div id="supplier-statement-results" class="printable-area" style="display: none;"></div></div></div></div>
         </main>
     </div>
     
