@@ -1,4 +1,3 @@
-<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -164,6 +163,51 @@
                 <div id="subview-return" class="sub-view"><div class="card"><h2 data-translate-key="return_to_supplier">Return to Supplier</h2><form id="form-return-details" class="form-grid" onsubmit="return false;"><div class="form-group"><label for="return-supplier" data-translate-key="supplier">Supplier</label><select id="return-supplier" required></select></div><div class="form-group"><label for="return-branch" data-translate-key="from_branch">From Branch</label><select id="return-branch" required></select></div><div class="form-group"><label for="return-ref" data-translate-key="credit_note_ref">Credit Note Ref #</label><input type="text" id="return-ref" required></div><div class="form-group span-full"><label for="return-notes" data-translate-key="reason_for_return">Reason for Return (Optional)</label><textarea id="return-notes" rows="2"></textarea></div></form></div><div class="card" id="return-list-card"><h2 data-translate-key="items_to_return">Items to Return</h2><table id="table-return-list"><thead><tr><th data-translate-key="table_h_code">Code</th><th data-translate-key="item_name">Item Name</th><th data-translate-key="table_h_available">Available</th><th data-translate-key="table_h_qty_to_return">Qty to Return</th><th data-translate-key="table_h_cost">Cost</th><th data-translate-key="actions">Action</th></tr></thead><tbody></tbody><tfoot><tr style="font-weight: bold; background-color: var(--bg-color);"><td colspan="4" style="text-align: right;" data-translate-key="total_return_value">Total Return Value:</td><td id="return-grand-total" colspan="2">0.00 EGP</td></tr></tfoot></table><div style="margin-top: 20px; display: flex; gap: 10px;"><button type="button" data-context="return" class="secondary btn-select-items" data-translate-key="select_items">Select Items</button><button id="btn-submit-return" class="primary" data-translate-key="confirm_return_all">Confirm & Return All Items</button></div></div></div>
                 <div id="subview-in-transit" class="sub-view"><div class="card"><h2 data-translate-key="goods_in_transit_report">Goods In-Transit Report</h2><div class="report-area"><table id="table-in-transit"><thead><tr><th data-translate-key="table_h_date_sent">Date Sent</th><th data-translate-key="table_h_from_branch">From Branch</th><th data-translate-key="table_h_to_branch">To Branch</th><th data-translate-key="table_h_ref_no">Reference #</th><th data-translate-key="items">Items</th><th data-translate-key="table_h_status">Status</th><th data-translate-key="actions">Actions</th></tr></thead><tbody></tbody></table></div></div></div>
                 <div id="subview-adjustments" class="sub-view"><div id="stock-adjustment-card" class="card"><h2 data-translate-key="stock_count_adjustment">Stock Count Adjustment</h2><form id="form-adjustment-details" class="form-grid" onsubmit="return false;"><div class="form-group"><label for="adjustment-branch" data-translate-key="branch">Branch</label><select id="adjustment-branch" required></select></div><div class="form-group"><label for="adjustment-ref" data-translate-key="reference">Reference</label><input type="text" id="adjustment-ref" data-translate-placeholder="stocktake_example" required></div><div class="form-group span-full"><label for="adjustment-notes" data-translate-key="notes_reason">Notes / Reason</label><textarea id="adjustment-notes" rows="2"></textarea></div></form></div><div id="stock-adjustment-list-card" class="card"><h2 data-translate-key="items_to_adjust">Items to Adjust</h2><table id="table-adjustment-list"><thead><tr><th data-translate-key="table_h_code">Code</th><th data-translate-key="item_name">Item Name</th><th data-translate-key="table_h_system_qty">System Qty</th><th data-translate-key="table_h_physical_count">Physical Count</th><th data-translate-key="table_h_adjustment">Adjustment</th><th data-translate-key="actions">Action</th></tr></thead><tbody></tbody></table><div style="margin-top: 20px; display: flex; gap: 10px;"><button type="button" data-context="adjustment" class="secondary btn-select-items" data-translate-key="select_items">Select Items</button><button id="btn-submit-adjustment" class="primary" data-translate-key="process_stock_adjustment">Process Stock Adjustment</button></div></div></div>
+            </div>
+
+            <div id="view-butchery" class="view">
+                <div class="card">
+                    <h2 data-translate-key="butchery_production">Butchery Production (Yield)</h2>
+                    <p style="color:var(--text-light-color); margin-bottom: 20px;">Convert primal cuts (Parents) into portioned cuts (Children).</p>
+                    <form id="form-butchery" class="form-grid" onsubmit="return false;">
+                        <div class="form-group">
+                            <label data-translate-key="branch">Branch (Location of Stock)</label>
+                            <select id="butchery-branch" required></select>
+                        </div>
+                        <div class="form-group">
+                            <label data-translate-key="parent_item">Parent Item (Source)</label>
+                            <div style="display:flex; gap:5px;">
+                                <input type="text" id="butchery-parent-display" readonly placeholder="Select item..." required>
+                                <input type="hidden" id="butchery-parent-code">
+                                <button class="secondary small btn-select-items" data-context="butchery-parent">Select</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label data-translate-key="weight_kg">Weight (KG) to Process</label>
+                            <input type="number" id="butchery-parent-qty" step="0.001" min="0" required>
+                        </div>
+                         <div class="form-group">
+                            <label data-translate-key="batch_assignment">New Batch #</label>
+                            <input type="text" id="butchery-batch" placeholder="Leave empty to auto-generate">
+                        </div>
+                         <div class="form-group">
+                            <label data-translate-key="expiry_date">New Expiry Date</label>
+                            <input type="date" id="butchery-expiry" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="card">
+                    <h2 data-translate-key="yield_results">Yield Results (Cuts)</h2>
+                    <table id="table-butchery-children">
+                        <thead><tr><th>Item Code</th><th>Item Name</th><th>Weight (KG)</th><th>Action</th></tr></thead>
+                        <tbody></tbody>
+                        <tfoot><tr><td colspan="2" style="text-align:right;"><strong>Total Output:</strong></td><td id="butchery-total-weight">0.000</td><td></td></tr><tr><td colspan="2" style="text-align:right;"><strong>Yield %:</strong></td><td id="butchery-yield-pct">0%</td><td></td></tr></tfoot>
+                    </table>
+                    <div style="margin-top: 20px; display: flex; gap: 10px;">
+                        <button type="button" data-context="butchery-child" class="secondary btn-select-items" data-translate-key="add_cuts">Add Cuts</button>
+                        <button id="btn-submit-butchery" class="primary" data-translate-key="process_production">Process Production</button>
+                    </div>
+                </div>
             </div>
 
             <div id="view-purchasing" class="view">
