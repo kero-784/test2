@@ -69,24 +69,36 @@ document.addEventListener('DOMContentLoaded', () => {
         const btn = e.target.closest('button');
         if (!btn) return;
 
-        // Modals
+        // 1. ADD NEW BUTTONS (MASTER DATA & USERS)
+        // Must check these IDs explicitly first
+        if (['btn-add-item', 'btn-add-supplier', 'btn-add-branch', 'btn-add-section', 'btn-add-new-user', 'btn-add-new-role'].includes(btn.id)) {
+            const map = {
+                'btn-add-item': 'item',
+                'btn-add-supplier': 'supplier',
+                'btn-add-branch': 'branch',
+                'btn-add-section': 'section',
+                'btn-add-new-user': 'user',
+                'btn-add-new-role': 'role'
+            };
+            Renderers.renderEditModalContent(map[btn.id], null);
+            document.getElementById('edit-modal').classList.add('active');
+            return;
+        }
+
+        // 2. MODAL CONTROLS
         if (btn.classList.contains('close-button') || btn.classList.contains('modal-cancel')) {
              document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
+             return;
         }
+
+        // 3. EDIT BUTTONS
         if (btn.classList.contains('btn-edit')) {
              Renderers.renderEditModalContent(btn.dataset.type, btn.dataset.id);
              document.getElementById('edit-modal').classList.add('active');
+             return;
         }
 
-        // --- USER & ROLE MANAGEMENT BUTTONS ---
-        if (btn.id === 'btn-add-new-user') {
-            Renderers.renderEditModalContent('user', null); 
-            document.getElementById('edit-modal').classList.add('active');
-        }
-        if (btn.id === 'btn-add-new-role') {
-            Renderers.renderEditModalContent('role', null);
-            document.getElementById('edit-modal').classList.add('active');
-        }
+        // 4. PERMISSIONS & DELETE
         if (btn.classList.contains('btn-edit-role-perms')) {
             const roleName = btn.dataset.role;
             Renderers.renderEditModalContent('role-permissions', roleName);
@@ -104,26 +116,30 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // --- TRANSFER ACTIONS ---
-        if (btn.classList.contains('btn-receive-transfer')) {
-             Transactions.openTransferModal(btn.dataset.batchId);
-        }
-        if (btn.id === 'btn-confirm-receive-transfer') {
-             await Transactions.processTransferAction('receiveTransfer', btn.dataset.batchId, btn);
-             await reloadData();
-        }
-        if (btn.id === 'btn-reject-transfer') {
-             await Transactions.processTransferAction('rejectTransfer', btn.dataset.batchId, btn);
-             await reloadData();
-        }
-        if (btn.classList.contains('btn-cancel-transfer')) {
-             await Transactions.handleCancelTransfer(btn.dataset.batchId, btn);
-             await reloadData();
+        // --- FINANCIALS: PRINT VOUCHER FROM HISTORY ---
+        if (btn.classList.contains('btn-print-voucher')) {
+            const paymentId = btn.dataset.id;
+            
+            // Find all payment lines with this ID (filter from local state)
+            const paymentLines = state.payments.filter(p => p.paymentId === paymentId);
+            
+            if (paymentLines.length > 0) {
+                const first = paymentLines[0];
+                const voucherData = {
+                    supplierCode: first.supplierCode,
+                    date: first.date,
+                    method: first.method,
+                    totalAmount: paymentLines.reduce((sum, l) => sum + (parseFloat(l.amount) || 0), 0),
+                    payments: paymentLines 
+                };
+                Documents.generatePaymentVoucher(voucherData);
+            } else {
+                showToast('Payment details not found in current data.', 'error');
+            }
+            return;
         }
 
-        // --- FINANCIALS (PAY FROM REPORT & PRINT VOUCHER) ---
-        
-        // 1. Pay Supplier from Statement
+        // --- FINANCIALS: PAY SUPPLIER SHORTCUT ---
         if (btn.classList.contains('btn-pay-supplier')) {
             const supplierCode = btn.dataset.supplier;
             showView('financials');
@@ -140,27 +156,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 300);
         }
 
-        // 2. Print Historical Voucher from Statement
-        if (btn.classList.contains('btn-print-payment')) {
-            const paymentId = btn.dataset.id;
-            // Reconstruct the payment object from state.payments
-            const lines = state.payments.filter(p => p.paymentId === paymentId);
-            
-            if (lines.length > 0) {
-                const first = lines[0];
-                const voucherData = {
-                    supplierCode: first.supplierCode,
-                    date: first.date,
-                    method: first.method,
-                    totalAmount: lines.reduce((sum, l) => sum + l.amount, 0),
-                    payments: lines // The generator uses this array to list invoices
-                };
-                Documents.generatePaymentVoucher(voucherData);
-            } else {
-                showToast('Payment details not found.', 'error');
-            }
-        }
-
         // --- REPORT GENERATOR (YIELD) ---
         if (btn.id === 'btn-generate-yield-report') {
             const type = document.getElementById('yield-report-type').value;
@@ -175,6 +170,23 @@ document.addEventListener('DOMContentLoaded', () => {
                  document.getElementById('statement-start-date').value, 
                  document.getElementById('statement-end-date').value
              ); 
+        }
+
+        // --- TRANSFER ACTIONS ---
+        if (btn.classList.contains('btn-receive-transfer')) {
+             Transactions.openTransferModal(btn.dataset.batchId);
+        }
+        if (btn.id === 'btn-confirm-receive-transfer') {
+             await Transactions.processTransferAction('receiveTransfer', btn.dataset.batchId, btn);
+             await reloadData();
+        }
+        if (btn.id === 'btn-reject-transfer') {
+             await Transactions.processTransferAction('rejectTransfer', btn.dataset.batchId, btn);
+             await reloadData();
+        }
+        if (btn.classList.contains('btn-cancel-transfer')) {
+             await Transactions.handleCancelTransfer(btn.dataset.batchId, btn);
+             await reloadData();
         }
 
         // --- NOTIFICATION CLICK LOGIC ---
@@ -375,49 +387,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- 4. FORM SUBMITS ---
-    const attachFormHandler = (formId, actionName, dataExtractor) => {
-        const form = document.getElementById(formId);
-        if(!form) return;
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const btn = form.querySelector('button[type="submit"]');
-            try {
-                const data = dataExtractor();
-                const res = await postData(actionName, data, btn);
-                if(res) {
-                    showToast(_t('add_success_toast'), 'success');
-                    if (actionName === 'addItem') state.items.push(data);
-                    if (actionName === 'addSupplier') state.suppliers.push(data);
-                    if (actionName === 'addBranch') state.branches.push(data);
-                    if (actionName === 'addSection') state.sections.push(data);
-                    form.reset();
-                    await reloadData();
-                    refreshViewData('master-data');
-                }
-            } catch (err) { console.error(err); showToast("Error processing form", "error"); }
-        });
-    };
-
-    const getValue = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
-
-    attachFormHandler('form-add-item', 'addItem', () => ({
-        ItemType: getValue('item-type'),
-        ParentCode: getValue('item-parent'),
-        code: getValue('item-code'),
-        barcode: getValue('item-barcode'),
-        name: getValue('item-name'),
-        unit: getValue('item-unit'),
-        category: getValue('item-category'),
-        supplierCode: getValue('item-supplier'),
-        cost: parseFloat(getValue('item-cost')) || 0
-    }));
-    
-    attachFormHandler('form-add-supplier', 'addSupplier', () => ({ supplierCode: getValue('supplier-code'), name: getValue('supplier-name'), contact: getValue('supplier-contact') }));
-    attachFormHandler('form-add-branch', 'addBranch', () => ({ branchCode: getValue('branch-code'), branchName: getValue('branch-name') }));
-    attachFormHandler('form-add-section', 'addSection', () => ({ sectionCode: getValue('section-code'), sectionName: getValue('section-name') }));
-    
-    // Edit Form (Generalized)
+    // --- 4. EDIT/ADD FORM SUBMIT ---
     const editForm = document.getElementById('form-edit-record');
     if (editForm) {
         editForm.addEventListener('submit', async (e) => {
@@ -461,15 +431,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 payload = { type, id: form.dataset.id, updates };
 
+                // Handle Creations vs Updates
+                const isNew = !form.dataset.id;
+                
                 if (type === 'user') {
                     const username = formData.get('Username');
-                    const isNew = !form.dataset.id;
                     action = isNew ? 'addUser' : 'updateUser';
                     payload = isNew ? updates : { Username: username, updates };
-                } 
-                else if (type === 'role') {
+                } else if (type === 'role') {
                     action = 'addRole';
                     payload = updates;
+                } else if (isNew) {
+                    // Master Data Creation
+                    if (type === 'item') action = 'addItem';
+                    if (type === 'supplier') action = 'addSupplier';
+                    if (type === 'branch') action = 'addBranch';
+                    if (type === 'section') action = 'addSection';
+                    payload = updates; // For adds, we just send the object
                 }
             }
 
@@ -506,7 +484,6 @@ document.addEventListener('DOMContentLoaded', () => {
             state.invoiceModalSelections.clear();
             pf.reset();
             
-            // PROMPT TO PRINT
             if(confirm("Print Payment Voucher?")) {
                 Documents.generatePaymentVoucher(payload);
             }
