@@ -462,6 +462,9 @@ export function renderPendingInvoices() {
     const tbody = table.querySelector('tbody');
     tbody.innerHTML = '';
     
+    const user = state.currentUser;
+    const isAdmin = userCan('viewAllBranches');
+
     // Group Receives (GRNs)
     const pendingReceivesGroups = {};
     (state.transactions || []).filter(t => t.type === 'receive' && (t.isApproved === false || String(t.isApproved).toUpperCase() === 'FALSE')).forEach(t => {
@@ -471,6 +474,7 @@ export function renderPendingInvoices() {
                 txType: 'receive',
                 ref: t.invoiceNumber,
                 batchId: t.batchId,
+                branchCode: t.branchCode, // Capture Branch Code
                 details: `GRN from ${findByKey(state.suppliers, 'supplierCode', t.supplierCode)?.name || 'N/A'}`,
                 totalValue: 0
             };
@@ -478,7 +482,12 @@ export function renderPendingInvoices() {
         pendingReceivesGroups[t.batchId].totalValue += (parseFloat(t.quantity) || 0) * (parseFloat(t.cost) || 0);
     });
 
-    const allPendingGRNs = Object.values(pendingReceivesGroups);
+    let allPendingGRNs = Object.values(pendingReceivesGroups);
+
+    // --- NEW: FILTER BY BRANCH ---
+    if (user && user.AssignedBranchCode && !isAdmin) {
+        allPendingGRNs = allPendingGRNs.filter(g => g.branchCode === user.AssignedBranchCode);
+    }
 
     if (allPendingGRNs.length === 0) {
         tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">${_t('no_pending_financial_approval')}</td></tr>`;
