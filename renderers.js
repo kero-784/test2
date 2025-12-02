@@ -484,7 +484,7 @@ export function renderPendingInvoices() {
 
     let allPendingGRNs = Object.values(pendingReceivesGroups);
 
-    // --- NEW: FILTER BY BRANCH ---
+    // --- BRANCH FILTERING FOR INVOICES ---
     if (user && user.AssignedBranchCode && !isAdmin) {
         allPendingGRNs = allPendingGRNs.filter(g => g.branchCode === user.AssignedBranchCode);
     }
