@@ -99,7 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await postData('deleteRole', { roleName: roleName }, btn);
                 if(res) {
                      showToast('Role deleted');
-                     await reloadData(); // Refresh to update list
+                     await reloadData(); // LIVE UPDATE
                      refreshViewData('user-management');
                 }
             }
@@ -111,15 +111,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (btn.id === 'btn-confirm-receive-transfer') {
              await Transactions.processTransferAction('receiveTransfer', btn.dataset.batchId, btn);
-             await reloadData(); // Refresh stock/history
+             await reloadData(); // LIVE UPDATE
         }
         if (btn.id === 'btn-reject-transfer') {
              await Transactions.processTransferAction('rejectTransfer', btn.dataset.batchId, btn);
-             await reloadData();
+             await reloadData(); // LIVE UPDATE
         }
         if (btn.classList.contains('btn-cancel-transfer')) {
              await Transactions.handleCancelTransfer(btn.dataset.batchId, btn);
-             await reloadData();
+             await reloadData(); // LIVE UPDATE
         }
 
         // --- NOTIFICATION CLICK LOGIC ---
@@ -261,7 +261,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await postData(action, { id, type }, btn);
                 if(res) {
                     showToast('Updated', 'success');
-                    await reloadData(); // Refresh to show new status
+                    await reloadData(); // LIVE UPDATE
                     if (type === 'receive') {
                         refreshViewData('operations');
                     } else {
@@ -340,7 +340,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (actionName === 'addBranch') state.branches.push(data);
                     if (actionName === 'addSection') state.sections.push(data);
                     form.reset();
-                    await reloadData(); // Refresh Master Data
+                    await reloadData(); // LIVE UPDATE
                     refreshViewData('master-data');
                 }
             } catch (err) { console.error(err); showToast("Error processing form", "error"); }
@@ -425,9 +425,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if(res) {
                 showToast('Action successful');
                 document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
-                
-                await reloadData(); // Refresh Data
-
+                await reloadData(); // LIVE UPDATE
                 if (type === 'user' || type === 'role' || type === 'role-permissions') {
                     refreshViewData('user-management');
                 } else {
@@ -455,10 +453,20 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast('Payment recorded!', 'success');
             state.invoiceModalSelections.clear();
             pf.reset();
-            await reloadData(); // Refresh payments
+            await reloadData(); // LIVE UPDATE
             refreshViewData('payments');
         }
     });
+
+    // --- REPORT GENERATOR ---
+    const btnGenYield = document.getElementById('btn-generate-yield-report');
+    if (btnGenYield) {
+        btnGenYield.addEventListener('click', () => {
+            const type = document.getElementById('yield-report-type').value;
+            const search = document.getElementById('yield-report-search').value;
+            Renderers.renderYieldAnalysisReport(type, search);
+        });
+    }
 
     // --- TRANSACTION HANDLERS WRAPPER (Auto-Refresh) ---
     const bindBtn = (id, handler) => { 
@@ -466,7 +474,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if(btn) {
             btn.addEventListener('click', async (e) => {
                 await handler(e); 
-                await reloadData(); // Refresh after transaction
+                await reloadData(); // LIVE UPDATE
             });
         }
     };
@@ -480,7 +488,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('global-refresh-button').addEventListener('click', async () => { await reloadData(); });
 
-    // --- NAVIGATION HANDLER (Standard - No Auto Refresh) ---
+    // --- NAVIGATION HANDLER ---
     document.querySelectorAll('#main-nav a').forEach(link => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
