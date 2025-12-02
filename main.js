@@ -99,7 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await postData('deleteRole', { roleName: roleName }, btn);
                 if(res) {
                      showToast('Role deleted');
-                     await reloadData(); // LIVE UPDATE
+                     await reloadData();
                      refreshViewData('user-management');
                 }
             }
@@ -111,28 +111,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (btn.id === 'btn-confirm-receive-transfer') {
              await Transactions.processTransferAction('receiveTransfer', btn.dataset.batchId, btn);
-             await reloadData(); // LIVE UPDATE
+             await reloadData();
         }
         if (btn.id === 'btn-reject-transfer') {
              await Transactions.processTransferAction('rejectTransfer', btn.dataset.batchId, btn);
-             await reloadData(); // LIVE UPDATE
+             await reloadData();
         }
         if (btn.classList.contains('btn-cancel-transfer')) {
              await Transactions.handleCancelTransfer(btn.dataset.batchId, btn);
-             await reloadData(); // LIVE UPDATE
+             await reloadData();
         }
 
         // --- NOTIFICATION CLICK LOGIC ---
         if (e.target.id === 'pending-requests-widget' || e.target.closest('#pending-requests-widget')) {
-             const widget = document.getElementById('pending-requests-widget');
-             if (widget.dataset.actionType === 'transfer') {
-                 await reloadData(); // LIVE UPDATE
-                 showView('operations');
-                 setTimeout(() => {
-                     const tab = document.querySelector('button[data-subview="in-transit"]');
-                     if(tab) tab.click();
-                 }, 100);
-             }
+             showView('operations');
+             setTimeout(() => {
+                 const tab = document.querySelector('button[data-subview="in-transit"]');
+                 if(tab) tab.click();
+             }, 100);
              return; 
         }
         
@@ -262,7 +258,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await postData(action, { id, type }, btn);
                 if(res) {
                     showToast('Updated', 'success');
-                    await reloadData(); // LIVE UPDATE
+                    await reloadData();
                     if (type === 'receive') {
                         refreshViewData('operations');
                     } else {
@@ -341,7 +337,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (actionName === 'addBranch') state.branches.push(data);
                     if (actionName === 'addSection') state.sections.push(data);
                     form.reset();
-                    await reloadData(); // LIVE UPDATE
+                    await reloadData();
                     refreshViewData('master-data');
                 }
             } catch (err) { console.error(err); showToast("Error processing form", "error"); }
@@ -426,9 +422,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if(res) {
                 showToast('Action successful');
                 document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
-                
-                await reloadData(); // LIVE UPDATE
-
+                await reloadData();
                 if (type === 'user' || type === 'role' || type === 'role-permissions') {
                     refreshViewData('user-management');
                 } else {
@@ -456,18 +450,17 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast('Payment recorded!', 'success');
             state.invoiceModalSelections.clear();
             pf.reset();
-            await reloadData(); // LIVE UPDATE
+            await reloadData();
             refreshViewData('payments');
         }
     });
 
-    // --- TRANSACTION HANDLERS WRAPPER (Auto-Refresh) ---
     const bindBtn = (id, handler) => { 
         const btn = document.getElementById(id); 
         if(btn) {
             btn.addEventListener('click', async (e) => {
                 await handler(e); 
-                await reloadData(); // LIVE UPDATE
+                await reloadData();
             });
         }
     };
@@ -481,32 +474,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('global-refresh-button').addEventListener('click', async () => { await reloadData(); });
 
-    // --- NAVIGATION LISTENER (LIVE RELOAD ON TAB CHANGE) ---
+    // --- OPTIMIZED NAVIGATION HANDLER ---
     document.querySelectorAll('#main-nav a').forEach(link => {
-        link.addEventListener('click', async (e) => {
+        link.addEventListener('click', (e) => {
             e.preventDefault();
             if(link.id === 'btn-logout') { sessionStorage.clear(); location.reload(); }
             
-            // LIVE NAVIGATION: Reload data BEFORE showing the view
-            await reloadData();
+            // 1. Switch View Immediately (Optimistic)
             showView(link.dataset.view);
+            
+            // 2. Fetch Data in Background
+            reloadData();
         });
     });
     
     document.querySelectorAll('.sub-nav-item').forEach(item => {
-        item.addEventListener('click', async (e) => {
+        item.addEventListener('click', (e) => {
             e.preventDefault();
             const view = e.target.closest('.view');
-            
-            // LIVE NAVIGATION: Reload data BEFORE switching sub-tabs
-            await reloadData();
             
             view.querySelectorAll('.sub-nav-item, .sub-view').forEach(x => x.classList.remove('active'));
             e.target.classList.add('active');
             const subId = e.target.dataset.subview;
             const subEl = document.getElementById(`subview-${subId}`);
             if(subEl) subEl.classList.add('active');
+            
+            // 1. Refresh with current data immediately
             refreshViewData(view.id.replace('view-', ''));
+            
+            // 2. Fetch Data in Background
+            reloadData();
         });
     });
 
@@ -663,9 +660,13 @@ async function reloadData() {
         const data = await res.json();
         if(data.status !== 'error') {
             Object.keys(data).forEach(key => { if(key!=='user') setState(key, data[key]); });
-            showToast(_t('data_refreshed_toast'));
-            const active = document.querySelector('.view.active').id.replace('view-', '');
-            refreshViewData(active);
+            
+            // Re-render the active view with new data
+            const activeView = document.querySelector('.view.active');
+            if (activeView) {
+                const viewId = activeView.id.replace('view-', '');
+                refreshViewData(viewId);
+            }
         }
     } catch(e) { Logger.error(e); }
 }
