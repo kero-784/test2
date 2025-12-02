@@ -25,7 +25,7 @@ const PERMISSION_GROUPS = {
         { key: 'opProduction', label: 'Butchery & Production' },
         { key: 'opApproveGRN', label: 'Approve Invoices/GRNs' }
     ],
-    'Financials': [
+    'Financials & Reports': [
         { key: 'opCreatePO', label: 'Create PO' },
         { key: 'opApprovePO', label: 'Approve Purchase Orders' },
         { key: 'opEditInvoice', label: 'Edit GRN/Invoice' },
@@ -519,7 +519,7 @@ export function renderEditModalContent(type, id) {
     editForm.dataset.type = type;
     editForm.dataset.id = id || '';
 
-    let record = {}; // FIX: Initialize as empty object
+    let record = {}; 
     let formHtml;
 
     // Helper to safely get data
