@@ -33,18 +33,26 @@ export async function handleButcherySubmit(e) {
     const totalChildWeight = state.currentButcheryList.reduce((a,b) => a + (parseFloat(b.quantity) || 0), 0);
     const difference = parentQty - totalChildWeight;
 
-    // 2. Auto-Adjustment Logic
+    // 2. Logic: Handle Weight Difference
     if (difference > 0.001) {
-        const msg = `Notice: Input (${parentQty}kg) > Output (${totalChildWeight.toFixed(3)}kg).\n\nDifference of ${difference.toFixed(3)}kg detected.\n\nClick OK to treat difference as WASTE (removed from stock).\nClick CANCEL to keep difference in STOCK (auto-adjust input).`;
-        
+        // Difference detected.
+        const msg = `⚠️ Weight Mismatch Detected!\n\n` +
+                    `Input Weight: ${parentQty} kg\n` +
+                    `Total Cuts: ${totalChildWeight.toFixed(3)} kg\n` +
+                    `Remaining: ${difference.toFixed(3)} kg\n\n` +
+                    `• Click OK to PROCEED: The remaining ${difference.toFixed(3)} kg will stay in your stock.\n` +
+                    `• Click CANCEL to go back and modify the weights.`;
+
         if (!confirm(msg)) {
-            // User cancelled -> Safety Mode (Keep difference in stock)
-            // We accomplish this by setting the input quantity equal to output quantity
-            parentQty = totalChildWeight; 
-            showToast('Input adjusted to match output. Difference remains in stock.', 'info');
-        } else {
-            showToast('Processing with waste/loss.', 'warning');
+            // User clicked Cancel -> Return to form
+            return; 
         }
+        
+        // User clicked OK -> Proceed, but AUTO-ADJUST input to match output.
+        // This ensures the "difference" is never deducted from the database.
+        parentQty = totalChildWeight; 
+        showToast(`Processed. ${difference.toFixed(3)}kg remains in parent stock.`, 'info');
+
     } else if (difference < -0.001) {
         showToast(`Error: Output (${totalChildWeight}kg) cannot exceed Input (${parentQty}kg).`, 'error');
         return;
@@ -57,19 +65,19 @@ export async function handleButcherySubmit(e) {
 
     const childItems = state.currentButcheryList.map(c => ({
         itemCode: c.itemCode,
-        itemName: c.itemName, // Ensure name is passed
+        itemName: c.itemName, 
         quantity: parseFloat(c.quantity),
         cost: parentAvgCost 
     }));
 
     const payload = {
         parentItemCode: parentCode,
-        parentQuantity: parentQty, // Adjusted quantity
+        parentQuantity: parentQty, // This uses the Adjusted Quantity
         branchCode: branchCode,
         childItems: childItems,
         batchNo: batchNo,
         expiryDate: expiryDate,
-        notes: `Yield Process: Input ${parentQty.toFixed(3)}kg`
+        notes: `Yield Process`
     };
 
     const result = await postData('processButchery', payload, btn);
@@ -142,13 +150,9 @@ export async function handleReceiveSubmit(e) {
     const result = await postData('addTransactionBatch', payload, btn);
     if (result) {
         showToast('Stock Received!', 'success');
-        
-        // Optimistic UI Update
-        const isAutoApproved = userCan('opApproveGRN');
-        const status = isAutoApproved ? 'Completed' : 'Pending Approval';
-
+        // Default to Pending Approval locally until refresh confirms
         payload.items.forEach(item => {
-            state.transactions.push({ ...item, branchCode, supplierCode, invoiceNumber, isApproved: isAutoApproved, Status: status });
+            state.transactions.push({ ...item, branchCode, supplierCode, invoiceNumber, isApproved: false, Status: 'Pending Approval' });
         });
         
         generateReceiveDocument(payload);
@@ -397,7 +401,6 @@ export function openTransferModal(batchId) {
 }
 
 export async function processTransferAction(action, batchId, btn) {
-    // action = 'receiveTransfer' or 'rejectTransfer'
     const txs = state.transactions.filter(t => t.batchId === batchId && t.type === 'transfer_out');
     if(!txs.length) return;
 
