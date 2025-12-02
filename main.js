@@ -78,28 +78,20 @@ document.addEventListener('DOMContentLoaded', () => {
              document.getElementById('edit-modal').classList.add('active');
         }
 
-        // --- ADD NEW BUTTONS (MASTER DATA) ---
-        const addNewTypes = {
-            'btn-add-item': 'item',
-            'btn-add-supplier': 'supplier',
-            'btn-add-branch': 'branch',
-            'btn-add-section': 'section',
-            'btn-add-new-user': 'user',
-            'btn-add-new-role': 'role'
-        };
-        
-        if (addNewTypes[btn.id]) {
-            Renderers.renderEditModalContent(addNewTypes[btn.id], null);
+        // --- USER & ROLE MANAGEMENT BUTTONS ---
+        if (btn.id === 'btn-add-new-user') {
+            Renderers.renderEditModalContent('user', null); 
             document.getElementById('edit-modal').classList.add('active');
         }
-
-        // Permission Editor
+        if (btn.id === 'btn-add-new-role') {
+            Renderers.renderEditModalContent('role', null);
+            document.getElementById('edit-modal').classList.add('active');
+        }
         if (btn.classList.contains('btn-edit-role-perms')) {
             const roleName = btn.dataset.role;
             Renderers.renderEditModalContent('role-permissions', roleName);
             document.getElementById('edit-modal').classList.add('active');
         }
-        
         if (btn.classList.contains('btn-delete-role')) {
             if(confirm('Are you sure you want to delete this role?')) {
                 const roleName = btn.dataset.role;
@@ -110,42 +102,6 @@ document.addEventListener('DOMContentLoaded', () => {
                      refreshViewData('user-management');
                 }
             }
-        }
-
-        // --- FINANCIALS (PAY FROM REPORT) ---
-        if (btn.classList.contains('btn-pay-supplier')) {
-            const supplierCode = btn.dataset.supplier;
-            // Switch to Financials -> Record Payment
-            showView('financials');
-            const recordTab = document.querySelector('button[data-subview="record-payment"]');
-            if(recordTab) recordTab.click();
-            
-            // Pre-select supplier and trigger invoices
-            setTimeout(() => {
-                const select = document.getElementById('payment-supplier-select');
-                if(select) {
-                    select.value = supplierCode;
-                    // Open invoices modal
-                    Renderers.renderInvoicesInModal();
-                    document.getElementById('invoice-selector-modal').classList.add('active');
-                }
-            }, 300);
-        }
-
-        // --- REPORT GENERATOR (YIELD) ---
-        if (btn.id === 'btn-generate-yield-report') {
-            const type = document.getElementById('yield-report-type').value;
-            const search = document.getElementById('yield-report-search').value;
-            Renderers.renderYieldAnalysisReport(type, search);
-        }
-        
-        // --- REPORT GENERATOR (STATEMENT) ---
-        if (btn.id === 'btn-generate-supplier-statement') {
-             Renderers.renderSupplierStatement(
-                 document.getElementById('supplier-statement-select').value, 
-                 document.getElementById('statement-start-date').value, 
-                 document.getElementById('statement-end-date').value
-             ); 
         }
 
         // --- TRANSFER ACTIONS ---
@@ -163,6 +119,62 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btn.classList.contains('btn-cancel-transfer')) {
              await Transactions.handleCancelTransfer(btn.dataset.batchId, btn);
              await reloadData();
+        }
+
+        // --- FINANCIALS (PAY FROM REPORT & PRINT VOUCHER) ---
+        
+        // 1. Pay Supplier from Statement
+        if (btn.classList.contains('btn-pay-supplier')) {
+            const supplierCode = btn.dataset.supplier;
+            showView('financials');
+            const recordTab = document.querySelector('button[data-subview="record-payment"]');
+            if(recordTab) recordTab.click();
+            
+            setTimeout(() => {
+                const select = document.getElementById('payment-supplier-select');
+                if(select) {
+                    select.value = supplierCode;
+                    Renderers.renderInvoicesInModal();
+                    document.getElementById('invoice-selector-modal').classList.add('active');
+                }
+            }, 300);
+        }
+
+        // 2. Print Historical Voucher from Statement
+        if (btn.classList.contains('btn-print-payment')) {
+            const paymentId = btn.dataset.id;
+            // Reconstruct the payment object from state.payments
+            const lines = state.payments.filter(p => p.paymentId === paymentId);
+            
+            if (lines.length > 0) {
+                const first = lines[0];
+                const voucherData = {
+                    supplierCode: first.supplierCode,
+                    date: first.date,
+                    method: first.method,
+                    totalAmount: lines.reduce((sum, l) => sum + l.amount, 0),
+                    payments: lines // The generator uses this array to list invoices
+                };
+                Documents.generatePaymentVoucher(voucherData);
+            } else {
+                showToast('Payment details not found.', 'error');
+            }
+        }
+
+        // --- REPORT GENERATOR (YIELD) ---
+        if (btn.id === 'btn-generate-yield-report') {
+            const type = document.getElementById('yield-report-type').value;
+            const search = document.getElementById('yield-report-search').value;
+            Renderers.renderYieldAnalysisReport(type, search);
+        }
+        
+        // --- REPORT GENERATOR (STATEMENT) ---
+        if (btn.id === 'btn-generate-supplier-statement') {
+             Renderers.renderSupplierStatement(
+                 document.getElementById('supplier-statement-select').value, 
+                 document.getElementById('statement-start-date').value, 
+                 document.getElementById('statement-end-date').value
+             ); 
         }
 
         // --- NOTIFICATION CLICK LOGIC ---
@@ -363,7 +375,49 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- 4. EDIT/ADD FORM SUBMIT ---
+    // --- 4. FORM SUBMITS ---
+    const attachFormHandler = (formId, actionName, dataExtractor) => {
+        const form = document.getElementById(formId);
+        if(!form) return;
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = form.querySelector('button[type="submit"]');
+            try {
+                const data = dataExtractor();
+                const res = await postData(actionName, data, btn);
+                if(res) {
+                    showToast(_t('add_success_toast'), 'success');
+                    if (actionName === 'addItem') state.items.push(data);
+                    if (actionName === 'addSupplier') state.suppliers.push(data);
+                    if (actionName === 'addBranch') state.branches.push(data);
+                    if (actionName === 'addSection') state.sections.push(data);
+                    form.reset();
+                    await reloadData();
+                    refreshViewData('master-data');
+                }
+            } catch (err) { console.error(err); showToast("Error processing form", "error"); }
+        });
+    };
+
+    const getValue = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
+
+    attachFormHandler('form-add-item', 'addItem', () => ({
+        ItemType: getValue('item-type'),
+        ParentCode: getValue('item-parent'),
+        code: getValue('item-code'),
+        barcode: getValue('item-barcode'),
+        name: getValue('item-name'),
+        unit: getValue('item-unit'),
+        category: getValue('item-category'),
+        supplierCode: getValue('item-supplier'),
+        cost: parseFloat(getValue('item-cost')) || 0
+    }));
+    
+    attachFormHandler('form-add-supplier', 'addSupplier', () => ({ supplierCode: getValue('supplier-code'), name: getValue('supplier-name'), contact: getValue('supplier-contact') }));
+    attachFormHandler('form-add-branch', 'addBranch', () => ({ branchCode: getValue('branch-code'), branchName: getValue('branch-name') }));
+    attachFormHandler('form-add-section', 'addSection', () => ({ sectionCode: getValue('section-code'), sectionName: getValue('section-name') }));
+    
+    // Edit Form (Generalized)
     const editForm = document.getElementById('form-edit-record');
     if (editForm) {
         editForm.addEventListener('submit', async (e) => {
@@ -407,23 +461,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 payload = { type, id: form.dataset.id, updates };
 
-                // Handle Creations vs Updates
-                const isNew = !form.dataset.id;
-                
                 if (type === 'user') {
                     const username = formData.get('Username');
+                    const isNew = !form.dataset.id;
                     action = isNew ? 'addUser' : 'updateUser';
                     payload = isNew ? updates : { Username: username, updates };
-                } else if (type === 'role') {
+                } 
+                else if (type === 'role') {
                     action = 'addRole';
                     payload = updates;
-                } else if (isNew) {
-                    // Master Data Creation
-                    if (type === 'item') action = 'addItem';
-                    if (type === 'supplier') action = 'addSupplier';
-                    if (type === 'branch') action = 'addBranch';
-                    if (type === 'section') action = 'addSection';
-                    payload = updates; // For adds, we just send the object
                 }
             }
 
@@ -459,6 +505,12 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast('Payment recorded!', 'success');
             state.invoiceModalSelections.clear();
             pf.reset();
+            
+            // PROMPT TO PRINT
+            if(confirm("Print Payment Voucher?")) {
+                Documents.generatePaymentVoucher(payload);
+            }
+            
             await reloadData();
             refreshViewData('financials');
         }
@@ -531,6 +583,12 @@ function applyUIPermissions() {
             el.style.display = el.tagName === 'LI' ? 'block' : ''; 
         }
     });
+
+    // 2. Hide specific forms in Setup view if user lacks specific creation rights
+    if (!userCan('createItem')) document.getElementById('card-add-item').style.display = 'none';
+    if (!userCan('createSupplier')) document.getElementById('card-add-supplier').style.display = 'none';
+    if (!userCan('createBranch')) document.getElementById('card-add-branch').style.display = 'none';
+    if (!userCan('createSection')) document.getElementById('card-add-section').style.display = 'none';
 }
 
 function initializeAppUI() {
@@ -583,7 +641,7 @@ function refreshViewData(id) {
         populateOptions(document.getElementById('tx-filter-branch'), state.branches, 'All Branches', 'branchCode', 'branchName');
         Renderers.renderTransactionHistory();
     }
-    if(id === 'financials') { // Merged View
+    if(id === 'financials') { 
         populateOptions(document.getElementById('payment-supplier-select'), state.suppliers, 'Select Supplier', 'supplierCode', 'name');
         populateOptions(document.getElementById('supplier-statement-select'), state.suppliers, 'Select Supplier', 'supplierCode', 'name');
         const listContainer = document.getElementById('payment-invoice-list-container');
