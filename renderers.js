@@ -22,15 +22,15 @@ const PERMISSION_GROUPS = {
         { key: 'opTransfer', label: 'Send Transfer' },
         { key: 'opReturn', label: 'Return to Supplier' },
         { key: 'opStockAdjustment', label: 'Stock Adjustments' },
-        { key: 'opProduction', label: 'Butchery Production (Form)' }, // Updated Label
+        { key: 'opProduction', label: 'Butchery & Production' },
         { key: 'opApproveGRN', label: 'Approve Invoices/GRNs' }
     ],
-    'Financials & Reports': [
+    'Financials': [
         { key: 'opCreatePO', label: 'Create PO' },
         { key: 'opApprovePO', label: 'Approve Purchase Orders' },
         { key: 'opEditInvoice', label: 'Edit GRN/Invoice' },
-        { key: 'opRecordPayment', label: 'Record Payments & View Statements' },
-        { key: 'viewYieldReports', label: 'View Butchery Reports' } // New Permission
+        { key: 'opRecordPayment', label: 'Record Payments' },
+        { key: 'viewYieldReports', label: 'View Butchery Reports' }
     ]
 };
 
@@ -519,64 +519,87 @@ export function renderEditModalContent(type, id) {
     editForm.dataset.type = type;
     editForm.dataset.id = id || '';
 
-    let record, formHtml;
+    let record = {}; // FIX: Initialize as empty object
+    let formHtml;
+
+    // Helper to safely get data
+    const safeGet = (obj, key) => obj && obj[key] ? obj[key] : '';
 
     switch (type) {
         case 'item':
-            record = findByKey(state.items, 'code', id);
-            editModalTitle.textContent = _t('edit_item');
+            if (id) record = findByKey(state.items, 'code', id) || {};
+            editModalTitle.textContent = id ? _t('edit_item') : _t('add_new_item');
+            
             const categories = ['Beef', 'Lamb', 'Poultry', 'Seafood', 'Offal', 'Processed', 'Consumables'];
-            const catOptions = categories.map(c => `<option value="${c}" ${record.category === c ? 'selected' : ''}>${_t('cat_'+c.toLowerCase())}</option>`).join('');
+            const currentCat = safeGet(record, 'category');
+            const catOptions = categories.map(c => `<option value="${c}" ${currentCat === c ? 'selected' : ''}>${_t('cat_'+c.toLowerCase())}</option>`).join('');
+            
             let cutsSection = '';
-            if (record.ItemType === 'Main') {
+            // Only show linked cuts if editing a Main Item
+            if (safeGet(record, 'ItemType') === 'Main') {
                 const cuts = state.items.filter(i => i.ItemType === 'Cut');
-                const linked = (record.DefinedCuts || '').split(',').map(s => s.trim());
+                const linked = (safeGet(record, 'DefinedCuts') || '').split(',').map(s => s.trim());
                 let checkboxes = cuts.map(cut => {
                     const checked = linked.includes(cut.code) ? 'checked' : '';
                     return `<div style="padding:2px;"><input type="checkbox" name="DefinedCuts" value="${cut.code}" ${checked} id="lnk-${cut.code}"> <label for="lnk-${cut.code}">${cut.name}</label></div>`;
                 }).join('');
                 cutsSection = `<div class="form-group span-full"><label>Linked Cuts</label><div style="max-height:100px;overflow-y:auto;border:1px solid #ccc;padding:5px;">${checkboxes}</div></div>`;
             }
+
             formHtml = `
                 <div class="form-grid">
-                    <div class="form-group"><label>${_t('item_type')}</label><input type="text" name="ItemType" value="${record.ItemType || 'Main'}" readonly></div>
-                    <div class="form-group"><label>${_t('item_code')}</label><input type="text" value="${record.code}" readonly></div>
-                    <div class="form-group"><label>${_t('barcode')}</label><input type="text" name="barcode" value="${record.barcode || ''}"></div>
-                    <div class="form-group"><label>${_t('item_name')}</label><input type="text" name="name" value="${record.name}" required></div>
-                    <div class="form-group"><label>${_t('unit')}</label><input type="text" name="unit" value="${record.unit}" required></div>
+                    <div class="form-group"><label>${_t('item_type')}</label><input type="text" name="ItemType" value="${safeGet(record, 'ItemType') || 'Main'}" ${id ? 'readonly' : ''}></div>
+                    <div class="form-group"><label>${_t('item_code')}</label><input type="text" name="code" value="${safeGet(record, 'code')}" ${id ? 'readonly' : ''}></div>
+                    <div class="form-group"><label>${_t('barcode')}</label><input type="text" name="barcode" value="${safeGet(record, 'barcode')}"></div>
+                    <div class="form-group"><label>${_t('item_name')}</label><input type="text" name="name" value="${safeGet(record, 'name')}" required></div>
+                    <div class="form-group"><label>${_t('unit')}</label><input type="text" name="unit" value="${safeGet(record, 'unit')}" required></div>
                     <div class="form-group"><label>${_t('category')}</label><select name="category" required>${catOptions}</select></div>
                     <div class="form-group"><label>${_t('default_supplier')}</label><select id="edit-item-supplier" name="supplierCode"></select></div>
-                    <div class="form-group span-full"><label>${_t('default_cost')}</label><input type="number" name="cost" step="0.01" min="0" value="${record.cost}" required></div>
+                    <div class="form-group span-full"><label>${_t('default_cost')}</label><input type="number" name="cost" step="0.01" min="0" value="${safeGet(record, 'cost')}" required></div>
                     ${cutsSection}
                 </div>`;
             editModalBody.innerHTML = formHtml;
             populateOptions(document.getElementById('edit-item-supplier'), state.suppliers, _t('select_supplier'), 'supplierCode', 'name');
-            document.getElementById('edit-item-supplier').value = record.supplierCode;
+            if(record.supplierCode) document.getElementById('edit-item-supplier').value = record.supplierCode;
             break;
             
         case 'supplier':
-            record = findByKey(state.suppliers, 'supplierCode', id);
-            editModalTitle.textContent = _t('edit_supplier');
-            formHtml = `<div class="form-grid"><div class="form-group"><label>${_t('supplier_code')}</label><input type="text" value="${record.supplierCode}" readonly></div><div class="form-group"><label>${_t('supplier_name')}</label><input type="text" name="name" value="${record.name}" required></div><div class="form-group"><label>${_t('contact_info')}</label><input type="text" name="contact" value="${record.contact || ''}"></div></div>`;
+            if (id) record = findByKey(state.suppliers, 'supplierCode', id) || {};
+            editModalTitle.textContent = id ? _t('edit_supplier') : _t('add_new_supplier');
+            formHtml = `<div class="form-grid"><div class="form-group"><label>${_t('supplier_code')}</label><input type="text" name="supplierCode" value="${safeGet(record, 'supplierCode')}" ${id ? 'readonly' : ''}></div><div class="form-group"><label>${_t('supplier_name')}</label><input type="text" name="name" value="${safeGet(record, 'name')}" required></div><div class="form-group"><label>${_t('contact_info')}</label><input type="text" name="contact" value="${safeGet(record, 'contact')}"></div></div>`;
             editModalBody.innerHTML = formHtml;
             break;
-            
+        
+        case 'branch':
+            if (id) record = findByKey(state.branches, 'branchCode', id) || {};
+            editModalTitle.textContent = id ? _t('edit_branch') : _t('add_new_branch');
+            formHtml = `<div class="form-grid"><div class="form-group"><label>${_t('branch_code')}</label><input type="text" name="branchCode" value="${safeGet(record, 'branchCode')}" ${id ? 'readonly' : ''}></div><div class="form-group"><label>${_t('branch_name')}</label><input type="text" name="branchName" value="${safeGet(record, 'branchName')}" required></div></div>`;
+            editModalBody.innerHTML = formHtml;
+            break;
+
+        case 'section':
+            if (id) record = findByKey(state.sections, 'sectionCode', id) || {};
+            editModalTitle.textContent = id ? _t('edit_section') : _t('add_new_section');
+            formHtml = `<div class="form-grid"><div class="form-group"><label>${_t('section_code')}</label><input type="text" name="sectionCode" value="${safeGet(record, 'sectionCode')}" ${id ? 'readonly' : ''}></div><div class="form-group"><label>${_t('section_name')}</label><input type="text" name="sectionName" value="${safeGet(record, 'sectionName')}" required></div></div>`;
+            editModalBody.innerHTML = formHtml;
+            break;
+
         case 'user':
-            record = id ? findByKey(state.allUsers, 'Username', id) : null;
+            if (id) record = findByKey(state.allUsers, 'Username', id) || {};
             editModalTitle.textContent = id ? _t('edit_user') : _t('add_new_user_title');
-            const currentRole = record ? record.RoleName : '';
+            const currentRole = safeGet(record, 'RoleName');
             const roleOptions = (state.allRoles || []).map(r => `<option value="${r.RoleName}" ${r.RoleName === currentRole ? 'selected' : ''}>${r.RoleName}</option>`).join('');
-            const branchOptions = (state.branches || []).map(b => `<option value="${b.branchCode}" ${record && record.AssignedBranchCode === b.branchCode ? 'selected' : ''}>${b.branchName}</option>`).join('');
+            const branchOptions = (state.branches || []).map(b => `<option value="${b.branchCode}" ${record.AssignedBranchCode === b.branchCode ? 'selected' : ''}>${b.branchName}</option>`).join('');
             
             formHtml = `
                 <div class="form-grid">
-                    <div class="form-group"><label>${_t('username')}</label><input type="text" name="Username" value="${record ? record.Username : ''}" ${id ? 'readonly' : 'required'}></div>
-                    <div class="form-group"><label>${_t('table_h_fullname')}</label><input type="text" name="Name" value="${record ? record.Name : ''}" required></div>
+                    <div class="form-group"><label>${_t('username')}</label><input type="text" name="Username" value="${safeGet(record, 'Username')}" ${id ? 'readonly' : 'required'}></div>
+                    <div class="form-group"><label>${_t('table_h_fullname')}</label><input type="text" name="Name" value="${safeGet(record, 'Name')}" required></div>
                     <div class="form-group"><label>${_t('table_h_role')}</label><select name="RoleName" required><option value="">Select Role</option>${roleOptions}</select></div>
                     <div class="form-group"><label>Assigned Branch</label><select name="AssignedBranchCode"><option value="">None (HQ/Admin)</option>${branchOptions}</select></div>
                     <div class="form-group span-full"><label>${_t('edit_user_password_label')}</label><input type="password" name="LoginCode" ${!id ? 'required' : ''}></div>
                     <div class="form-group-checkbox span-full">
-                        <input type="checkbox" name="isDisabled" id="user-disabled-check" ${record && (record.isDisabled === true || String(record.isDisabled) === 'TRUE') ? 'checked' : ''}>
+                        <input type="checkbox" name="isDisabled" id="user-disabled-check" ${record.isDisabled ? 'checked' : ''}>
                         <label for="user-disabled-check">Disable Account</label>
                     </div>
                 </div>`;
