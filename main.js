@@ -87,6 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
             Renderers.renderEditModalContent('role', null);
             document.getElementById('edit-modal').classList.add('active');
         }
+        // Permission Editor
         if (btn.classList.contains('btn-edit-role-perms')) {
             const roleName = btn.dataset.role;
             Renderers.renderEditModalContent('role-permissions', roleName);
@@ -98,8 +99,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await postData('deleteRole', { roleName: roleName }, btn);
                 if(res) {
                      showToast('Role deleted');
-                     // LIVE UPDATE: Reload data to ensure sync
-                     await reloadData();
+                     await reloadData(); // LIVE UPDATE
+                     refreshViewData('user-management');
                 }
             }
         }
@@ -125,13 +126,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.id === 'pending-requests-widget' || e.target.closest('#pending-requests-widget')) {
              const widget = document.getElementById('pending-requests-widget');
              if (widget.dataset.actionType === 'transfer') {
+                 await reloadData(); // LIVE UPDATE
                  showView('operations');
                  setTimeout(() => {
                      const tab = document.querySelector('button[data-subview="in-transit"]');
                      if(tab) tab.click();
                  }, 100);
-             } else {
-                 showView('requests');
              }
              return; 
         }
@@ -173,8 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     'transfer': 'currentTransferList', 
                     'po': 'currentPOList', 
                     'return': 'currentReturnList', 
-                    'adjustment': 'currentAdjustmentList',
-                    'request': 'currentRequestList'
+                    'adjustment': 'currentAdjustmentList'
                 };
                 const listName = map[ctx];
                 
@@ -196,7 +195,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if(ctx === 'return') Renderers.renderReturnListTable();
                     if(ctx === 'adjustment') Renderers.renderAdjustmentListTable();
                     if(ctx === 'po') Renderers.renderPOListTable();
-                    if(ctx === 'request') Renderers.renderRequestListTable();
                 }
             }
             m.classList.remove('active');
@@ -222,8 +220,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 'table-transfer-list': { list: 'currentTransferList', render: Renderers.renderTransferListTable },
                 'table-po-list': { list: 'currentPOList', render: Renderers.renderPOListTable },
                 'table-return-list': { list: 'currentReturnList', render: Renderers.renderReturnListTable },
-                'table-adjustment-list': { list: 'currentAdjustmentList', render: Renderers.renderAdjustmentListTable },
-                'table-request-list': { list: 'currentRequestList', render: Renderers.renderRequestListTable }
+                'table-adjustment-list': { list: 'currentAdjustmentList', render: Renderers.renderAdjustmentListTable }
             };
             
             const config = tableMap[tableId];
@@ -265,8 +262,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await postData(action, { id, type }, btn);
                 if(res) {
                     showToast('Updated', 'success');
-                    // LIVE UPDATE: Reload data immediately
-                    await reloadData();
+                    await reloadData(); // LIVE UPDATE
+                    if (type === 'receive') {
+                        refreshViewData('operations');
+                    } else {
+                        refreshViewData('purchasing');
+                    }
                 }
             }
         }
@@ -300,8 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 'table-transfer-list': { list: 'currentTransferList', render: Renderers.renderTransferListTable },
                 'table-po-list': { list: 'currentPOList', render: Renderers.renderPOListTable },
                 'table-return-list': { list: 'currentReturnList', render: Renderers.renderReturnListTable },
-                'table-adjustment-list': { list: 'currentAdjustmentList', render: Renderers.renderAdjustmentListTable },
-                'table-request-list': { list: 'currentRequestList', render: Renderers.renderRequestListTable }
+                'table-adjustment-list': { list: 'currentAdjustmentList', render: Renderers.renderAdjustmentListTable }
             };
 
             const config = tableMap[tableId];
@@ -336,9 +336,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await postData(actionName, data, btn);
                 if(res) {
                     showToast(_t('add_success_toast'), 'success');
+                    if (actionName === 'addItem') state.items.push(data);
+                    if (actionName === 'addSupplier') state.suppliers.push(data);
+                    if (actionName === 'addBranch') state.branches.push(data);
+                    if (actionName === 'addSection') state.sections.push(data);
                     form.reset();
-                    // LIVE UPDATE
-                    await reloadData();
+                    await reloadData(); // LIVE UPDATE
+                    refreshViewData('master-data');
                 }
             } catch (err) { console.error(err); showToast("Error processing form", "error"); }
         });
@@ -422,8 +426,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if(res) {
                 showToast('Action successful');
                 document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
-                // LIVE UPDATE
-                await reloadData();
+                
+                await reloadData(); // LIVE UPDATE
+
+                if (type === 'user' || type === 'role' || type === 'role-permissions') {
+                    refreshViewData('user-management');
+                } else {
+                    refreshViewData('master-data');
+                }
             }
         });
     }
@@ -446,21 +456,18 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast('Payment recorded!', 'success');
             state.invoiceModalSelections.clear();
             pf.reset();
-            // LIVE UPDATE
-            await reloadData();
+            await reloadData(); // LIVE UPDATE
+            refreshViewData('payments');
         }
     });
 
-    // --- TRANSACTION HANDLERS (With Automatic Refresh) ---
-    // This wrapper function adds the automatic reload logic to any handler
+    // --- TRANSACTION HANDLERS WRAPPER (Auto-Refresh) ---
     const bindBtn = (id, handler) => { 
         const btn = document.getElementById(id); 
         if(btn) {
             btn.addEventListener('click', async (e) => {
-                // Execute logic
                 await handler(e); 
-                // Force Update
-                await reloadData();
+                await reloadData(); // LIVE UPDATE
             });
         }
     };
@@ -470,23 +477,30 @@ document.addEventListener('DOMContentLoaded', () => {
     bindBtn('btn-submit-transfer-batch', Transactions.handleTransferSubmit);
     bindBtn('btn-submit-po', Transactions.handlePOSubmit);
     bindBtn('btn-submit-return', Transactions.handleReturnSubmit);
-    bindBtn('btn-submit-request', Transactions.handleRequestSubmit);
     bindBtn('btn-submit-adjustment', Transactions.handleAdjustmentSubmit);
 
     document.getElementById('global-refresh-button').addEventListener('click', async () => { await reloadData(); });
 
+    // --- NAVIGATION LISTENER (LIVE RELOAD ON TAB CHANGE) ---
     document.querySelectorAll('#main-nav a').forEach(link => {
-        link.addEventListener('click', (e) => {
+        link.addEventListener('click', async (e) => {
             e.preventDefault();
             if(link.id === 'btn-logout') { sessionStorage.clear(); location.reload(); }
+            
+            // LIVE NAVIGATION: Reload data BEFORE showing the view
+            await reloadData();
             showView(link.dataset.view);
         });
     });
     
     document.querySelectorAll('.sub-nav-item').forEach(item => {
-        item.addEventListener('click', (e) => {
+        item.addEventListener('click', async (e) => {
             e.preventDefault();
             const view = e.target.closest('.view');
+            
+            // LIVE NAVIGATION: Reload data BEFORE switching sub-tabs
+            await reloadData();
+            
             view.querySelectorAll('.sub-nav-item, .sub-view').forEach(x => x.classList.remove('active'));
             e.target.classList.add('active');
             const subId = e.target.dataset.subview;
@@ -604,26 +618,14 @@ function refreshViewData(id) {
         // --- BRANCH RESTRICTION (LOCKING) ---
         const user = state.currentUser;
         if (user && user.AssignedBranchCode) {
-            // Receive Tab
             const rxBranch = document.getElementById('receive-branch');
-            if(rxBranch) { 
-                rxBranch.value = user.AssignedBranchCode; 
-                rxBranch.disabled = true; 
-            }
+            if(rxBranch) { rxBranch.value = user.AssignedBranchCode; rxBranch.disabled = true; }
             
-            // Transfer Tab
             const txFrom = document.getElementById('transfer-from-branch');
-            if(txFrom) { 
-                txFrom.value = user.AssignedBranchCode; 
-                txFrom.disabled = true; 
-            }
+            if(txFrom) { txFrom.value = user.AssignedBranchCode; txFrom.disabled = true; }
             
-            // Return Tab
             const retBranch = document.getElementById('return-branch');
-            if(retBranch) { 
-                retBranch.value = user.AssignedBranchCode; 
-                retBranch.disabled = true; 
-            }
+            if(retBranch) { retBranch.value = user.AssignedBranchCode; retBranch.disabled = true; }
         }
         
         populateOptions(document.getElementById('receive-supplier'), state.suppliers, _t('supplier'), 'supplierCode', 'name');
