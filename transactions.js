@@ -9,7 +9,7 @@ import {
     renderPOListTable,
     renderPendingTransfers, 
     renderInTransitReport,
-    renderRequestListTable 
+    renderPendingInvoices 
 } from './renderers.js';
 import { calculateStockLevels } from './calculations.js';
 import { generateReceiveDocument, generateTransferDocument, generateReturnDocument, generatePODocument } from './documents.js';
@@ -119,13 +119,22 @@ export async function handleReceiveSubmit(e) {
     const result = await postData('addTransactionBatch', payload, btn);
     if (result) {
         showToast('Stock Received!', 'success');
+        
+        // Optimistic UI Update (Pending Approval status by default unless configured otherwise)
+        const isAutoApproved = !state.currentUser.permissions.opApproveGRN; 
+        // Logic: if user CAN approve, maybe they approve instantly? 
+        // For safety, usually GRNs go to pending. 
+        // Based on recent changes, let's assume Pending.
+        
         payload.items.forEach(item => {
-            state.transactions.push({ ...item, branchCode, supplierCode, invoiceNumber, isApproved: state.currentUser.permissions.opApproveFinancials ? true : false, Status: state.currentUser.permissions.opApproveFinancials ? 'Completed' : 'Pending Approval' });
+            state.transactions.push({ ...item, branchCode, supplierCode, invoiceNumber, isApproved: false, Status: 'Pending Approval' });
         });
+        
         generateReceiveDocument(payload);
         resetStateLists();
         document.getElementById('form-receive-details').reset();
         renderReceiveListTable();
+        renderPendingInvoices();
     }
 }
 
@@ -177,6 +186,7 @@ export async function handleTransferSubmit(e) {
         document.getElementById('form-transfer-details').reset();
         document.getElementById('transfer-ref').value = generateId('TRN');
         renderTransferListTable();
+        renderInTransitReport();
     }
 }
 
@@ -324,33 +334,6 @@ export async function handleAdjustmentSubmit(e) {
         resetStateLists();
         renderAdjustmentListTable();
         document.getElementById('form-adjustment-details').reset();
-    }
-}
-
-// --- REQUESTS ---
-export async function handleRequestSubmit(e) {
-    if(e) e.preventDefault();
-    const btn = e.currentTarget;
-    const type = document.getElementById('request-type').value;
-    const notes = document.getElementById('request-notes').value;
-    let fSec = state.currentUser.AssignedSectionCode;
-    let tBr = state.currentUser.AssignedBranchCode;
-    
-    if(state.currentUser.permissions.viewAllBranches && (!fSec || !tBr)) {
-        const context = await requestAdminContext({ toBranch: true, fromSection: true });
-        if(!context) return;
-        tBr = context.toBranch;
-        fSec = context.fromSection;
-    }
-    
-    if(!state.currentRequestList.length) { showToast('Add items', 'error'); return; }
-    const payload = { requestId: `REQ-${Date.now()}`, requestType: type, notes, items: state.currentRequestList, FromSection: fSec, ToBranch: tBr };
-    
-    if(await postData('addItemRequest', payload, btn)) {
-        showToast('Requested', 'success');
-        resetStateLists();
-        document.getElementById('form-create-request').reset();
-        renderRequestListTable();
     }
 }
 
