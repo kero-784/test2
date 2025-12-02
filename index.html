@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -57,9 +58,6 @@
                 <li class="nav-item" data-permission="opCreatePO,opApprovePO"><a href="#" data-view="purchasing"><span data-translate-key="purchasing">Purchasing</span></a></li>
                 <li class="nav-item" data-permission="opRecordPayment"><a href="#" data-view="payments"><span data-translate-key="payments">Payments</span></a></li>
                 
-                <!-- Requests -->
-                <li class="nav-item"><a href="#" data-view="requests"><span data-translate-key="requests">Requests</span></a></li>
-
                 <!-- Reporting -->
                 <li class="nav-item"><a href="#" data-view="reports"><span data-translate-key="reports">Reports</span></a></li>
                 
@@ -77,7 +75,7 @@
            <header class="main-header">
                 <h2 id="view-title" data-translate-key="dashboard">Dashboard</h2>
                 <div id="pending-requests-widget" class="pending-requests-widget" style="display: none;">
-                    <span id="pending-requests-widget-text">Pending Requests: </span><span id="pending-requests-count">0</span>
+                    <span id="pending-requests-widget-text">Pending Incoming: </span><span id="pending-requests-count">0</span>
                 </div>
                 <span id="user-branch-display" class="user-branch-display"></span>
             </header>
@@ -227,22 +225,6 @@
                 </div>
             </div>
 
-            <div id="view-requests" class="view">
-                <div class="sub-nav"><button class="sub-nav-item active" data-subview="my-requests" data-translate-key="my_requests">My Requests</button><button class="sub-nav-item" data-subview="pending-approval" data-translate-key="pending_approval">Pending Approval</button></div>
-                <div id="subview-my-requests" class="sub-view active">
-                    <div class="card"><h2 data-translate-key="create_new_request">Create New Request</h2><form id="form-create-request" class="form-grid" onsubmit="return false;"><div class="form-group"><label for="request-type" data-translate-key="request_type">Request Type</label><select id="request-type"><option value="issue" data-translate-key="req_items_from_branch">Request Items from Branch</option><option value="resupply" data-translate-key="req_item_resupply">Request Item Resupply (Low Stock)</option></select></div><div class="form-group span-full"><label for="request-notes" data-translate-key="notes_justification">Notes / Justification</label><textarea id="request-notes" rows="2"></textarea></div></form></div>
-                    <div class="card"><h2 data-translate-key="items_for_request">Items for Request</h2><table id="table-request-list"><thead><tr><th data-translate-key="table_h_code">Code</th><th data-translate-key="item_name">Item Name</th><th data-translate-key="table_h_quantity">Quantity</th><th data-translate-key="actions">Action</th></tr></thead><tbody></tbody></table><div style="margin-top: 20px; display: flex; gap: 10px;"><button type="button" data-context="request" class="secondary btn-select-items" data-translate-key="select_items">Select Items</button><button id="btn-submit-request" class="primary" data-translate-key="submit_request">Submit Request</button></div></div>
-                </div>
-                <div id="subview-pending-approval" class="sub-view">
-                    <div class="card">
-                        <div class="toolbar">
-                            <h2 data-translate-key="req_pending_approval">Requests Pending Approval</h2>
-                            <button id="btn-print-pending-requests" class="secondary small" data-translate-key="print_list">Print List</button>
-                        </div>
-                        <div class="report-area"><table id="table-pending-requests"><thead><tr><th data-translate-key="table_h_req_id">ID</th><th data-translate-key="table_h_date">Date</th><th data-translate-key="table_h_type">Type</th><th data-translate-key="table_h_requested_by">Requested By</th><th data-translate-key="table_h_details">Details</th><th data-translate-key="items">Items</th><th data-translate-key="actions">Actions</th></tr></thead><tbody></tbody></table></div>
-                    </div>
-                </div>
-            </div>
             <div id="view-stock-levels" class="view"><div class="card"><div class="toolbar"><h2 id="stock-levels-title" data-translate-key="stock_by_item">Stock by Item</h2><div class="search-bar"><input type="search" id="stock-levels-search" class="search-bar-input" data-translate-placeholder="search_items_stock_placeholder"></div><button id="btn-export-stock" class="secondary" data-translate-key="export_to_excel">Export to Excel</button></div><div id="item-centric-stock-container" class="report-area"></div></div><div class="card"><h2 data-translate-key="item_stock_inquiry">Item Stock Inquiry (Drill-down)</h2><input type="search" id="item-inquiry-search" class="search-bar-input" data-translate-placeholder="item_stock_inquiry_placeholder"><div id="item-inquiry-results" class="report-area"></div></div></div>
             <div id="view-transaction-history" class="view">
                 <div class="card">
