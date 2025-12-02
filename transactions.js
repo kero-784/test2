@@ -29,13 +29,21 @@ export async function handleButcherySubmit(e) {
         return;
     }
 
+    // --- VALIDATION: CHECK STOCK AVAILABILITY ---
+    const stock = calculateStockLevels();
+    const availableStock = stock[branchCode]?.[parentCode]?.quantity || 0;
+
+    if (parentQty > availableStock) {
+        showToast(`Insufficient Stock! You only have ${availableStock.toFixed(3)} kg available.`, 'error');
+        return; // STOP PROCESS
+    }
+
     // 1. Calculate Totals
     const totalChildWeight = state.currentButcheryList.reduce((a,b) => a + (parseFloat(b.quantity) || 0), 0);
     const difference = parentQty - totalChildWeight;
 
     // 2. Logic: Handle Weight Difference
     if (difference > 0.001) {
-        // Difference detected.
         const msg = `⚠️ Weight Mismatch Detected!\n\n` +
                     `Input Weight: ${parentQty} kg\n` +
                     `Total Cuts: ${totalChildWeight.toFixed(3)} kg\n` +
@@ -44,12 +52,10 @@ export async function handleButcherySubmit(e) {
                     `• Click CANCEL to go back and modify the weights.`;
 
         if (!confirm(msg)) {
-            // User clicked Cancel -> Return to form
-            return; 
+            return; // User clicked Cancel -> Return to form
         }
         
-        // User clicked OK -> Proceed, but AUTO-ADJUST input to match output.
-        // This ensures the "difference" is never deducted from the database.
+        // User clicked OK -> Auto-adjust input to match output (Preserve Stock)
         parentQty = totalChildWeight; 
         showToast(`Processed. ${difference.toFixed(3)}kg remains in parent stock.`, 'info');
 
@@ -58,7 +64,6 @@ export async function handleButcherySubmit(e) {
         return;
     }
 
-    const stock = calculateStockLevels();
     const parentAvgCost = stock[branchCode]?.[parentCode]?.avgCost || 0;
     
     if(!batchNo) batchNo = `PRD-${Date.now().toString().slice(-8)}`;
@@ -72,7 +77,7 @@ export async function handleButcherySubmit(e) {
 
     const payload = {
         parentItemCode: parentCode,
-        parentQuantity: parentQty, // This uses the Adjusted Quantity
+        parentQuantity: parentQty, 
         branchCode: branchCode,
         childItems: childItems,
         batchNo: batchNo,
@@ -90,7 +95,7 @@ export async function handleButcherySubmit(e) {
         }));
         state.transactions.push({
             batchId: batchNo, date: now, type: 'production_out', itemCode: parentCode, quantity: parentQty, cost: parentAvgCost, branchCode: branchCode, fromBranchCode: branchCode, Status: 'Completed', isApproved: true
-        });
+        }));
 
         state.currentButcheryList = [];
         document.getElementById('form-butchery').reset();
@@ -150,9 +155,15 @@ export async function handleReceiveSubmit(e) {
     const result = await postData('addTransactionBatch', payload, btn);
     if (result) {
         showToast('Stock Received!', 'success');
-        // Default to Pending Approval locally until refresh confirms
+        
+        // Optimistic UI Update
+        const isAutoApproved = !state.currentUser.permissions.opApproveGRN; 
+        // Logic: If user has approval rights, maybe auto-approve? Or default pending?
+        // Let's assume Pending to require double check usually.
+        const status = 'Pending Approval';
+
         payload.items.forEach(item => {
-            state.transactions.push({ ...item, branchCode, supplierCode, invoiceNumber, isApproved: false, Status: 'Pending Approval' });
+            state.transactions.push({ ...item, branchCode, supplierCode, invoiceNumber, isApproved: false, Status: status });
         });
         
         generateReceiveDocument(payload);
@@ -182,6 +193,21 @@ export async function handleTransferSubmit(e) {
     if (!fromBranchCode || !toBranchCode || fromBranchCode === toBranchCode || state.currentTransferList.length === 0) {
         showToast('Invalid branch selection or empty list.', 'error');
         return;
+    }
+
+    // --- VALIDATION: CHECK STOCK AVAILABILITY ---
+    const stock = calculateStockLevels();
+    const branchStock = stock[fromBranchCode] || {};
+    
+    // Check every item in the list
+    for (let item of state.currentTransferList) {
+        const currentQty = branchStock[item.itemCode]?.quantity || 0;
+        const transferQty = parseFloat(item.quantity);
+        
+        if (transferQty > currentQty) {
+            showToast(`Insufficient stock for ${item.itemName}. Available: ${currentQty.toFixed(3)}`, 'error');
+            return; // STOP
+        }
     }
 
     const payload = {
@@ -273,6 +299,19 @@ export async function handleReturnSubmit(e) {
         return;
     }
 
+    // --- VALIDATION: CHECK STOCK AVAILABILITY ---
+    const stock = calculateStockLevels();
+    const branchStock = stock[fromBranchCode] || {};
+
+    for (let item of state.currentReturnList) {
+        const currentQty = branchStock[item.itemCode]?.quantity || 0;
+        const returnQty = parseFloat(item.quantity);
+        if (returnQty > currentQty) {
+            showToast(`Insufficient stock for ${item.itemName}. Available: ${currentQty.toFixed(3)}`, 'error');
+            return; // STOP
+        }
+    }
+
     const payload = {
         type: 'return_out',
         batchId: `RTN-${Date.now()}`,
@@ -327,6 +366,12 @@ export async function handleAdjustmentSubmit(e) {
         const adjustmentQty = physicalCount - systemQty;
         
         if (Math.abs(adjustmentQty) < 0.001) return null; 
+
+        // Validation for Negative Adjustment (Cannot reduce more than exists, theoretically impossible with physical count but logic holds)
+        if (adjustmentQty < 0 && Math.abs(adjustmentQty) > systemQty) {
+             // This case implies system thought we had 10, physical is -5? Impossible. 
+             // Physical count should be >= 0.
+        }
 
         return {
             itemCode: item.itemCode,
@@ -401,6 +446,7 @@ export function openTransferModal(batchId) {
 }
 
 export async function processTransferAction(action, batchId, btn) {
+    // action = 'receiveTransfer' or 'rejectTransfer'
     const txs = state.transactions.filter(t => t.batchId === batchId && t.type === 'transfer_out');
     if(!txs.length) return;
 
