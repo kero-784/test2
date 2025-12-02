@@ -78,47 +78,38 @@ document.addEventListener('DOMContentLoaded', () => {
              document.getElementById('edit-modal').classList.add('active');
         }
 
-        // --- USER & ROLE MANAGEMENT BUTTONS ---
-        if (btn.id === 'btn-add-new-user') {
-            Renderers.renderEditModalContent('user', null); 
+        // --- ADD NEW BUTTONS (MASTER DATA) ---
+        const addNewTypes = {
+            'btn-add-item': 'item',
+            'btn-add-supplier': 'supplier',
+            'btn-add-branch': 'branch',
+            'btn-add-section': 'section',
+            'btn-add-new-user': 'user',
+            'btn-add-new-role': 'role'
+        };
+        
+        if (addNewTypes[btn.id]) {
+            Renderers.renderEditModalContent(addNewTypes[btn.id], null);
             document.getElementById('edit-modal').classList.add('active');
         }
-        if (btn.id === 'btn-add-new-role') {
-            Renderers.renderEditModalContent('role', null);
-            document.getElementById('edit-modal').classList.add('active');
-        }
+
+        // Permission Editor
         if (btn.classList.contains('btn-edit-role-perms')) {
             const roleName = btn.dataset.role;
             Renderers.renderEditModalContent('role-permissions', roleName);
             document.getElementById('edit-modal').classList.add('active');
         }
+        
         if (btn.classList.contains('btn-delete-role')) {
             if(confirm('Are you sure you want to delete this role?')) {
                 const roleName = btn.dataset.role;
                 const res = await postData('deleteRole', { roleName: roleName }, btn);
                 if(res) {
                      showToast('Role deleted');
-                     await reloadData();
+                     await reloadData(); 
                      refreshViewData('user-management');
                 }
             }
-        }
-
-        // --- TRANSFER ACTIONS ---
-        if (btn.classList.contains('btn-receive-transfer')) {
-             Transactions.openTransferModal(btn.dataset.batchId);
-        }
-        if (btn.id === 'btn-confirm-receive-transfer') {
-             await Transactions.processTransferAction('receiveTransfer', btn.dataset.batchId, btn);
-             await reloadData();
-        }
-        if (btn.id === 'btn-reject-transfer') {
-             await Transactions.processTransferAction('rejectTransfer', btn.dataset.batchId, btn);
-             await reloadData();
-        }
-        if (btn.classList.contains('btn-cancel-transfer')) {
-             await Transactions.handleCancelTransfer(btn.dataset.batchId, btn);
-             await reloadData();
         }
 
         // --- FINANCIALS (PAY FROM REPORT) ---
@@ -141,11 +132,37 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 300);
         }
 
-        // --- REPORT GENERATOR ---
+        // --- REPORT GENERATOR (YIELD) ---
         if (btn.id === 'btn-generate-yield-report') {
             const type = document.getElementById('yield-report-type').value;
             const search = document.getElementById('yield-report-search').value;
             Renderers.renderYieldAnalysisReport(type, search);
+        }
+        
+        // --- REPORT GENERATOR (STATEMENT) ---
+        if (btn.id === 'btn-generate-supplier-statement') {
+             Renderers.renderSupplierStatement(
+                 document.getElementById('supplier-statement-select').value, 
+                 document.getElementById('statement-start-date').value, 
+                 document.getElementById('statement-end-date').value
+             ); 
+        }
+
+        // --- TRANSFER ACTIONS ---
+        if (btn.classList.contains('btn-receive-transfer')) {
+             Transactions.openTransferModal(btn.dataset.batchId);
+        }
+        if (btn.id === 'btn-confirm-receive-transfer') {
+             await Transactions.processTransferAction('receiveTransfer', btn.dataset.batchId, btn);
+             await reloadData();
+        }
+        if (btn.id === 'btn-reject-transfer') {
+             await Transactions.processTransferAction('rejectTransfer', btn.dataset.batchId, btn);
+             await reloadData();
+        }
+        if (btn.classList.contains('btn-cancel-transfer')) {
+             await Transactions.handleCancelTransfer(btn.dataset.batchId, btn);
+             await reloadData();
         }
 
         // --- NOTIFICATION CLICK LOGIC ---
@@ -226,7 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // ... Helpers ...
         if (btn.id === 'btn-select-invoices') { Renderers.renderInvoicesInModal(); document.getElementById('invoice-selector-modal').classList.add('active'); }
         if (btn.id === 'btn-confirm-invoice-selection') { document.getElementById('invoice-selector-modal').classList.remove('active'); Renderers.renderPaymentList(); }
-        if (btn.id === 'btn-generate-supplier-statement') { Renderers.renderSupplierStatement(document.getElementById('supplier-statement-select').value, document.getElementById('statement-start-date').value, document.getElementById('statement-end-date').value); }
+        
         if (btn.id === 'btn-gen-item-code') document.getElementById('item-code').value = `ITM-${Math.floor(Math.random()*9999)}`;
         if (btn.id === 'btn-gen-invoice') document.getElementById('receive-invoice').value = `INV-${Date.now().toString().slice(-6)}`;
 
@@ -346,49 +363,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- 4. FORM SUBMITS ---
-    const attachFormHandler = (formId, actionName, dataExtractor) => {
-        const form = document.getElementById(formId);
-        if(!form) return;
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const btn = form.querySelector('button[type="submit"]');
-            try {
-                const data = dataExtractor();
-                const res = await postData(actionName, data, btn);
-                if(res) {
-                    showToast(_t('add_success_toast'), 'success');
-                    if (actionName === 'addItem') state.items.push(data);
-                    if (actionName === 'addSupplier') state.suppliers.push(data);
-                    if (actionName === 'addBranch') state.branches.push(data);
-                    if (actionName === 'addSection') state.sections.push(data);
-                    form.reset();
-                    await reloadData();
-                    refreshViewData('master-data');
-                }
-            } catch (err) { console.error(err); showToast("Error processing form", "error"); }
-        });
-    };
-
-    const getValue = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
-
-    attachFormHandler('form-add-item', 'addItem', () => ({
-        ItemType: getValue('item-type'),
-        ParentCode: getValue('item-parent'),
-        code: getValue('item-code'),
-        barcode: getValue('item-barcode'),
-        name: getValue('item-name'),
-        unit: getValue('item-unit'),
-        category: getValue('item-category'),
-        supplierCode: getValue('item-supplier'),
-        cost: parseFloat(getValue('item-cost')) || 0
-    }));
-    
-    attachFormHandler('form-add-supplier', 'addSupplier', () => ({ supplierCode: getValue('supplier-code'), name: getValue('supplier-name'), contact: getValue('supplier-contact') }));
-    attachFormHandler('form-add-branch', 'addBranch', () => ({ branchCode: getValue('branch-code'), branchName: getValue('branch-name') }));
-    attachFormHandler('form-add-section', 'addSection', () => ({ sectionCode: getValue('section-code'), sectionName: getValue('section-name') }));
-    
-    // Edit Form (Generalized)
+    // --- 4. EDIT/ADD FORM SUBMIT ---
     const editForm = document.getElementById('form-edit-record');
     if (editForm) {
         editForm.addEventListener('submit', async (e) => {
@@ -432,15 +407,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 payload = { type, id: form.dataset.id, updates };
 
+                // Handle Creations vs Updates
+                const isNew = !form.dataset.id;
+                
                 if (type === 'user') {
                     const username = formData.get('Username');
-                    const isNew = !form.dataset.id;
                     action = isNew ? 'addUser' : 'updateUser';
                     payload = isNew ? updates : { Username: username, updates };
-                } 
-                else if (type === 'role') {
+                } else if (type === 'role') {
                     action = 'addRole';
                     payload = updates;
+                } else if (isNew) {
+                    // Master Data Creation
+                    if (type === 'item') action = 'addItem';
+                    if (type === 'supplier') action = 'addSupplier';
+                    if (type === 'branch') action = 'addBranch';
+                    if (type === 'section') action = 'addSection';
+                    payload = updates; // For adds, we just send the object
                 }
             }
 
@@ -477,7 +460,7 @@ document.addEventListener('DOMContentLoaded', () => {
             state.invoiceModalSelections.clear();
             pf.reset();
             await reloadData();
-            refreshViewData('payments');
+            refreshViewData('financials');
         }
     });
 
@@ -548,12 +531,6 @@ function applyUIPermissions() {
             el.style.display = el.tagName === 'LI' ? 'block' : ''; 
         }
     });
-
-    // 2. Hide specific forms in Setup view if user lacks specific creation rights
-    if (!userCan('createItem')) document.getElementById('card-add-item').style.display = 'none';
-    if (!userCan('createSupplier')) document.getElementById('card-add-supplier').style.display = 'none';
-    if (!userCan('createBranch')) document.getElementById('card-add-branch').style.display = 'none';
-    if (!userCan('createSection')) document.getElementById('card-add-section').style.display = 'none';
 }
 
 function initializeAppUI() {
@@ -606,8 +583,7 @@ function refreshViewData(id) {
         populateOptions(document.getElementById('tx-filter-branch'), state.branches, 'All Branches', 'branchCode', 'branchName');
         Renderers.renderTransactionHistory();
     }
-    if(id === 'reports') populateOptions(document.getElementById('supplier-statement-select'), state.suppliers, 'Select Supplier', 'supplierCode', 'name');
-    if(id === 'financials') { // Replaced 'payments' with 'financials' to match new ID
+    if(id === 'financials') { // Merged View
         populateOptions(document.getElementById('payment-supplier-select'), state.suppliers, 'Select Supplier', 'supplierCode', 'name');
         populateOptions(document.getElementById('supplier-statement-select'), state.suppliers, 'Select Supplier', 'supplierCode', 'name');
         const listContainer = document.getElementById('payment-invoice-list-container');
