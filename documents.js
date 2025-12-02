@@ -101,36 +101,6 @@ export const generateTransferDocument = (data) => {
     printContent(content); 
 };
 
-export const generateIssueDocument = (data) => { 
-    const fromBranch = findByKey(state.branches, 'branchCode', data.fromBranchCode) || { branchName: 'Unknown' }; 
-    const toSection = findByKey(state.sections, 'sectionCode', data.sectionCode) || { sectionName: 'Unknown' }; 
-    let itemsHtml = ''; 
-    
-    data.items.forEach(item => { 
-        itemsHtml += `<tr><td>${item.itemCode}</td><td>${item.itemName}</td><td>${parseFloat(item.quantity).toFixed(3)}</td></tr>`; 
-    }); 
-    
-    const content = `
-        <div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}">
-            <h2>Stock Issue Note</h2>
-            <p><strong>Issue Ref:</strong> ${data.ref}</p>
-            <p><strong>Date:</strong> ${new Date(data.date).toLocaleString()}</p>
-            <hr>
-            <p><strong>From Branch:</strong> ${fromBranch.branchName}</p>
-            <p><strong>To Section:</strong> ${toSection.sectionName}</p>
-            <hr>
-            <table>
-                <thead><tr><th>Code</th><th>Item</th><th>Qty</th></tr></thead>
-                <tbody>${itemsHtml}</tbody>
-            </table>
-            <br>
-            <p><strong>Notes:</strong> ${data.notes || ''}</p>
-            <br><br>
-            <p>Issued By: _________________</p>
-        </div>`; 
-    printContent(content); 
-};
-
 export const generatePODocument = (data) => { 
     const supplier = findByKey(state.suppliers, 'supplierCode', data.supplierCode) || { name: 'Unknown' }; 
     let itemsHtml = '', totalValue = 0; 
@@ -211,6 +181,64 @@ export const generateReturnDocument = (data) => {
                 <tfoot><tr><td colspan="3" style="text-align:right;">Total Credit</td><td>${totalValue.toFixed(2)}</td></tr></tfoot>
             </table>
             <p><strong>Reason:</strong> ${data.notes || ''}</p>
+        </div>`;
+    printContent(content);
+};
+
+export const generateButcheryReport = (data) => {
+    const branch = findByKey(state.branches, 'branchCode', data.branchCode) || { branchName: data.branchCode };
+    const parentItem = findByKey(state.items, 'code', data.parentItemCode) || { name: data.parentItemCode };
+    
+    let cutsHtml = '';
+    let totalWeight = 0;
+    
+    data.childItems.forEach(item => {
+        const itemInfo = findByKey(state.items, 'code', item.itemCode) || { name: item.itemCode };
+        totalWeight += item.quantity;
+        cutsHtml += `
+            <tr>
+                <td>${item.itemCode}</td>
+                <td>${itemInfo.name}</td>
+                <td>${item.quantity.toFixed(3)} kg</td>
+                <td>${((item.quantity / data.parentQuantity) * 100).toFixed(1)}%</td>
+            </tr>`;
+    });
+
+    const yieldPct = data.parentQuantity > 0 ? ((totalWeight / data.parentQuantity) * 100).toFixed(1) : 0;
+    
+    const content = `
+        <div class="printable-document card" dir="${state.currentLanguage === 'ar' ? 'rtl' : 'ltr'}">
+            <div style="text-align:center; margin-bottom:20px;">
+                <h2>Butchery Production Report</h2>
+                <p><strong>Reference:</strong> ${data.batchNo}</p>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:20px; border-bottom:1px solid #ddd; padding-bottom:10px;">
+                <div>
+                    <p><strong>Date:</strong> ${new Date(data.date).toLocaleString()}</p>
+                    <p><strong>Branch:</strong> ${branch.branchName}</p>
+                </div>
+                <div style="text-align:right;">
+                    <p><strong>Parent Item:</strong> ${parentItem.name}</p>
+                    <p><strong>Processed Weight:</strong> ${data.parentQuantity.toFixed(3)} kg</p>
+                </div>
+            </div>
+            
+            <h3>Yield Output</h3>
+            <table>
+                <thead><tr><th>Code</th><th>Cut Name</th><th>Weight</th><th>% of Input</th></tr></thead>
+                <tbody>${cutsHtml}</tbody>
+                <tfoot>
+                    <tr style="background:#f8f9fa;">
+                        <td colspan="2" style="text-align:right;"><strong>Total Output:</strong></td>
+                        <td><strong>${totalWeight.toFixed(3)} kg</strong></td>
+                        <td><strong>${yieldPct}%</strong></td>
+                    </tr>
+                </tfoot>
+            </table>
+            
+            <div style="margin-top:30px;">
+                <p><strong>Operator Signature:</strong> ______________________</p>
+            </div>
         </div>`;
     printContent(content);
 };
