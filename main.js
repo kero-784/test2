@@ -601,6 +601,17 @@ function refreshViewData(id) {
             const el = document.getElementById(`${prefix}-branch`);
             if(el && el.options.length <= 1) populateOptions(el, state.branches, 'Branch', 'branchCode', 'branchName');
         });
+        
+        // --- NEW: ENFORCE BRANCH RESTRICTION (LOCK DROPDOWNS) ---
+        const user = state.currentUser;
+        if (user && user.AssignedBranchCode) {
+            const rxBranch = document.getElementById('receive-branch');
+            if(rxBranch) { rxBranch.value = user.AssignedBranchCode; rxBranch.disabled = true; }
+            
+            const txFrom = document.getElementById('transfer-from-branch');
+            if(txFrom) { txFrom.value = user.AssignedBranchCode; txFrom.disabled = true; }
+        }
+        
         populateOptions(document.getElementById('receive-supplier'), state.suppliers, _t('supplier'), 'supplierCode', 'name');
         populateOptions(document.getElementById('return-supplier'), state.suppliers, _t('supplier'), 'supplierCode', 'name');
         
