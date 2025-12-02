@@ -16,7 +16,6 @@ export let state = {
     payments: [],
     purchaseOrders: [],
     purchaseOrderItems: [],
-    itemRequests: [],
     activityLog: [],
     allUsers: [],
     allRoles: [],
@@ -25,10 +24,8 @@ export let state = {
     // Transaction Working Lists
     currentReceiveList: [],
     currentTransferList: [],
-    currentIssueList: [],
     currentPOList: [],
     currentReturnList: [],
-    currentRequestList: [],
     currentEditingPOList: [],
     currentAdjustmentList: [],
     currentButcheryList: [],
@@ -58,11 +55,9 @@ export function setState(key, value) {
 export function resetStateLists() {
     state.currentReceiveList = [];
     state.currentTransferList = [];
-    state.currentIssueList = [];
     state.currentButcheryList = [];
     state.currentPOList = [];
     state.currentReturnList = [];
-    state.currentRequestList = [];
     state.currentEditingPOList = [];
     state.currentAdjustmentList = [];
     state.modalSelections.clear();
