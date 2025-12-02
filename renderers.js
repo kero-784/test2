@@ -19,7 +19,6 @@ const PERMISSION_GROUPS = {
     'Stock Operations': [
         { key: 'opReceive', label: 'Receive Stock (GRN)' },
         { key: 'opTransfer', label: 'Send Transfer' },
-        { key: 'opIssue', label: 'Issue Stock' },
         { key: 'opReturn', label: 'Return to Supplier' },
         { key: 'opStockAdjustment', label: 'Stock Adjustments' },
         { key: 'opProduction', label: 'Butchery & Production' },
@@ -30,11 +29,6 @@ const PERMISSION_GROUPS = {
         { key: 'opApprovePO', label: 'Approve Purchase Orders' },
         { key: 'opEditInvoice', label: 'Edit GRN/Invoice' },
         { key: 'opRecordPayment', label: 'Record Payments' }
-    ],
-    'Requests': [
-        { key: 'opRequestItems', label: 'Make Requests' },
-        { key: 'opApproveIssueRequest', label: 'Approve Issue Requests' },
-        { key: 'opApproveResupplyRequest', label: 'Approve Resupply Requests' }
     ]
 };
 
@@ -163,12 +157,6 @@ export function renderPOEditListTable() {
         const el = document.getElementById('edit-po-grand-total');
         if(el) el.textContent = formatCurrency(total);
     });
-}
-
-export function renderRequestListTable() { 
-    renderDynamicListTable('table-request-list', state.currentRequestList, [ 
-        { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' } 
-    ], 'no_items_selected_toast', null); 
 }
 
 export function renderAdjustmentListTable() {
@@ -935,8 +923,7 @@ export function updateNotifications() {
     const myBranch = state.currentUser.AssignedBranchCode;
     const isAdmin = userCan('viewAllBranches');
     
-    const pendingReqs = state.itemRequests.filter(r => r.Status === 'Pending').length;
-    
+    // Only track incoming transfers now
     const incomingBatches = new Set();
     state.transactions.forEach(t => {
         if (t.type === 'transfer_out' && t.Status === 'In Transit') {
@@ -946,20 +933,14 @@ export function updateNotifications() {
         }
     });
 
-    const totalCount = pendingReqs + incomingBatches.size;
+    const totalCount = incomingBatches.size;
 
     if (totalCount > 0) {
         widget.style.display = 'flex';
         countEl.textContent = totalCount;
-        if (incomingBatches.size > 0) {
-            textEl.textContent = `${incomingBatches.size} Incoming Transfer(s)`;
-            widget.style.backgroundColor = '#E65100';
-            widget.dataset.actionType = 'transfer';
-        } else {
-            textEl.textContent = "Pending Requests";
-            widget.style.backgroundColor = '#FBC02D';
-            widget.dataset.actionType = 'request';
-        }
+        textEl.textContent = "Incoming Transfers";
+        widget.style.backgroundColor = '#E65100';
+        widget.dataset.actionType = 'transfer';
     } else {
         widget.style.display = 'none';
     }
