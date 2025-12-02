@@ -2,6 +2,7 @@ import { state } from './state.js';
 import { _t, findByKey, userCan, populateOptions, formatCurrency, formatDate, Logger, printContent } from './utils.js';
 import { calculateStockLevels, calculateSupplierFinancials } from './calculations.js';
 import * as Documents from './documents.js';
+import { generateButcheryReport } from './documents.js';
 
 // --- CONFIG: PERMISSION DEFINITIONS ---
 const PERMISSION_GROUPS = {
@@ -989,5 +990,117 @@ export function renderRolesTable() {
                 </div>
             </td>`;
         tbody.appendChild(tr);
+    });
+}
+
+// --- NEW REPORT RENDERER ---
+export function renderYieldAnalysisReport(type, filterText) {
+    const container = document.getElementById('yield-report-results');
+    if (!container) return;
+    
+    const allTx = state.transactions || [];
+    
+    // 1. Group transactions by Batch ID to reconstruct the production event
+    const productionBatches = {};
+    
+    allTx.forEach(t => {
+        if (t.type === 'production_out' || t.type === 'production_in') {
+            if (!productionBatches[t.batchId]) {
+                productionBatches[t.batchId] = {
+                    batchNo: t.batchId,
+                    date: t.date,
+                    branchCode: t.branchCode,
+                    parentItemCode: '',
+                    parentQuantity: 0,
+                    childItems: []
+                };
+            }
+            
+            if (t.type === 'production_out') {
+                productionBatches[t.batchId].parentItemCode = t.itemCode;
+                productionBatches[t.batchId].parentQuantity = t.quantity;
+            } else {
+                productionBatches[t.batchId].childItems.push({
+                    itemCode: t.itemCode,
+                    quantity: t.quantity
+                });
+            }
+        }
+    });
+
+    const batches = Object.values(productionBatches).sort((a,b) => new Date(b.date) - new Date(a.date));
+    let html = '';
+
+    if (type === 'batch') {
+        // --- MODE 1: BATCH LIST ---
+        html = `<table><thead><tr><th>Date</th><th>Ref</th><th>Branch</th><th>Parent Item</th><th>Input (KG)</th><th>Output (KG)</th><th>Yield %</th><th>Action</th></tr></thead><tbody>`;
+        
+        batches.forEach(b => {
+            if (filterText && !b.batchNo.toLowerCase().includes(filterText.toLowerCase())) return;
+            
+            const parentName = findByKey(state.items, 'code', b.parentItemCode)?.name || b.parentItemCode;
+            const branchName = findByKey(state.branches, 'branchCode', b.branchCode)?.branchName || b.branchCode;
+            const outputWeight = b.childItems.reduce((sum, i) => sum + i.quantity, 0);
+            const pct = b.parentQuantity > 0 ? ((outputWeight / b.parentQuantity) * 100) : 0;
+            const color = pct < 90 ? 'red' : 'green';
+
+            html += `<tr>
+                <td>${formatDate(b.date)}</td>
+                <td>${b.batchNo}</td>
+                <td>${branchName}</td>
+                <td>${parentName}</td>
+                <td>${b.parentQuantity.toFixed(3)}</td>
+                <td>${outputWeight.toFixed(3)}</td>
+                <td style="color:${color}; font-weight:bold;">${pct.toFixed(1)}%</td>
+                <td><button class="secondary small btn-print-yield" data-batch="${b.batchNo}">Print</button></td>
+            </tr>`;
+        });
+        html += '</tbody></table>';
+
+    } else if (type === 'item') {
+        // --- MODE 2: ITEM HISTORY ---
+        const itemGroups = {};
+        
+        batches.forEach(b => {
+            const pCode = b.parentItemCode;
+            if (!itemGroups[pCode]) itemGroups[pCode] = { name: '', batches: [] };
+            
+            const parentName = findByKey(state.items, 'code', pCode)?.name || pCode;
+            if (filterText && !parentName.toLowerCase().includes(filterText.toLowerCase())) return;
+            
+            itemGroups[pCode].name = parentName;
+            itemGroups[pCode].batches.push(b);
+        });
+
+        for (const [code, group] of Object.entries(itemGroups)) {
+            if(group.batches.length === 0) continue;
+            
+            html += `<div class="card" style="border:1px solid #eee; margin-bottom:15px;"><h3>${group.name} (${code})</h3>`;
+            html += `<table><thead><tr><th>Date</th><th>Batch</th><th>Input Used</th><th>Total Cuts</th><th>Efficiency</th><th>Detail</th></tr></thead><tbody>`;
+            
+            group.batches.forEach(b => {
+                const out = b.childItems.reduce((s, i) => s + i.quantity, 0);
+                const pct = ((out / b.parentQuantity) * 100).toFixed(1);
+                html += `<tr>
+                    <td>${formatDate(b.date)}</td>
+                    <td>${b.batchNo}</td>
+                    <td>${b.parentQuantity.toFixed(2)}</td>
+                    <td>${out.toFixed(2)}</td>
+                    <td>${pct}%</td>
+                    <td><button class="secondary small btn-print-yield" data-batch="${b.batchNo}">Report</button></td>
+                </tr>`;
+            });
+            html += `</tbody></table></div>`;
+        }
+    }
+
+    container.innerHTML = html;
+    
+    // Re-attach listeners for dynamic buttons
+    document.querySelectorAll('.btn-print-yield').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const batchData = productionBatches[btn.dataset.batch];
+            if(batchData) generateButcheryReport(batchData);
+        });
     });
 }
