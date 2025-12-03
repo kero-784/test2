@@ -96,9 +96,10 @@ export async function handleButcherySubmit(e) {
             batchId: batchNo, date: now, type: 'production_in', itemCode: c.itemCode, quantity: c.quantity, cost: c.cost, branchCode: branchCode, Status: 'Completed', isApproved: true
         }));
         
+        // Fixed Syntax Error Here
         state.transactions.push({
             batchId: batchNo, date: now, type: 'production_out', itemCode: parentCode, quantity: parentQty, cost: parentAvgCost, branchCode: branchCode, fromBranchCode: branchCode, Status: 'Completed', isApproved: true
-        }));
+        });
 
         state.currentButcheryList = [];
         document.getElementById('form-butchery').reset();
@@ -159,11 +160,11 @@ export async function handleReceiveSubmit(e) {
     if (result) {
         showToast('Stock Received!', 'success');
         
-        // --- FIX: Explicitly set batchId and isApproved=false in local state ---
+        // Update local state with explicit batchId and approval status
         payload.items.forEach(item => {
             state.transactions.push({ 
                 ...item, 
-                batchId: batchNo, // Crucial for grouping in pending list
+                batchId: batchNo, // Ensure this matches payload batchId
                 branchCode, 
                 supplierCode, 
                 invoiceNumber, 
@@ -176,9 +177,7 @@ export async function handleReceiveSubmit(e) {
         resetStateLists();
         document.getElementById('form-receive-details').reset();
         renderReceiveListTable();
-        
-        // Force refresh the pending invoices view
-        renderPendingInvoices();
+        renderPendingInvoices(); // Refresh the pending list immediately
     }
 }
 
