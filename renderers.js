@@ -534,6 +534,11 @@ export function renderEditModalContent(type, id) {
             const currentCat = safeGet(record, 'category');
             const catOptions = categories.map(c => `<option value="${c}" ${currentCat === c ? 'selected' : ''}>${_t('cat_'+c.toLowerCase())}</option>`).join('');
             
+            // NEW: Unit Dropdown
+            const units = ['KG', 'PCS', 'BOX', 'PACK', 'LTR'];
+            const currentUnit = safeGet(record, 'unit') || 'KG';
+            const unitOptions = units.map(u => `<option value="${u}" ${currentUnit === u ? 'selected' : ''}>${u}</option>`).join('');
+            
             let cutsSection = '';
             // Only show linked cuts if editing a Main Item
             if (safeGet(record, 'ItemType') === 'Main') {
@@ -546,13 +551,28 @@ export function renderEditModalContent(type, id) {
                 cutsSection = `<div class="form-group span-full"><label>Linked Cuts</label><div style="max-height:100px;overflow-y:auto;border:1px solid #ccc;padding:5px;">${checkboxes}</div></div>`;
             }
 
+            // MODIFIED FORM with Select for Item Type and Unit, and Auto button logic prep
             formHtml = `
                 <div class="form-grid">
-                    <div class="form-group"><label>${_t('item_type')}</label><input type="text" name="ItemType" value="${safeGet(record, 'ItemType') || 'Main'}" ${id ? 'readonly' : ''}></div>
-                    <div class="form-group"><label>${_t('item_code')}</label><input type="text" name="code" value="${safeGet(record, 'code')}" ${id ? 'readonly' : ''}></div>
+                    <div class="form-group">
+                        <label>${_t('item_type')}</label>
+                        <select name="ItemType" ${id ? 'disabled' : ''} id="edit-item-type-select">
+                            <option value="Main" ${safeGet(record, 'ItemType') === 'Main' ? 'selected' : ''}>Main (Parent)</option>
+                            <option value="Cut" ${safeGet(record, 'ItemType') === 'Cut' ? 'selected' : ''}>Cut (Child)</option>
+                        </select>
+                        <!-- Hidden input to ensure value is sent if disabled -->
+                        ${id ? `<input type="hidden" name="ItemType" value="${safeGet(record, 'ItemType')}">` : ''}
+                    </div>
+                    <div class="form-group">
+                        <label>${_t('item_code')}</label>
+                        <div style="display:flex; gap:5px;">
+                            <input type="text" name="code" id="edit-item-code" value="${safeGet(record, 'code')}" ${id ? 'readonly' : ''}>
+                            ${!id ? `<button type="button" class="secondary small" id="btn-modal-gen-code">Auto</button>` : ''}
+                        </div>
+                    </div>
                     <div class="form-group"><label>${_t('barcode')}</label><input type="text" name="barcode" value="${safeGet(record, 'barcode')}"></div>
                     <div class="form-group"><label>${_t('item_name')}</label><input type="text" name="name" value="${safeGet(record, 'name')}" required></div>
-                    <div class="form-group"><label>${_t('unit')}</label><input type="text" name="unit" value="${safeGet(record, 'unit')}" required></div>
+                    <div class="form-group"><label>${_t('unit')}</label><select name="unit" required>${unitOptions}</select></div>
                     <div class="form-group"><label>${_t('category')}</label><select name="category" required>${catOptions}</select></div>
                     <div class="form-group"><label>${_t('default_supplier')}</label><select id="edit-item-supplier" name="supplierCode"></select></div>
                     <div class="form-group span-full"><label>${_t('default_cost')}</label><input type="number" name="cost" step="0.01" min="0" value="${safeGet(record, 'cost')}" required></div>
@@ -566,7 +586,18 @@ export function renderEditModalContent(type, id) {
         case 'supplier':
             if (id) record = findByKey(state.suppliers, 'supplierCode', id) || {};
             editModalTitle.textContent = id ? _t('edit_supplier') : _t('add_new_supplier');
-            formHtml = `<div class="form-grid"><div class="form-group"><label>${_t('supplier_code')}</label><input type="text" name="supplierCode" value="${safeGet(record, 'supplierCode')}" ${id ? 'readonly' : ''}></div><div class="form-group"><label>${_t('supplier_name')}</label><input type="text" name="name" value="${safeGet(record, 'name')}" required></div><div class="form-group"><label>${_t('contact_info')}</label><input type="text" name="contact" value="${safeGet(record, 'contact')}"></div></div>`;
+            formHtml = `
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>${_t('supplier_code')}</label>
+                        <div style="display:flex; gap:5px;">
+                            <input type="text" name="supplierCode" id="edit-supplier-code" value="${safeGet(record, 'supplierCode')}" ${id ? 'readonly' : ''}>
+                            ${!id ? `<button type="button" class="secondary small" id="btn-modal-gen-supplier">Auto</button>` : ''}
+                        </div>
+                    </div>
+                    <div class="form-group"><label>${_t('supplier_name')}</label><input type="text" name="name" value="${safeGet(record, 'name')}" required></div>
+                    <div class="form-group"><label>${_t('contact_info')}</label><input type="text" name="contact" value="${safeGet(record, 'contact')}"></div>
+                </div>`;
             editModalBody.innerHTML = formHtml;
             break;
         
