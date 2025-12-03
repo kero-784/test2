@@ -450,307 +450,7 @@ export function renderTransactionHistory(filters = {}) {
     });
 }
 
-// --- NEW SEPARATED APPROVAL RENDERERS ---
-
-export function renderPendingPOs() {
-    const table = document.getElementById('table-pending-pos');
-    if (!table) return;
-    const tbody = table.querySelector('tbody');
-    tbody.innerHTML = '';
-    
-    // Filter only Purchase Orders
-    const pendingPOs = (state.purchaseOrders || []).filter(po => po.Status === 'Pending Approval');
-
-    if (pendingPOs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">${_t('no_pending_financial_approval')}</td></tr>`;
-        return;
-    }
-
-    pendingPOs.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(item => {
-        let actionButtons = '';
-        if (userCan('opApprovePO')) {
-            actionButtons = `
-                <div class="action-buttons">
-                    <button class="primary small btn-approve-financial" data-id="${item.poId}" data-type="po">${_t('approve')}</button>
-                    <button class="danger small btn-reject-financial" data-id="${item.poId}" data-type="po">${_t('reject')}</button>
-                </div>`;
-        } else {
-            actionButtons = `<span style="color:var(--text-light-color); font-style:italic;">${_t('status_pending')}</span>`;
-        }
-
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${formatDate(item.date)}</td>
-            <td>${item.poId}</td>
-            <td>PO for ${findByKey(state.suppliers, 'supplierCode', item.supplierCode)?.name || item.supplierCode}</td>
-            <td>${formatCurrency(item.totalValue)}</td>
-            <td>${actionButtons}</td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
-
-export function renderPendingInvoices() {
-    const table = document.getElementById('table-pending-invoices');
-    if (!table) return;
-    const tbody = table.querySelector('tbody');
-    tbody.innerHTML = '';
-    
-    const user = state.currentUser;
-    const isAdmin = userCan('viewAllBranches');
-
-    // Group Receives (GRNs)
-    const pendingReceivesGroups = {};
-    (state.transactions || []).filter(t => t.type === 'receive' && (t.isApproved === false || String(t.isApproved).toUpperCase() === 'FALSE')).forEach(t => {
-        if (!pendingReceivesGroups[t.batchId]) {
-            pendingReceivesGroups[t.batchId] = {
-                date: t.date,
-                txType: 'receive',
-                ref: t.invoiceNumber,
-                batchId: t.batchId,
-                branchCode: t.branchCode, // Capture Branch Code
-                details: `GRN from ${findByKey(state.suppliers, 'supplierCode', t.supplierCode)?.name || 'N/A'}`,
-                totalValue: 0
-            };
-        }
-        pendingReceivesGroups[t.batchId].totalValue += (parseFloat(t.quantity) || 0) * (parseFloat(t.cost) || 0);
-    });
-
-    let allPendingGRNs = Object.values(pendingReceivesGroups);
-
-    // --- BRANCH FILTERING FOR INVOICES ---
-    if (user && user.AssignedBranchCode && !isAdmin) {
-        allPendingGRNs = allPendingGRNs.filter(g => g.branchCode === user.AssignedBranchCode);
-    }
-
-    if (allPendingGRNs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">${_t('no_pending_financial_approval')}</td></tr>`;
-        return;
-    }
-
-    allPendingGRNs.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(item => {
-        let actionButtons = '';
-        if (userCan('opApproveGRN')) {
-            actionButtons = `
-                <div class="action-buttons">
-                    <button class="primary small btn-approve-financial" data-id="${item.batchId}" data-type="receive">${_t('approve')}</button>
-                    <button class="danger small btn-reject-financial" data-id="${item.batchId}" data-type="receive">${_t('reject')}</button>
-                </div>`;
-        } else {
-            actionButtons = `<span style="color:var(--text-light-color); font-style:italic;">${_t('status_pending')}</span>`;
-        }
-
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${formatDate(item.date)}</td>
-            <td>${item.ref}</td>
-            <td>${item.details}</td>
-            <td>${formatCurrency(item.totalValue)}</td>
-            <td>${actionButtons}</td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
-
-// --- MODAL CONTENT RENDERERS ---
-
-export function renderEditModalContent(type, id) {
-    const editModalBody = document.getElementById('edit-modal-body');
-    const editModalTitle = document.getElementById('edit-modal-title');
-    const editForm = document.getElementById('form-edit-record');
-    
-    // Explicitly set type and ID on form for the submit handler
-    editForm.dataset.type = type;
-    editForm.dataset.id = id || '';
-
-    let record = {}; // Initialize as empty object
-    let formHtml;
-
-    // Helper to safely get data
-    const safeGet = (obj, key) => obj && obj[key] ? obj[key] : '';
-
-    switch (type) {
-        case 'item':
-            if (id) record = findByKey(state.items, 'code', id) || {};
-            editModalTitle.textContent = id ? _t('edit_item') : _t('add_new_item');
-            
-            const categories = ['Beef', 'Lamb', 'Poultry', 'Seafood', 'Offal', 'Processed', 'Consumables'];
-            const currentCat = safeGet(record, 'category');
-            const catOptions = categories.map(c => `<option value="${c}" ${currentCat === c ? 'selected' : ''}>${_t('cat_'+c.toLowerCase())}</option>`).join('');
-            
-            const units = ['KG', 'PCS', 'BOX', 'PACK', 'LTR'];
-            const currentUnit = safeGet(record, 'unit') || 'KG';
-            const unitOptions = units.map(u => `<option value="${u}" ${currentUnit === u ? 'selected' : ''}>${u}</option>`).join('');
-            
-            let cutsSection = '';
-            // Only show linked cuts if editing a Main Item
-            if (safeGet(record, 'ItemType') === 'Main') {
-                const cuts = state.items.filter(i => i.ItemType === 'Cut');
-                const linked = (safeGet(record, 'DefinedCuts') || '').split(',').map(s => s.trim());
-                let checkboxes = cuts.map(cut => {
-                    const checked = linked.includes(cut.code) ? 'checked' : '';
-                    return `<div style="padding:2px;"><input type="checkbox" name="DefinedCuts" value="${cut.code}" ${checked} id="lnk-${cut.code}"> <label for="lnk-${cut.code}">${cut.name}</label></div>`;
-                }).join('');
-                cutsSection = `<div class="form-group span-full"><label>Linked Cuts</label><div style="max-height:100px;overflow-y:auto;border:1px solid #ccc;padding:5px;">${checkboxes}</div></div>`;
-            }
-
-            // MODIFIED FORM with Select for Item Type and Unit, and Auto button logic prep
-            formHtml = `
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label>${_t('item_type')}</label>
-                        <select name="ItemType" ${id ? 'disabled' : ''} id="edit-item-type-select">
-                            <option value="Main" ${safeGet(record, 'ItemType') === 'Main' ? 'selected' : ''}>Main (Parent)</option>
-                            <option value="Cut" ${safeGet(record, 'ItemType') === 'Cut' ? 'selected' : ''}>Cut (Child)</option>
-                        </select>
-                        <!-- Hidden input to ensure value is sent if disabled -->
-                        ${id ? `<input type="hidden" name="ItemType" value="${safeGet(record, 'ItemType')}">` : ''}
-                    </div>
-                    <div class="form-group">
-                        <label>${_t('item_code')}</label>
-                        <div style="display:flex; gap:5px;">
-                            <input type="text" name="code" id="edit-item-code" value="${safeGet(record, 'code')}" ${id ? 'readonly' : ''}>
-                            ${!id ? `<button type="button" class="secondary small" id="btn-modal-gen-code">Auto</button>` : ''}
-                        </div>
-                    </div>
-                    <div class="form-group"><label>${_t('barcode')}</label><input type="text" name="barcode" value="${safeGet(record, 'barcode')}"></div>
-                    <div class="form-group"><label>${_t('item_name')}</label><input type="text" name="name" value="${safeGet(record, 'name')}" required></div>
-                    <div class="form-group"><label>${_t('unit')}</label><select name="unit" required>${unitOptions}</select></div>
-                    <div class="form-group"><label>${_t('category')}</label><select name="category" required>${catOptions}</select></div>
-                    <div class="form-group"><label>${_t('default_supplier')}</label><select id="edit-item-supplier" name="supplierCode"></select></div>
-                    <div class="form-group span-full"><label>${_t('default_cost')}</label><input type="number" name="cost" step="0.01" min="0" value="${safeGet(record, 'cost')}" required></div>
-                    ${cutsSection}
-                </div>`;
-            editModalBody.innerHTML = formHtml;
-            populateOptions(document.getElementById('edit-item-supplier'), state.suppliers, _t('select_supplier'), 'supplierCode', 'name');
-            if(record.supplierCode) document.getElementById('edit-item-supplier').value = record.supplierCode;
-            break;
-            
-        case 'supplier':
-            if (id) record = findByKey(state.suppliers, 'supplierCode', id) || {};
-            editModalTitle.textContent = id ? _t('edit_supplier') : _t('add_new_supplier');
-            formHtml = `
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label>${_t('supplier_code')}</label>
-                        <div style="display:flex; gap:5px;">
-                            <input type="text" name="supplierCode" id="edit-supplier-code" value="${safeGet(record, 'supplierCode')}" ${id ? 'readonly' : ''}>
-                            ${!id ? `<button type="button" class="secondary small" id="btn-modal-gen-supplier">Auto</button>` : ''}
-                        </div>
-                    </div>
-                    <div class="form-group"><label>${_t('supplier_name')}</label><input type="text" name="name" value="${safeGet(record, 'name')}" required></div>
-                    <div class="form-group"><label>${_t('contact_info')}</label><input type="text" name="contact" value="${safeGet(record, 'contact')}"></div>
-                </div>`;
-            editModalBody.innerHTML = formHtml;
-            break;
-        
-        case 'branch':
-            if (id) record = findByKey(state.branches, 'branchCode', id) || {};
-            editModalTitle.textContent = id ? _t('edit_branch') : _t('add_new_branch');
-            formHtml = `<div class="form-grid"><div class="form-group"><label>${_t('branch_code')}</label><input type="text" name="branchCode" value="${safeGet(record, 'branchCode')}" ${id ? 'readonly' : ''}></div><div class="form-group"><label>${_t('branch_name')}</label><input type="text" name="branchName" value="${safeGet(record, 'branchName')}" required></div></div>`;
-            editModalBody.innerHTML = formHtml;
-            break;
-
-        case 'section':
-            if (id) record = findByKey(state.sections, 'sectionCode', id) || {};
-            editModalTitle.textContent = id ? _t('edit_section') : _t('add_new_section');
-            formHtml = `<div class="form-grid"><div class="form-group"><label>${_t('section_code')}</label><input type="text" name="sectionCode" value="${safeGet(record, 'sectionCode')}" ${id ? 'readonly' : ''}></div><div class="form-group"><label>${_t('section_name')}</label><input type="text" name="sectionName" value="${safeGet(record, 'sectionName')}" required></div></div>`;
-            editModalBody.innerHTML = formHtml;
-            break;
-
-        case 'user':
-            if (id) record = findByKey(state.allUsers, 'Username', id) || {};
-            editModalTitle.textContent = id ? _t('edit_user') : _t('add_new_user_title');
-            const currentRole = safeGet(record, 'RoleName');
-            const roleOptions = (state.allRoles || []).map(r => `<option value="${r.RoleName}" ${r.RoleName === currentRole ? 'selected' : ''}>${r.RoleName}</option>`).join('');
-            const branchOptions = (state.branches || []).map(b => `<option value="${b.branchCode}" ${record.AssignedBranchCode === b.branchCode ? 'selected' : ''}>${b.branchName}</option>`).join('');
-            
-            formHtml = `
-                <div class="form-grid">
-                    <div class="form-group"><label>${_t('username')}</label><input type="text" name="Username" value="${safeGet(record, 'Username')}" ${id ? 'readonly' : 'required'}></div>
-                    <div class="form-group"><label>${_t('table_h_fullname')}</label><input type="text" name="Name" value="${safeGet(record, 'Name')}" required></div>
-                    <div class="form-group"><label>${_t('table_h_role')}</label><select name="RoleName" required><option value="">Select Role</option>${roleOptions}</select></div>
-                    <div class="form-group"><label>Assigned Branch</label><select name="AssignedBranchCode"><option value="">None (HQ/Admin)</option>${branchOptions}</select></div>
-                    <div class="form-group span-full"><label>${_t('edit_user_password_label')}</label><input type="password" name="LoginCode" ${!id ? 'required' : ''}></div>
-                    <div class="form-group-checkbox span-full">
-                        <input type="checkbox" name="isDisabled" id="user-disabled-check" ${record.isDisabled ? 'checked' : ''}>
-                        <label for="user-disabled-check">Disable Account</label>
-                    </div>
-                </div>`;
-            editModalBody.innerHTML = formHtml;
-            break;
-
-        case 'role':
-            editModalTitle.textContent = 'Add New Role';
-            formHtml = `
-                <div class="form-grid">
-                    <div class="form-group span-full">
-                        <label>${_t('table_h_rolename')}</label>
-                        <input type="text" name="RoleName" required placeholder="e.g., Accountant">
-                    </div>
-                    <p style="grid-column: 1/-1; color: #666; font-size: 0.9em;">
-                        Note: After adding a role, use the 'Permissions' button to configure access rights.
-                    </p>
-                </div>`;
-            editModalBody.innerHTML = formHtml;
-            break;
-
-        case 'role-permissions':
-            const roleData = findByKey(state.allRoles, 'RoleName', id);
-            editModalTitle.textContent = _t('edit_permissions_for').replace('{roleName}', id);
-            
-            let permissionsHtml = '';
-            for (const [groupName, perms] of Object.entries(PERMISSION_GROUPS)) {
-                permissionsHtml += `<div class="permission-category">${groupName}</div><div class="permissions-grid">`;
-                perms.forEach(perm => {
-                    // Check if role has this permission set to TRUE (or true boolean)
-                    const isChecked = roleData && (roleData[perm.key] === true || String(roleData[perm.key]).toUpperCase() === 'TRUE');
-                    permissionsHtml += `
-                        <div class="form-group-checkbox">
-                            <input type="checkbox" name="${perm.key}" id="perm-${perm.key}" ${isChecked ? 'checked' : ''}>
-                            <label for="perm-${perm.key}">${perm.label}</label>
-                        </div>`;
-                });
-                permissionsHtml += `</div>`;
-            }
-            
-            // Add RoleName as hidden field for submission
-            formHtml = `<input type="hidden" name="RoleName" value="${id}"><div style="padding-bottom:10px;">${permissionsHtml}</div>`;
-            editModalBody.innerHTML = formHtml;
-            break;
-    }
-}
-
-export function renderItemsInModal(filter = '') {
-    const listEl = document.getElementById('modal-item-list');
-    const modal = document.getElementById('item-selector-modal');
-    if(!listEl) return;
-    listEl.innerHTML = '';
-    
-    const lowerFilter = filter.toLowerCase();
-    const allowedItemsJson = modal.dataset.allowedItems; 
-    let allowedCodes = null;
-    if (allowedItemsJson && allowedItemsJson !== "undefined" && allowedItemsJson !== "") {
-        try { allowedCodes = JSON.parse(allowedItemsJson); } catch (e) { console.error("Error parsing allowed items", e); }
-    }
-
-    state.items.filter(item => {
-        const isActive = item.isActive !== false && String(item.isActive).toUpperCase() !== 'FALSE';
-        if(!isActive) return false; // Don't show disabled items
-
-        const matchesText = item.name.toLowerCase().includes(lowerFilter) || item.code.toLowerCase().includes(lowerFilter);
-        let matchesContext = true;
-        if (allowedCodes && Array.isArray(allowedCodes) && allowedCodes.length > 0) {
-            matchesContext = allowedCodes.includes(item.code);
-        }
-        return matchesText && matchesContext;
-    }).forEach(item => {
-        const isChecked = state.modalSelections.has(item.code);
-        listEl.innerHTML += `<div class="modal-item"><input type="checkbox" id="modal-item-${item.code}" data-code="${item.code}" ${isChecked ? 'checked' : ''}><label for="modal-item-${item.code}"><strong>${item.name}</strong><br><small style="color:var(--text-light-color)">${item.code}</small></label></div>`;
-    });
-}
-
-// --- STOCK VIEW ---
+// --- STOCK VIEW RENDERER ---
 
 export function renderItemCentricStockView() {
     const container = document.getElementById('item-centric-stock-container');
@@ -792,6 +492,8 @@ export function renderItemCentricStockView() {
     html += `</tbody></table>`;
     container.innerHTML = html;
 }
+
+// --- FINANCIAL RENDERERS ---
 
 export function renderInvoicesInModal() {
     const listEl = document.getElementById('modal-invoice-list');
@@ -893,7 +595,6 @@ export function renderSupplierStatement(code, d1, d2) {
         if ((!sDate || d >= sDate) && (!eDate || d <= eDate)) {
             runningBalance += (e.debit - e.credit);
             
-            // ACTION BUTTON LOGIC
             let actionBtn = '';
             if (e.type === 'Pay' && e.ref) {
                 actionBtn = `<button class="secondary small btn-print-voucher" data-id="${e.ref}" style="margin-left:10px; padding:4px 8px;">Print</button>`;
@@ -911,7 +612,6 @@ export function renderSupplierStatement(code, d1, d2) {
         }
     });
 
-    // ADD TOTALS FOOTER
     tableHtml += `
         <tr style="background-color:#e9ecef; font-weight:bold; font-size:1.1em;">
             <td colspan="5" style="text-align:right;">Closing Balance:</td>
@@ -938,6 +638,105 @@ export function renderPurchaseOrdersViewer() {
         const sup = findByKey(state.suppliers, 'supplierCode', po.supplierCode)?.name || po.supplierCode;
         const items = state.purchaseOrderItems.filter(i => i.poId === po.poId);
         tbody.innerHTML += `<tr><td>${po.poId}</td><td>${formatDate(po.date)}</td><td>${sup}</td><td>${items.length}</td><td>${formatCurrency(po.totalValue)}</td><td>${po.Status}</td><td><button class="secondary small btn-view-tx" data-batch-id="${po.poId}" data-type="po">View</button></td></tr>`;
+    });
+}
+
+// --- PENDING & LOG RENDERERS ---
+
+export function renderPendingPOs() {
+    const table = document.getElementById('table-pending-pos');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    tbody.innerHTML = '';
+    
+    const pendingPOs = (state.purchaseOrders || []).filter(po => po.Status === 'Pending Approval');
+
+    if (pendingPOs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">${_t('no_pending_financial_approval')}</td></tr>`;
+        return;
+    }
+
+    pendingPOs.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(item => {
+        let actionButtons = '';
+        if (userCan('opApprovePO')) {
+            actionButtons = `
+                <div class="action-buttons">
+                    <button class="primary small btn-approve-financial" data-id="${item.poId}" data-type="po">${_t('approve')}</button>
+                    <button class="danger small btn-reject-financial" data-id="${item.poId}" data-type="po">${_t('reject')}</button>
+                </div>`;
+        } else {
+            actionButtons = `<span style="color:var(--text-light-color); font-style:italic;">${_t('status_pending')}</span>`;
+        }
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${formatDate(item.date)}</td>
+            <td>${item.poId}</td>
+            <td>PO for ${findByKey(state.suppliers, 'supplierCode', item.supplierCode)?.name || item.supplierCode}</td>
+            <td>${formatCurrency(item.totalValue)}</td>
+            <td>${actionButtons}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+export function renderPendingInvoices() {
+    const table = document.getElementById('table-pending-invoices');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    tbody.innerHTML = '';
+    
+    const user = state.currentUser;
+    const isAdmin = userCan('viewAllBranches');
+
+    const pendingReceivesGroups = {};
+    (state.transactions || []).filter(t => t.type === 'receive' && (t.isApproved === false || String(t.isApproved).toUpperCase() === 'FALSE')).forEach(t => {
+        if (!pendingReceivesGroups[t.batchId]) {
+            pendingReceivesGroups[t.batchId] = {
+                date: t.date,
+                txType: 'receive',
+                ref: t.invoiceNumber,
+                batchId: t.batchId,
+                branchCode: t.branchCode, 
+                details: `GRN from ${findByKey(state.suppliers, 'supplierCode', t.supplierCode)?.name || 'N/A'}`,
+                totalValue: 0
+            };
+        }
+        pendingReceivesGroups[t.batchId].totalValue += (parseFloat(t.quantity) || 0) * (parseFloat(t.cost) || 0);
+    });
+
+    let allPendingGRNs = Object.values(pendingReceivesGroups);
+
+    if (user && user.AssignedBranchCode && !isAdmin) {
+        allPendingGRNs = allPendingGRNs.filter(g => g.branchCode === user.AssignedBranchCode);
+    }
+
+    if (allPendingGRNs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">${_t('no_pending_financial_approval')}</td></tr>`;
+        return;
+    }
+
+    allPendingGRNs.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(item => {
+        let actionButtons = '';
+        if (userCan('opApproveGRN')) {
+            actionButtons = `
+                <div class="action-buttons">
+                    <button class="primary small btn-approve-financial" data-id="${item.batchId}" data-type="receive">${_t('approve')}</button>
+                    <button class="danger small btn-reject-financial" data-id="${item.batchId}" data-type="receive">${_t('reject')}</button>
+                </div>`;
+        } else {
+            actionButtons = `<span style="color:var(--text-light-color); font-style:italic;">${_t('status_pending')}</span>`;
+        }
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${formatDate(item.date)}</td>
+            <td>${item.ref}</td>
+            <td>${item.details}</td>
+            <td>${formatCurrency(item.totalValue)}</td>
+            <td>${actionButtons}</td>
+        `;
+        tbody.appendChild(tr);
     });
 }
 
@@ -978,7 +777,6 @@ export function renderPendingTransfers() {
     container.style.display = 'block';
     list.forEach(t => {
         const from = findByKey(state.branches, 'branchCode', t.fromBranchCode)?.branchName || t.fromBranchCode;
-        // CHECK PERMISSION FOR RECEIVE
         let actionCell = '';
         if (userCan('opReceive')) {
             actionCell = `<button class="primary small btn-receive-transfer" data-batch-id="${t.batchId}">Receive</button>`;
@@ -1017,14 +815,12 @@ export function renderInTransitReport() {
         let actionHtml = `<span class="status-tag status-intransit">In Transit</span>`;
 
         if (t.toBranchCode === myBranch) {
-            // CHECK PERMISSION
             if (userCan('opReceive')) {
                 actionHtml = `<button class="primary small btn-receive-transfer" data-batch-id="${t.batchId}">Receive Stock</button>`;
             } else {
                 actionHtml = 'Pending Receipt';
             }
         } else if (t.fromBranchCode === myBranch || isAdmin) {
-            // CHECK PERMISSION
             if (userCan('opTransfer')) {
                 actionHtml = `<button class="danger small btn-cancel-transfer" data-batch-id="${t.batchId}">Cancel Transfer</button>`;
             }
@@ -1120,6 +916,200 @@ export function renderRolesTable() {
             </td>`;
         tbody.appendChild(tr);
     });
+}
+
+// --- MODAL CONTENT RENDERERS ---
+
+export function renderEditModalContent(type, id) {
+    const editModalBody = document.getElementById('edit-modal-body');
+    const editModalTitle = document.getElementById('edit-modal-title');
+    const editForm = document.getElementById('form-edit-record');
+    
+    editForm.dataset.type = type;
+    editForm.dataset.id = id || '';
+
+    let record = {}; 
+    let formHtml;
+    const safeGet = (obj, key) => obj && obj[key] ? obj[key] : '';
+
+    switch (type) {
+        case 'item':
+            if (id) record = findByKey(state.items, 'code', id) || {};
+            editModalTitle.textContent = id ? _t('edit_item') : _t('add_new_item');
+            
+            const categories = ['Beef', 'Lamb', 'Poultry', 'Seafood', 'Offal', 'Processed', 'Consumables'];
+            const currentCat = safeGet(record, 'category');
+            const catOptions = categories.map(c => `<option value="${c}" ${currentCat === c ? 'selected' : ''}>${_t('cat_'+c.toLowerCase())}</option>`).join('');
+            
+            const units = ['KG', 'PCS', 'BOX', 'PACK', 'LTR'];
+            const currentUnit = safeGet(record, 'unit') || 'KG';
+            const unitOptions = units.map(u => `<option value="${u}" ${currentUnit === u ? 'selected' : ''}>${u}</option>`).join('');
+            
+            let cutsSection = '';
+            if (safeGet(record, 'ItemType') === 'Main') {
+                const cuts = state.items.filter(i => i.ItemType === 'Cut');
+                const linked = (safeGet(record, 'DefinedCuts') || '').split(',').map(s => s.trim());
+                let checkboxes = cuts.map(cut => {
+                    const checked = linked.includes(cut.code) ? 'checked' : '';
+                    return `<div style="padding:2px;"><input type="checkbox" name="DefinedCuts" value="${cut.code}" ${checked} id="lnk-${cut.code}"> <label for="lnk-${cut.code}">${cut.name}</label></div>`;
+                }).join('');
+                cutsSection = `<div class="form-group span-full"><label>Linked Cuts</label><div style="max-height:100px;overflow-y:auto;border:1px solid #ccc;padding:5px;">${checkboxes}</div></div>`;
+            }
+
+            formHtml = `
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>${_t('item_type')}</label>
+                        <select name="ItemType" ${id ? 'disabled' : ''} id="edit-item-type-select">
+                            <option value="Main" ${safeGet(record, 'ItemType') === 'Main' ? 'selected' : ''}>Main (Parent)</option>
+                            <option value="Cut" ${safeGet(record, 'ItemType') === 'Cut' ? 'selected' : ''}>Cut (Child)</option>
+                        </select>
+                        ${id ? `<input type="hidden" name="ItemType" value="${safeGet(record, 'ItemType')}">` : ''}
+                    </div>
+                    <div class="form-group">
+                        <label>${_t('item_code')}</label>
+                        <div style="display:flex; gap:5px;">
+                            <input type="text" name="code" id="edit-item-code" value="${safeGet(record, 'code')}" ${id ? 'readonly' : ''}>
+                            ${!id ? `<button type="button" class="secondary small" id="btn-modal-gen-code">Auto</button>` : ''}
+                        </div>
+                    </div>
+                    <div class="form-group"><label>${_t('barcode')}</label><input type="text" name="barcode" value="${safeGet(record, 'barcode')}"></div>
+                    <div class="form-group"><label>${_t('item_name')}</label><input type="text" name="name" value="${safeGet(record, 'name')}" required></div>
+                    <div class="form-group"><label>${_t('unit')}</label><select name="unit" required>${unitOptions}</select></div>
+                    <div class="form-group"><label>${_t('category')}</label><select name="category" required>${catOptions}</select></div>
+                    <div class="form-group"><label>${_t('default_supplier')}</label><select id="edit-item-supplier" name="supplierCode"></select></div>
+                    <div class="form-group span-full"><label>${_t('default_cost')}</label><input type="number" name="cost" step="0.01" min="0" value="${safeGet(record, 'cost')}" required></div>
+                    ${cutsSection}
+                </div>`;
+            editModalBody.innerHTML = formHtml;
+            populateOptions(document.getElementById('edit-item-supplier'), state.suppliers, _t('select_supplier'), 'supplierCode', 'name');
+            if(record.supplierCode) document.getElementById('edit-item-supplier').value = record.supplierCode;
+            break;
+            
+        case 'supplier':
+            if (id) record = findByKey(state.suppliers, 'supplierCode', id) || {};
+            editModalTitle.textContent = id ? _t('edit_supplier') : _t('add_new_supplier');
+            formHtml = `
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>${_t('supplier_code')}</label>
+                        <div style="display:flex; gap:5px;">
+                            <input type="text" name="supplierCode" id="edit-supplier-code" value="${safeGet(record, 'supplierCode')}" ${id ? 'readonly' : ''}>
+                            ${!id ? `<button type="button" class="secondary small" id="btn-modal-gen-supplier">Auto</button>` : ''}
+                        </div>
+                    </div>
+                    <div class="form-group"><label>${_t('supplier_name')}</label><input type="text" name="name" value="${safeGet(record, 'name')}" required></div>
+                    <div class="form-group"><label>${_t('contact_info')}</label><input type="text" name="contact" value="${safeGet(record, 'contact')}"></div>
+                </div>`;
+            editModalBody.innerHTML = formHtml;
+            break;
+        
+        case 'branch':
+            if (id) record = findByKey(state.branches, 'branchCode', id) || {};
+            editModalTitle.textContent = id ? _t('edit_branch') : _t('add_new_branch');
+            formHtml = `<div class="form-grid"><div class="form-group"><label>${_t('branch_code')}</label><input type="text" name="branchCode" value="${safeGet(record, 'branchCode')}" ${id ? 'readonly' : ''}></div><div class="form-group"><label>${_t('branch_name')}</label><input type="text" name="branchName" value="${safeGet(record, 'branchName')}" required></div></div>`;
+            editModalBody.innerHTML = formHtml;
+            break;
+
+        case 'section':
+            if (id) record = findByKey(state.sections, 'sectionCode', id) || {};
+            editModalTitle.textContent = id ? _t('edit_section') : _t('add_new_section');
+            formHtml = `<div class="form-grid"><div class="form-group"><label>${_t('section_code')}</label><input type="text" name="sectionCode" value="${safeGet(record, 'sectionCode')}" ${id ? 'readonly' : ''}></div><div class="form-group"><label>${_t('section_name')}</label><input type="text" name="sectionName" value="${safeGet(record, 'sectionName')}" required></div></div>`;
+            editModalBody.innerHTML = formHtml;
+            break;
+
+        case 'user':
+            if (id) record = findByKey(state.allUsers, 'Username', id) || {};
+            editModalTitle.textContent = id ? _t('edit_user') : _t('add_new_user_title');
+            const currentRole = safeGet(record, 'RoleName');
+            const roleOptions = (state.allRoles || []).map(r => `<option value="${r.RoleName}" ${r.RoleName === currentRole ? 'selected' : ''}>${r.RoleName}</option>`).join('');
+            const branchOptions = (state.branches || []).map(b => `<option value="${b.branchCode}" ${record.AssignedBranchCode === b.branchCode ? 'selected' : ''}>${b.branchName}</option>`).join('');
+            
+            formHtml = `
+                <div class="form-grid">
+                    <div class="form-group"><label>${_t('username')}</label><input type="text" name="Username" value="${safeGet(record, 'Username')}" ${id ? 'readonly' : 'required'}></div>
+                    <div class="form-group"><label>${_t('table_h_fullname')}</label><input type="text" name="Name" value="${safeGet(record, 'Name')}" required></div>
+                    <div class="form-group"><label>${_t('table_h_role')}</label><select name="RoleName" required><option value="">Select Role</option>${roleOptions}</select></div>
+                    <div class="form-group"><label>Assigned Branch</label><select name="AssignedBranchCode"><option value="">None (HQ/Admin)</option>${branchOptions}</select></div>
+                    <div class="form-group span-full"><label>${_t('edit_user_password_label')}</label><input type="password" name="LoginCode" ${!id ? 'required' : ''}></div>
+                    <div class="form-group-checkbox span-full">
+                        <input type="checkbox" name="isDisabled" id="user-disabled-check" ${record.isDisabled ? 'checked' : ''}>
+                        <label for="user-disabled-check">Disable Account</label>
+                    </div>
+                </div>`;
+            editModalBody.innerHTML = formHtml;
+            break;
+
+        case 'role':
+            editModalTitle.textContent = 'Add New Role';
+            formHtml = `
+                <div class="form-grid">
+                    <div class="form-group span-full">
+                        <label>${_t('table_h_rolename')}</label>
+                        <input type="text" name="RoleName" required placeholder="e.g., Accountant">
+                    </div>
+                    <p style="grid-column: 1/-1; color: #666; font-size: 0.9em;">
+                        Note: After adding a role, use the 'Permissions' button to configure access rights.
+                    </p>
+                </div>`;
+            editModalBody.innerHTML = formHtml;
+            break;
+
+        case 'role-permissions':
+            const roleData = findByKey(state.allRoles, 'RoleName', id);
+            editModalTitle.textContent = _t('edit_permissions_for').replace('{roleName}', id);
+            
+            let permissionsHtml = '';
+            for (const [groupName, perms] of Object.entries(PERMISSION_GROUPS)) {
+                permissionsHtml += `<div class="permission-category">${groupName}</div><div class="permissions-grid">`;
+                perms.forEach(perm => {
+                    const isChecked = roleData && (roleData[perm.key] === true || String(roleData[perm.key]).toUpperCase() === 'TRUE');
+                    permissionsHtml += `
+                        <div class="form-group-checkbox">
+                            <input type="checkbox" name="${perm.key}" id="perm-${perm.key}" ${isChecked ? 'checked' : ''}>
+                            <label for="perm-${perm.key}">${perm.label}</label>
+                        </div>`;
+                });
+                permissionsHtml += `</div>`;
+            }
+            
+            formHtml = `<input type="hidden" name="RoleName" value="${id}"><div style="padding-bottom:10px;">${permissionsHtml}</div>`;
+            editModalBody.innerHTML = formHtml;
+            break;
+    }
+}
+
+// --- HISTORY MODAL CONTENT ---
+export function renderHistoryModalContent(data) {
+     const priceContainer = document.getElementById('subview-price-history');
+     const moveContainer = document.getElementById('movement-history-table-container'); 
+     
+     if(!priceContainer || !moveContainer) return;
+
+     // Render Price History
+     let pHtml = '<table><thead><tr><th>Date</th><th>Old Cost</th><th>New Cost</th><th>User</th><th>Source</th></tr></thead><tbody>';
+     if(data.priceHistory && data.priceHistory.length > 0) {
+         data.priceHistory.forEach(h => {
+             pHtml += `<tr><td>${formatDate(h.Timestamp)}</td><td>${formatCurrency(h.OldCost)}</td><td>${formatCurrency(h.NewCost)}</td><td>${h.UpdatedBy}</td><td>${h.Source}</td></tr>`;
+         });
+     } else {
+         pHtml += `<tr><td colspan="5" style="text-align:center;">No price history found.</td></tr>`;
+     }
+     pHtml += '</tbody></table>';
+     priceContainer.innerHTML = pHtml;
+
+     // Render Movement History
+     let mHtml = '<table><thead><tr><th>Date</th><th>Type</th><th>Batch/Ref</th><th>Qty</th><th>Branch</th></tr></thead><tbody>';
+     if(data.movementHistory && data.movementHistory.length > 0) {
+         data.movementHistory.forEach(m => {
+             const branch = m.branchCode || m.fromBranchCode || '';
+             mHtml += `<tr><td>${formatDate(m.date)}</td><td>${m.type}</td><td>${m.batchId}</td><td>${m.quantity}</td><td>${branch}</td></tr>`;
+         });
+     } else {
+         mHtml += `<tr><td colspan="5" style="text-align:center;">No movement history found.</td></tr>`;
+     }
+     mHtml += '</tbody></table>';
+     moveContainer.innerHTML = mHtml;
 }
 
 // --- NEW REPORT RENDERER ---
