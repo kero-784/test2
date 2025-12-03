@@ -43,25 +43,24 @@
                 </div>
             </div>
             <ul class="sidebar-nav" id="main-nav">
+                <!-- Public/Common Views -->
                 <li class="nav-item"><a href="#" data-view="dashboard" class="active"><span data-translate-key="dashboard">Dashboard</span></a></li>
                 
-                <!-- Operations -->
+                <!-- Operational Views -->
                 <li class="nav-item" data-permission="opReceive,opTransfer,opReturn,opStockAdjustment,opApproveGRN"><a href="#" data-view="operations"><span data-translate-key="stock_operations">Stock Operations</span></a></li>
-                
-                <!-- Butchery -->
                 <li class="nav-item" data-permission="opProduction,viewYieldReports"><a href="#" data-view="butchery"><span data-translate-key="butchery_production">Butchery & Yield</span></a></li>
                 
-                <!-- Read Views -->
+                <!-- Common Read Views -->
                 <li class="nav-item"><a href="#" data-view="stock-levels"><span data-translate-key="stock_levels">Stock Levels</span></a></li>
                 <li class="nav-item"><a href="#" data-view="transaction-history"><span data-translate-key="transaction_history">Transaction History</span></a></li>
                 
-                <!-- Purchasing -->
+                <!-- Financials -->
                 <li class="nav-item" data-permission="opCreatePO,opApprovePO"><a href="#" data-view="purchasing"><span data-translate-key="purchasing">Purchasing</span></a></li>
                 
-                <!-- Financials -->
+                <!-- Merged Financials & Reports -->
                 <li class="nav-item" data-permission="opRecordPayment"><a href="#" data-view="financials"><span>Financials & Reports</span></a></li>
                 
-                <!-- Admin / Master Data (Add Data merged here) -->
+                <!-- Admin / Master Data -->
                 <li class="nav-item"><a href="#" data-view="master-data"><span data-translate-key="master_data">Master Data</span></a></li>
                 <li class="nav-item" data-permission="manageUsers"><a href="#" data-view="user-management"><span data-translate-key="user_management">User Management</span></a></li>
                 <li class="nav-item" data-permission="opBackupRestore"><a href="#" data-view="backup"><span data-translate-key="backup_restore">Backup</span></a></li>
@@ -79,6 +78,7 @@
                 <span id="user-branch-display" class="user-branch-display"></span>
             </header>
 
+            <!-- DASHBOARD -->
             <div id="view-dashboard" class="view active"><div class="kpi-grid"><div class="card"><div class="kpi-label" data-translate-key="total_items">Total Items</div><div id="dashboard-total-items" class="kpi-value">0</div></div><div class="card"><div class="kpi-label" data-translate-key="total_stock_value">Total Stock Value</div><div id="dashboard-total-value" class="kpi-value">0.00 EGP</div></div><div class="card"><div class="kpi-label" data-translate-key="total_suppliers">Total Suppliers</div><div id="dashboard-total-suppliers" class="kpi-value">0</div></div><div class="card"><div class="kpi-label" data-translate-key="total_branches">Total Branches</div><div id="dashboard-total-branches" class="kpi-value">0</div></div></div></div>
             
             <!-- MASTER DATA (With Add Buttons) -->
@@ -173,17 +173,60 @@
                 <div id="subview-adjustments" class="sub-view"><div id="stock-adjustment-card" class="card"><h2 data-translate-key="stock_count_adjustment">Stock Count Adjustment</h2><form id="form-adjustment-details" class="form-grid" onsubmit="return false;"><div class="form-group"><label for="adjustment-branch" data-translate-key="branch">Branch</label><select id="adjustment-branch" required></select></div><div class="form-group"><label for="adjustment-ref" data-translate-key="reference">Reference</label><input type="text" id="adjustment-ref" data-translate-placeholder="stocktake_example" required></div><div class="form-group span-full"><label for="adjustment-notes" data-translate-key="notes_reason">Notes / Reason</label><textarea id="adjustment-notes" rows="2"></textarea></div></form></div><div id="stock-adjustment-list-card" class="card"><h2 data-translate-key="items_to_adjust">Items to Adjust</h2><table id="table-adjustment-list"><thead><tr><th data-translate-key="table_h_code">Code</th><th data-translate-key="item_name">Item Name</th><th data-translate-key="table_h_system_qty">System Qty</th><th data-translate-key="table_h_physical_count">Physical Count</th><th data-translate-key="table_h_adjustment">Adjustment</th><th data-translate-key="actions">Action</th></tr></thead><tbody></tbody></table><div style="margin-top: 20px; display: flex; gap: 10px;"><button type="button" data-context="adjustment" class="secondary btn-select-items" data-translate-key="select_items">Select Items</button><button id="btn-submit-adjustment" class="primary" data-translate-key="process_stock_adjustment">Process Stock Adjustment</button></div></div></div>
             </div>
 
-            <!-- BUTCHERY -->
+            <!-- BUTCHERY & YIELD VIEW (Merged with Analysis) -->
             <div id="view-butchery" class="view">
                 <div class="sub-nav">
                     <button class="sub-nav-item active" data-subview="butchery-production" data-translate-key="butchery_production">Production</button>
                     <button class="sub-nav-item" data-subview="yield-analysis" data-permission="viewYieldReports">Yield Analysis</button>
                 </div>
+
+                <!-- Production Subview -->
                 <div id="subview-butchery-production" class="sub-view active">
-                    <div class="card"><h2 data-translate-key="butchery_production">Butchery Production (Yield)</h2><form id="form-butchery" class="form-grid" onsubmit="return false;"><div class="form-group"><label data-translate-key="branch">Branch</label><select id="butchery-branch" required></select></div><div class="form-group"><label data-translate-key="parent_item">Parent Item</label><div style="display:flex; gap:5px;"><input type="text" id="butchery-parent-display" readonly placeholder="Select item..." required><input type="hidden" id="butchery-parent-code"><button class="secondary small btn-select-items" data-context="butchery-parent">Select</button></div></div><div class="form-group"><label data-translate-key="weight_kg">Weight (KG)</label><input type="number" id="butchery-parent-qty" step="0.001" min="0" required></div><div class="form-group"><label data-translate-key="batch_assignment">New Batch #</label><input type="text" id="butchery-batch" placeholder="Leave empty to auto-generate"></div><div class="form-group"><label data-translate-key="expiry_date">New Expiry Date</label><input type="date" id="butchery-expiry" required></div></form></div><div class="card"><h2 data-translate-key="yield_results">Yield Results</h2><table id="table-butchery-children"><thead><tr><th>Item Code</th><th>Item Name</th><th>Weight (KG)</th><th>Action</th></tr></thead><tbody></tbody><tfoot><tr><td colspan="2" style="text-align:right;"><strong>Total Output:</strong></td><td id="butchery-total-weight">0.000</td><td></td></tr><tr><td colspan="2" style="text-align:right;"><strong>Yield %:</strong></td><td id="butchery-yield-pct">0%</td><td></td></tr></tfoot></table><div style="margin-top: 20px; display: flex; gap: 10px;"><button type="button" data-context="butchery-child" class="secondary btn-select-items" data-translate-key="add_cuts">Add Cuts</button><button id="btn-submit-butchery" class="primary" data-translate-key="process_production">Process Production</button></div></div>
+                    <div class="card">
+                        <h2 data-translate-key="butchery_production">Butchery Production (Yield)</h2>
+                        <p style="color:var(--text-light-color); margin-bottom: 20px;">Convert primal cuts (Parents) into portioned cuts (Children).</p>
+                        <form id="form-butchery" class="form-grid" onsubmit="return false;">
+                            <div class="form-group"><label data-translate-key="branch">Branch</label><select id="butchery-branch" required></select></div>
+                            <div class="form-group">
+                                <label data-translate-key="parent_item">Parent Item</label>
+                                <div style="display:flex; gap:5px;">
+                                    <input type="text" id="butchery-parent-display" readonly placeholder="Select item..." required>
+                                    <input type="hidden" id="butchery-parent-code">
+                                    <button class="secondary small btn-select-items" data-context="butchery-parent">Select</button>
+                                </div>
+                            </div>
+                            <div class="form-group"><label data-translate-key="weight_kg">Weight (KG)</label><input type="number" id="butchery-parent-qty" step="0.001" min="0" required></div>
+                            <div class="form-group"><label data-translate-key="batch_assignment">New Batch #</label><input type="text" id="butchery-batch" placeholder="Leave empty to auto-generate"></div>
+                            <div class="form-group"><label data-translate-key="expiry_date">New Expiry Date</label><input type="date" id="butchery-expiry" required></div>
+                        </form>
+                    </div>
+                    <div class="card">
+                        <h2 data-translate-key="yield_results">Yield Results</h2>
+                        <table id="table-butchery-children">
+                            <thead><tr><th>Item Code</th><th>Item Name</th><th>Weight (KG)</th><th>Action</th></tr></thead>
+                            <tbody></tbody>
+                            <tfoot><tr><td colspan="2" style="text-align:right;"><strong>Total Output:</strong></td><td id="butchery-total-weight">0.000</td><td></td></tr><tr><td colspan="2" style="text-align:right;"><strong>Yield %:</strong></td><td id="butchery-yield-pct">0%</td><td></td></tr></tfoot>
+                        </table>
+                        <div style="margin-top: 20px; display: flex; gap: 10px;">
+                            <button type="button" data-context="butchery-child" class="secondary btn-select-items" data-translate-key="add_cuts">Add Cuts</button>
+                            <button id="btn-submit-butchery" class="primary" data-translate-key="process_production">Process Production</button>
+                        </div>
+                    </div>
                 </div>
+
+                <!-- Analysis Subview (Moved from Reports) -->
                 <div id="subview-yield-analysis" class="sub-view">
-                    <div class="card"><div class="toolbar"><h2>Butchery Production History</h2><div class="filters-container"><select id="yield-report-type" class="small"><option value="batch">By Production Batch</option><option value="item">By Parent Item</option></select><input type="text" id="yield-report-search" class="small" placeholder="Search Batch or Item Name..."><button id="btn-generate-yield-report" class="primary small">Generate Report</button></div></div><div id="yield-report-results" class="report-area"><p style="text-align:center; color:#888;">Select options and click Generate.</p></div></div>
+                    <div class="card">
+                        <div class="toolbar">
+                            <h2>Butchery Production History</h2>
+                            <div class="filters-container">
+                                <select id="yield-report-type" class="small"><option value="batch">By Production Batch</option><option value="item">By Parent Item</option></select>
+                                <input type="text" id="yield-report-search" class="small" placeholder="Search Batch or Item Name...">
+                                <button id="btn-generate-yield-report" class="primary small">Generate Report</button>
+                            </div>
+                        </div>
+                        <div id="yield-report-results" class="report-area"><p style="text-align:center; color:#888;">Select options and click Generate.</p></div>
+                    </div>
                 </div>
             </div>
 
@@ -199,17 +242,22 @@
                 <div id="subview-pending-pos" class="sub-view"><div class="card"><h2 data-translate-key="pending_pos_title">Pending Purchase Orders</h2><div class="report-area"><table id="table-pending-pos"><thead><tr><th data-translate-key="table_h_date">Date</th><th data-translate-key="table_h_ref_no">Reference #</th><th data-translate-key="table_h_details">Details</th><th data-translate-key="table_h_amount">Amount</th><th data-translate-key="actions">Actions</th></tr></thead><tbody></tbody></table></div></div></div>
             </div>
 
-            <!-- FINANCIALS -->
+            <!-- FINANCIALS (Merged Payments & Reports) -->
             <div id="view-financials" class="view">
                 <div class="sub-nav">
                     <button class="sub-nav-item active" data-subview="record-payment" data-translate-key="record_payment">Record Payment</button>
                     <button class="sub-nav-item" data-subview="supplier-statement">Supplier Statement</button>
                 </div>
                 
+                <!-- Payment Form -->
                 <div id="subview-record-payment" class="sub-view active">
-                     <div class="card"><h2 data-translate-key="record_payment">Record a Payment</h2><form id="form-record-payment"><div class="form-grid"><div class="form-group"><label>Supplier</label><select id="payment-supplier-select" required></select></div><div class="form-group"><label>Select Invoices</label><button type="button" id="btn-select-invoices" class="secondary" style="width: 100%;">Select...</button></div><div class="form-group"><label>Method</label><input type="text" id="payment-method" required></div></div><div id="payment-invoice-list-container" class="report-area" style="display:none; margin-top:24px;"><table id="table-payment-list"><thead><tr><th>Invoice #</th><th>Due</th><th>Pay</th></tr></thead><tbody></tbody><tfoot><tr><td colspan="2">Total:</td><td id="payment-total-amount">0.00</td></tr></tfoot></table></div><button type="submit" class="primary" style="margin-top: 24px; width:100%;" data-translate-key="submit_payment_btn">Submit Payment</button></form></div>
+                     <div class="card"><h2 data-translate-key="record_payment">Record a Payment</h2><form id="form-record-payment"><div class="form-grid"><div class="form-group"><label>Supplier</label><select id="payment-supplier-select" required></select></div><div class="form-group"><label>Select Invoices</label><button type="button" id="btn-select-invoices" class="secondary" style="width: 100%;">Select...</button></div>
+                     <!-- MODIFIED: Method as Select -->
+                     <div class="form-group"><label>Method</label><select id="payment-method" required><option value="Cash">Cash</option><option value="Bank Transfer">Bank Transfer</option><option value="Cheque">Cheque</option><option value="Credit">Credit</option></select></div>
+                     </div><div id="payment-invoice-list-container" class="report-area" style="display:none; margin-top:24px;"><table id="table-payment-list"><thead><tr><th>Invoice #</th><th>Due</th><th>Pay</th></tr></thead><tbody></tbody><tfoot><tr><td colspan="2">Total:</td><td id="payment-total-amount">0.00</td></tr></tfoot></table></div><button type="submit" class="primary" style="margin-top: 24px; width:100%;" data-translate-key="submit_payment_btn">Submit Payment</button></form></div>
                 </div>
                 
+                <!-- Statement Report -->
                 <div id="subview-supplier-statement" class="sub-view">
                     <div class="card">
                         <div class="report-generator-controls">
