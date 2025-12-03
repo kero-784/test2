@@ -196,7 +196,7 @@ export function renderAdjustmentListTable() {
     });
 }
 
-// --- MASTER DATA RENDERERS (Updated for Disable Logic) ---
+// --- MASTER DATA RENDERERS ---
 
 export function renderItemsTable(data = state.items) {
     const table = document.getElementById('table-items');
@@ -594,6 +594,7 @@ export function renderEditModalContent(type, id) {
                 cutsSection = `<div class="form-group span-full"><label>Linked Cuts</label><div style="max-height:100px;overflow-y:auto;border:1px solid #ccc;padding:5px;">${checkboxes}</div></div>`;
             }
 
+            // MODIFIED FORM with Select for Item Type and Unit, and Auto button logic prep
             formHtml = `
                 <div class="form-grid">
                     <div class="form-group">
@@ -602,6 +603,7 @@ export function renderEditModalContent(type, id) {
                             <option value="Main" ${safeGet(record, 'ItemType') === 'Main' ? 'selected' : ''}>Main (Parent)</option>
                             <option value="Cut" ${safeGet(record, 'ItemType') === 'Cut' ? 'selected' : ''}>Cut (Child)</option>
                         </select>
+                        <!-- Hidden input to ensure value is sent if disabled -->
                         ${id ? `<input type="hidden" name="ItemType" value="${safeGet(record, 'ItemType')}">` : ''}
                     </div>
                     <div class="form-group">
@@ -701,6 +703,7 @@ export function renderEditModalContent(type, id) {
             for (const [groupName, perms] of Object.entries(PERMISSION_GROUPS)) {
                 permissionsHtml += `<div class="permission-category">${groupName}</div><div class="permissions-grid">`;
                 perms.forEach(perm => {
+                    // Check if role has this permission set to TRUE (or true boolean)
                     const isChecked = roleData && (roleData[perm.key] === true || String(roleData[perm.key]).toUpperCase() === 'TRUE');
                     permissionsHtml += `
                         <div class="form-group-checkbox">
@@ -711,6 +714,7 @@ export function renderEditModalContent(type, id) {
                 permissionsHtml += `</div>`;
             }
             
+            // Add RoleName as hidden field for submission
             formHtml = `<input type="hidden" name="RoleName" value="${id}"><div style="padding-bottom:10px;">${permissionsHtml}</div>`;
             editModalBody.innerHTML = formHtml;
             break;
@@ -788,6 +792,10 @@ export function renderItemCentricStockView() {
     html += `</tbody></table>`;
     container.innerHTML = html;
 }
+
+// ... (Keep renderInvoicesInModal, renderPaymentList, renderSupplierStatement, etc.) ...
+// ... (Keep renderTransactionHistory, renderPendingTransfers, renderInTransitReport, etc.) ...
+// ... (Keep renderYieldAnalysisReport) ...
 
 export function renderInvoicesInModal() {
     const listEl = document.getElementById('modal-invoice-list');
