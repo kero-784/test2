@@ -196,7 +196,7 @@ export function renderAdjustmentListTable() {
     });
 }
 
-// --- MASTER DATA RENDERERS ---
+// --- MASTER DATA RENDERERS (Updated for Disable Logic) ---
 
 export function renderItemsTable(data = state.items) {
     const table = document.getElementById('table-items');
@@ -206,22 +206,30 @@ export function renderItemsTable(data = state.items) {
     tbody.innerHTML = '';
     
     if (!data || data.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">${_t('no_items_found')}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">${_t('no_items_found')}</td></tr>`;
         return;
     }
     
     data.forEach(item => {
+        const isDisabled = item.isActive === false || String(item.isActive).toUpperCase() === 'FALSE';
         const tr = document.createElement('tr');
+        if (isDisabled) tr.style.backgroundColor = '#f8d7da';
+        
+        const toggleBtnText = isDisabled ? 'Enable' : 'Disable';
+        const toggleBtnClass = isDisabled ? 'success' : 'danger';
+
         tr.innerHTML = `
             <td>${item.code}</td>
             <td>${item.name}</td>
             <td>${_t(item.category ? 'cat_'+item.category.toLowerCase() : '') || item.category}</td>
             <td>${item.ItemType || 'Main'}</td>
             <td>${formatCurrency(item.cost)}</td>
+            <td>${isDisabled ? 'Disabled' : 'Active'}</td>
             <td>
                 <div class="action-buttons">
                     ${userCan('createItem') ? `<button class="secondary small btn-edit" data-type="item" data-id="${item.code}">${_t('edit')}</button>` : ''}
                     <button class="secondary small btn-history" data-type="item" data-id="${item.code}">${_t('history')}</button>
+                    ${userCan('createItem') ? `<button class="${toggleBtnClass} small btn-toggle-status" data-type="item" data-id="${item.code}" data-current="${isDisabled}">${toggleBtnText}</button>` : ''}
                 </div>
             </td>`;
         tbody.appendChild(tr);
@@ -236,21 +244,33 @@ export function renderSuppliersTable(data = state.suppliers) {
     tbody.innerHTML = '';
     
     if (!data || data.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">${_t('no_suppliers_found')}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">${_t('no_suppliers_found')}</td></tr>`;
         return;
     }
     
     const financials = calculateSupplierFinancials();
     
     data.forEach(supplier => {
+        const isDisabled = supplier.isActive === false || String(supplier.isActive).toUpperCase() === 'FALSE';
         const balance = financials[supplier.supplierCode]?.balance || 0;
         const tr = document.createElement('tr');
+        if (isDisabled) tr.style.backgroundColor = '#f8d7da';
+        
+        const toggleBtnText = isDisabled ? 'Enable' : 'Disable';
+        const toggleBtnClass = isDisabled ? 'success' : 'danger';
+
         tr.innerHTML = `
             <td>${supplier.supplierCode || ''}</td>
             <td>${supplier.name}</td>
             <td>${supplier.contact}</td>
             <td>${formatCurrency(balance)}</td>
-            <td>${userCan('createSupplier') ? `<button class="secondary small btn-edit" data-type="supplier" data-id="${supplier.supplierCode}">${_t('edit')}</button>` : ''}</td>`;
+            <td>${isDisabled ? 'Disabled' : 'Active'}</td>
+            <td>
+                <div class="action-buttons">
+                    ${userCan('createSupplier') ? `<button class="secondary small btn-edit" data-type="supplier" data-id="${supplier.supplierCode}">${_t('edit')}</button>` : ''}
+                    ${userCan('createSupplier') ? `<button class="${toggleBtnClass} small btn-toggle-status" data-type="supplier" data-id="${supplier.supplierCode}" data-current="${isDisabled}">${toggleBtnText}</button>` : ''}
+                </div>
+            </td>`;
         tbody.appendChild(tr);
     });
 }
@@ -263,16 +283,28 @@ export function renderBranchesTable(data = state.branches) {
     tbody.innerHTML = '';
     
     if (!data || data.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;">${_t('no_branches_found')}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;">${_t('no_branches_found')}</td></tr>`;
         return;
     }
     
     data.forEach(branch => {
+        const isDisabled = branch.isActive === false || String(branch.isActive).toUpperCase() === 'FALSE';
         const tr = document.createElement('tr');
+        if (isDisabled) tr.style.backgroundColor = '#f8d7da';
+
+        const toggleBtnText = isDisabled ? 'Enable' : 'Disable';
+        const toggleBtnClass = isDisabled ? 'success' : 'danger';
+
         tr.innerHTML = `
             <td>${branch.branchCode || ''}</td>
             <td>${branch.branchName}</td>
-            <td>${userCan('createBranch') ? `<button class="secondary small btn-edit" data-type="branch" data-id="${branch.branchCode}">${_t('edit')}</button>` : ''}</td>`;
+            <td>${isDisabled ? 'Disabled' : 'Active'}</td>
+            <td>
+                <div class="action-buttons">
+                    ${userCan('createBranch') ? `<button class="secondary small btn-edit" data-type="branch" data-id="${branch.branchCode}">${_t('edit')}</button>` : ''}
+                    ${userCan('createBranch') ? `<button class="${toggleBtnClass} small btn-toggle-status" data-type="branch" data-id="${branch.branchCode}" data-current="${isDisabled}">${toggleBtnText}</button>` : ''}
+                </div>
+            </td>`;
         tbody.appendChild(tr);
     });
 }
@@ -285,16 +317,28 @@ export function renderSectionsTable(data = state.sections) {
     tbody.innerHTML = '';
     
     if (!data || data.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;">${_t('no_sections_found')}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;">${_t('no_sections_found')}</td></tr>`;
         return;
     }
     
     data.forEach(section => {
+        const isDisabled = section.isActive === false || String(section.isActive).toUpperCase() === 'FALSE';
         const tr = document.createElement('tr');
+        if (isDisabled) tr.style.backgroundColor = '#f8d7da';
+        
+        const toggleBtnText = isDisabled ? 'Enable' : 'Disable';
+        const toggleBtnClass = isDisabled ? 'success' : 'danger';
+
         tr.innerHTML = `
             <td>${section.sectionCode || ''}</td>
             <td>${section.sectionName}</td>
-            <td>${userCan('createSection') ? `<button class="secondary small btn-edit" data-type="section" data-id="${section.sectionCode}">${_t('edit')}</button>` : ''}</td>`;
+            <td>${isDisabled ? 'Disabled' : 'Active'}</td>
+            <td>
+                <div class="action-buttons">
+                    ${userCan('createSection') ? `<button class="secondary small btn-edit" data-type="section" data-id="${section.sectionCode}">${_t('edit')}</button>` : ''}
+                    ${userCan('createSection') ? `<button class="${toggleBtnClass} small btn-toggle-status" data-type="section" data-id="${section.sectionCode}" data-current="${isDisabled}">${toggleBtnText}</button>` : ''}
+                </div>
+            </td>`;
         tbody.appendChild(tr);
     });
 }
@@ -534,7 +578,6 @@ export function renderEditModalContent(type, id) {
             const currentCat = safeGet(record, 'category');
             const catOptions = categories.map(c => `<option value="${c}" ${currentCat === c ? 'selected' : ''}>${_t('cat_'+c.toLowerCase())}</option>`).join('');
             
-            // NEW: Unit Dropdown
             const units = ['KG', 'PCS', 'BOX', 'PACK', 'LTR'];
             const currentUnit = safeGet(record, 'unit') || 'KG';
             const unitOptions = units.map(u => `<option value="${u}" ${currentUnit === u ? 'selected' : ''}>${u}</option>`).join('');
@@ -551,7 +594,6 @@ export function renderEditModalContent(type, id) {
                 cutsSection = `<div class="form-group span-full"><label>Linked Cuts</label><div style="max-height:100px;overflow-y:auto;border:1px solid #ccc;padding:5px;">${checkboxes}</div></div>`;
             }
 
-            // MODIFIED FORM with Select for Item Type and Unit, and Auto button logic prep
             formHtml = `
                 <div class="form-grid">
                     <div class="form-group">
@@ -560,7 +602,6 @@ export function renderEditModalContent(type, id) {
                             <option value="Main" ${safeGet(record, 'ItemType') === 'Main' ? 'selected' : ''}>Main (Parent)</option>
                             <option value="Cut" ${safeGet(record, 'ItemType') === 'Cut' ? 'selected' : ''}>Cut (Child)</option>
                         </select>
-                        <!-- Hidden input to ensure value is sent if disabled -->
                         ${id ? `<input type="hidden" name="ItemType" value="${safeGet(record, 'ItemType')}">` : ''}
                     </div>
                     <div class="form-group">
@@ -660,7 +701,6 @@ export function renderEditModalContent(type, id) {
             for (const [groupName, perms] of Object.entries(PERMISSION_GROUPS)) {
                 permissionsHtml += `<div class="permission-category">${groupName}</div><div class="permissions-grid">`;
                 perms.forEach(perm => {
-                    // Check if role has this permission set to TRUE (or true boolean)
                     const isChecked = roleData && (roleData[perm.key] === true || String(roleData[perm.key]).toUpperCase() === 'TRUE');
                     permissionsHtml += `
                         <div class="form-group-checkbox">
@@ -671,7 +711,6 @@ export function renderEditModalContent(type, id) {
                 permissionsHtml += `</div>`;
             }
             
-            // Add RoleName as hidden field for submission
             formHtml = `<input type="hidden" name="RoleName" value="${id}"><div style="padding-bottom:10px;">${permissionsHtml}</div>`;
             editModalBody.innerHTML = formHtml;
             break;
@@ -692,6 +731,9 @@ export function renderItemsInModal(filter = '') {
     }
 
     state.items.filter(item => {
+        const isActive = item.isActive !== false && String(item.isActive).toUpperCase() !== 'FALSE';
+        if(!isActive) return false; // Don't show disabled items
+
         const matchesText = item.name.toLowerCase().includes(lowerFilter) || item.code.toLowerCase().includes(lowerFilter);
         let matchesContext = true;
         if (allowedCodes && Array.isArray(allowedCodes) && allowedCodes.length > 0) {
@@ -847,7 +889,7 @@ export function renderSupplierStatement(code, d1, d2) {
         if ((!sDate || d >= sDate) && (!eDate || d <= eDate)) {
             runningBalance += (e.debit - e.credit);
             
-            // ACTION BUTTON LOGIC
+            // ACTION BUTTON LOGIC (Print Voucher)
             let actionBtn = '';
             if (e.type === 'Pay' && e.ref) {
                 actionBtn = `<button class="secondary small btn-print-voucher" data-id="${e.ref}" style="margin-left:10px; padding:4px 8px;">Print</button>`;
