@@ -69,8 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const btn = e.target.closest('button');
         if (!btn) return;
 
-        // 1. ADD NEW BUTTONS (MASTER DATA & USERS)
-        // Must check these IDs explicitly first
+        // 1. ADD NEW BUTTONS (MASTER DATA)
         if (['btn-add-item', 'btn-add-supplier', 'btn-add-branch', 'btn-add-section', 'btn-add-new-user', 'btn-add-new-role'].includes(btn.id)) {
             const map = {
                 'btn-add-item': 'item',
@@ -98,7 +97,17 @@ document.addEventListener('DOMContentLoaded', () => {
              return;
         }
 
-        // 4. PERMISSIONS & DELETE
+        // 4. AUTO-GEN BUTTONS (INSIDE MODAL)
+        if (btn.id === 'btn-modal-gen-code') {
+             document.getElementById('edit-item-code').value = `ITM-${Math.floor(Math.random() * 99999)}`;
+             return;
+        }
+        if (btn.id === 'btn-modal-gen-supplier') {
+             document.getElementById('edit-supplier-code').value = `SUP-${Math.floor(Math.random() * 99999)}`;
+             return;
+        }
+
+        // 5. PERMISSIONS & DELETE
         if (btn.classList.contains('btn-edit-role-perms')) {
             const roleName = btn.dataset.role;
             Renderers.renderEditModalContent('role-permissions', roleName);
@@ -119,8 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- FINANCIALS: PRINT VOUCHER FROM HISTORY ---
         if (btn.classList.contains('btn-print-voucher')) {
             const paymentId = btn.dataset.id;
-            
-            // Find all payment lines with this ID (filter from local state)
+            // Find all payment lines with this ID
             const paymentLines = state.payments.filter(p => p.paymentId === paymentId);
             
             if (paymentLines.length > 0) {
@@ -431,7 +439,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 payload = { type, id: form.dataset.id, updates };
 
-                // Handle Creations vs Updates
                 const isNew = !form.dataset.id;
                 
                 if (type === 'user') {
