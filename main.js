@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const btn = e.target.closest('button');
         if (!btn) return;
 
-        // 1. ADD NEW BUTTONS (MASTER DATA)
+        // 1. ADD NEW BUTTONS (MASTER DATA & USERS)
         if (['btn-add-item', 'btn-add-supplier', 'btn-add-branch', 'btn-add-section', 'btn-add-new-user', 'btn-add-new-role'].includes(btn.id)) {
             const map = {
                 'btn-add-item': 'item',
@@ -90,7 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
              return;
         }
 
-        // 3. EDIT BUTTONS
+        // 3. EDIT BUTTONS (OPEN MODAL)
         if (btn.classList.contains('btn-edit')) {
              Renderers.renderEditModalContent(btn.dataset.type, btn.dataset.id);
              document.getElementById('edit-modal').classList.add('active');
@@ -107,11 +107,47 @@ document.addEventListener('DOMContentLoaded', () => {
              return;
         }
 
-        // 5. PERMISSIONS & DELETE
+        // 5. TOGGLE STATUS (DISABLE/ENABLE)
+        if (btn.classList.contains('btn-toggle-status')) {
+            const type = btn.dataset.type;
+            const id = btn.dataset.id;
+            // data-current="true" means currently DISABLED. So we want to Enable (isActive=true)
+            const isCurrentlyDisabled = btn.dataset.current === 'true'; 
+            
+            let action = 'updateData';
+            let updates = {};
+            
+            // User Logic is inverted (isDisabled)
+            if (type === 'user') {
+                action = 'updateUser';
+                // If currently disabled, new state for isDisabled is false
+                updates = { isDisabled: !isCurrentlyDisabled }; 
+            } else {
+                // Master Data Logic (isActive)
+                // If currently disabled, new state for isActive is true
+                updates = { isActive: isCurrentlyDisabled }; 
+            }
+
+            const payload = type === 'user' ? { Username: id, updates } : { type, id, updates };
+
+            if(confirm(`Change status for ${type} ${id}?`)) {
+                const res = await postData(action, payload, btn);
+                if(res) {
+                    showToast('Status updated', 'success');
+                    await reloadData();
+                    if (type === 'user') refreshViewData('user-management');
+                    else refreshViewData('master-data');
+                }
+            }
+            return;
+        }
+
+        // 6. PERMISSIONS & DELETE ROLE
         if (btn.classList.contains('btn-edit-role-perms')) {
             const roleName = btn.dataset.role;
             Renderers.renderEditModalContent('role-permissions', roleName);
             document.getElementById('edit-modal').classList.add('active');
+            return;
         }
         if (btn.classList.contains('btn-delete-role')) {
             if(confirm('Are you sure you want to delete this role?')) {
@@ -123,12 +159,12 @@ document.addEventListener('DOMContentLoaded', () => {
                      refreshViewData('user-management');
                 }
             }
+            return;
         }
 
         // --- FINANCIALS: PRINT VOUCHER FROM HISTORY ---
         if (btn.classList.contains('btn-print-voucher')) {
             const paymentId = btn.dataset.id;
-            // Find all payment lines with this ID
             const paymentLines = state.payments.filter(p => p.paymentId === paymentId);
             
             if (paymentLines.length > 0) {
@@ -142,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 Documents.generatePaymentVoucher(voucherData);
             } else {
-                showToast('Payment details not found in current data.', 'error');
+                showToast('Payment details not found.', 'error');
             }
             return;
         }
@@ -162,6 +198,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('invoice-selector-modal').classList.add('active');
                 }
             }, 300);
+            return;
         }
 
         // --- REPORT GENERATOR (YIELD) ---
@@ -169,6 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const type = document.getElementById('yield-report-type').value;
             const search = document.getElementById('yield-report-search').value;
             Renderers.renderYieldAnalysisReport(type, search);
+            return;
         }
         
         // --- REPORT GENERATOR (STATEMENT) ---
@@ -178,23 +216,28 @@ document.addEventListener('DOMContentLoaded', () => {
                  document.getElementById('statement-start-date').value, 
                  document.getElementById('statement-end-date').value
              ); 
+             return;
         }
 
         // --- TRANSFER ACTIONS ---
         if (btn.classList.contains('btn-receive-transfer')) {
              Transactions.openTransferModal(btn.dataset.batchId);
+             return;
         }
         if (btn.id === 'btn-confirm-receive-transfer') {
              await Transactions.processTransferAction('receiveTransfer', btn.dataset.batchId, btn);
              await reloadData();
+             return;
         }
         if (btn.id === 'btn-reject-transfer') {
              await Transactions.processTransferAction('rejectTransfer', btn.dataset.batchId, btn);
              await reloadData();
+             return;
         }
         if (btn.classList.contains('btn-cancel-transfer')) {
              await Transactions.handleCancelTransfer(btn.dataset.batchId, btn);
              await reloadData();
+             return;
         }
 
         // --- NOTIFICATION CLICK LOGIC ---
@@ -223,6 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
              state.modalSelections.clear();
              Renderers.renderItemsInModal();
              m.classList.add('active');
+             return;
         }
 
         // --- CONFIRM ITEM SELECTION ---
@@ -270,14 +314,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             m.classList.remove('active');
             state.modalSelections.clear();
+            return;
         }
 
         // ... Helpers ...
-        if (btn.id === 'btn-select-invoices') { Renderers.renderInvoicesInModal(); document.getElementById('invoice-selector-modal').classList.add('active'); }
-        if (btn.id === 'btn-confirm-invoice-selection') { document.getElementById('invoice-selector-modal').classList.remove('active'); Renderers.renderPaymentList(); }
+        if (btn.id === 'btn-select-invoices') { Renderers.renderInvoicesInModal(); document.getElementById('invoice-selector-modal').classList.add('active'); return; }
+        if (btn.id === 'btn-confirm-invoice-selection') { document.getElementById('invoice-selector-modal').classList.remove('active'); Renderers.renderPaymentList(); return; }
         
-        if (btn.id === 'btn-gen-item-code') document.getElementById('item-code').value = `ITM-${Math.floor(Math.random()*9999)}`;
-        if (btn.id === 'btn-gen-invoice') document.getElementById('receive-invoice').value = `INV-${Date.now().toString().slice(-6)}`;
+        if (btn.id === 'btn-gen-item-code') { document.getElementById('item-code').value = `ITM-${Math.floor(Math.random()*9999)}`; return; }
+        if (btn.id === 'btn-gen-invoice') { document.getElementById('receive-invoice').value = `INV-${Date.now().toString().slice(-6)}`; return; }
 
         // Remove Row Logic
         if (btn.classList.contains('danger') && btn.dataset.index !== undefined && btn.textContent === 'X') {
@@ -299,6 +344,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 state[config.list].splice(idx, 1);
                 config.render();
             }
+            return;
         }
 
         // View/Print Transaction Documents
@@ -321,6 +367,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     else if (type === 'return_out') Documents.generateReturnDocument(data);
                 }
             }
+            return;
         }
 
         // Approve/Reject Financials
@@ -341,6 +388,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             }
+            return;
         }
         
         // Admin Context
@@ -353,6 +401,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             if (state.adminContextPromise.resolve) state.adminContextPromise.resolve(ctx);
             modal.classList.remove('active');
+            return;
         }
     });
 
