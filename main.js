@@ -1,6 +1,6 @@
 import { SCRIPT_URL } from './config.js';
 import { state, setState, resetStateLists } from './state.js';
-import { Logger, showToast, applyTranslations, populateOptions, findByKey, postData, formatCurrency, _t, userCan } from './utils.js';
+import { Logger, showToast, applyTranslations, populateOptions, findByKey, postData, formatCurrency, _t, userCan, exportTableToExcel } from './utils.js';
 import { calculateStockLevels } from './calculations.js';
 import * as Renderers from './renderers.js';
 import * as Transactions from './transactions.js';
@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const btn = e.target.closest('button');
         if (!btn) return;
 
-        // 1. ADD NEW BUTTONS (MASTER DATA & USERS)
+        // 1. ADD NEW BUTTONS (MASTER DATA)
         if (['btn-add-item', 'btn-add-supplier', 'btn-add-branch', 'btn-add-section', 'btn-add-new-user', 'btn-add-new-role'].includes(btn.id)) {
             const map = {
                 'btn-add-item': 'item',
@@ -84,20 +84,44 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // 2. MODAL CONTROLS
+        // 2. EXPORT BUTTONS
+        if (btn.id === 'btn-export-items') { exportTableToExcel('table-items', 'Items_List.xlsx'); return; }
+        if (btn.id === 'btn-export-suppliers') { exportTableToExcel('table-suppliers', 'Suppliers_List.xlsx'); return; }
+        if (btn.id === 'btn-export-branches') { exportTableToExcel('table-branches', 'Branches_List.xlsx'); return; }
+        if (btn.id === 'btn-export-stock') { exportTableToExcel('table-stock-levels', 'Stock_Report.xlsx'); return; }
+        if (btn.id === 'btn-export-history') { exportTableToExcel('table-transaction-history', 'Transaction_Log.xlsx'); return; }
+        
+        if (btn.id === 'btn-export-statement') {
+            const supName = document.querySelector('#supplier-statement-results h3')?.innerText || 'Statement';
+            exportTableToExcel('table-supplier-statement', `${supName}.xlsx`);
+            return;
+        }
+        
+        if (btn.id === 'btn-export-yield') {
+            const tbl = document.querySelector('#yield-report-results table');
+            if(tbl) {
+                if(!tbl.id) tbl.id = 'temp-yield-export';
+                exportTableToExcel(tbl.id, 'Yield_Report.xlsx');
+            } else {
+                showToast("Generate a report first.", "error");
+            }
+            return;
+        }
+
+        // 3. MODAL CONTROLS
         if (btn.classList.contains('close-button') || btn.classList.contains('modal-cancel')) {
              document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
              return;
         }
 
-        // 3. EDIT BUTTONS (OPEN MODAL)
+        // 4. EDIT BUTTONS
         if (btn.classList.contains('btn-edit')) {
              Renderers.renderEditModalContent(btn.dataset.type, btn.dataset.id);
              document.getElementById('edit-modal').classList.add('active');
              return;
         }
 
-        // 4. AUTO-GEN BUTTONS (INSIDE MODAL)
+        // 5. AUTO-GEN BUTTONS
         if (btn.id === 'btn-modal-gen-code') {
              document.getElementById('edit-item-code').value = `ITM-${Math.floor(Math.random() * 99999)}`;
              return;
@@ -107,24 +131,19 @@ document.addEventListener('DOMContentLoaded', () => {
              return;
         }
 
-        // 5. TOGGLE STATUS (DISABLE/ENABLE)
+        // 6. TOGGLE STATUS
         if (btn.classList.contains('btn-toggle-status')) {
             const type = btn.dataset.type;
             const id = btn.dataset.id;
-            // data-current="true" means currently DISABLED. So we want to Enable (isActive=true)
             const isCurrentlyDisabled = btn.dataset.current === 'true'; 
             
             let action = 'updateData';
             let updates = {};
             
-            // User Logic is inverted (isDisabled)
             if (type === 'user') {
                 action = 'updateUser';
-                // If currently disabled, new state for isDisabled is false
                 updates = { isDisabled: !isCurrentlyDisabled }; 
             } else {
-                // Master Data Logic (isActive)
-                // If currently disabled, new state for isActive is true
                 updates = { isActive: isCurrentlyDisabled }; 
             }
 
@@ -142,7 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // 6. PERMISSIONS & DELETE ROLE
+        // 7. PERMISSIONS & DELETE ROLE
         if (btn.classList.contains('btn-edit-role-perms')) {
             const roleName = btn.dataset.role;
             Renderers.renderEditModalContent('role-permissions', roleName);
