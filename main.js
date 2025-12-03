@@ -1,3 +1,5 @@
+// --- START OF FILE main.js ---
+
 import { SCRIPT_URL } from './config.js';
 import { state, setState, resetStateLists } from './state.js';
 import { Logger, showToast, applyTranslations, populateOptions, findByKey, postData, formatCurrency, _t, userCan, exportTableToExcel } from './utils.js';
@@ -492,7 +494,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (type === 'item') {
                     const selectedCuts = [];
                     form.querySelectorAll('input[name="DefinedCuts"]:checked').forEach(cb => selectedCuts.push(cb.value));
-                    if (form.querySelector('input[name="ItemType"]').value === 'Main') {
+                    
+                    // FIXED: Use formData.get to safely retrieve value regardless of element type (input or select)
+                    if (formData.get('ItemType') === 'Main') {
                         updates['DefinedCuts'] = selectedCuts.join(',');
                     }
                 }
