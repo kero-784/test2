@@ -101,7 +101,7 @@
                                 <button id="btn-export-items" class="secondary" data-translate-key="export_to_excel">Export</button>
                             </div>
                         </div>
-                        <div class="report-area"><table id="table-items"><thead><tr><th data-translate-key="table_h_code">Code</th><th data-translate-key="table_h_name">Name</th><th data-translate-key="table_h_category">Category</th><th data-translate-key="item_type">Type</th><th data-translate-key="table_h_cost">Default Cost</th><th data-translate-key="table_h_actions">Actions</th></tr></thead><tbody></tbody></table></div>
+                        <div class="report-area"><table id="table-items"><thead><tr><th data-translate-key="table_h_code">Code</th><th data-translate-key="table_h_name">Name</th><th data-translate-key="table_h_category">Category</th><th data-translate-key="item_type">Type</th><th data-translate-key="table_h_cost">Default Cost</th><th data-translate-key="table_h_status">Status</th><th data-translate-key="table_h_actions">Actions</th></tr></thead><tbody></tbody></table></div>
                     </div>
                 </div>
                 
@@ -116,7 +116,7 @@
                                 <button id="btn-export-suppliers" class="secondary" data-translate-key="export_to_excel">Export</button>
                             </div>
                         </div>
-                        <div class="report-area"><table id="table-suppliers"><thead><tr><th data-translate-key="table_h_code">Code</th><th data-translate-key="table_h_name">Name</th><th data-translate-key="table_h_balance">Balance (Owed)</th><th data-translate-key="table_h_actions">Actions</th></tr></thead><tbody></tbody></table></div>
+                        <div class="report-area"><table id="table-suppliers"><thead><tr><th data-translate-key="table_h_code">Code</th><th data-translate-key="table_h_name">Name</th><th data-translate-key="table_h_contact">Contact</th><th data-translate-key="table_h_balance">Balance (Owed)</th><th data-translate-key="table_h_status">Status</th><th data-translate-key="table_h_actions">Actions</th></tr></thead><tbody></tbody></table></div>
                     </div>
                 </div>
                 
@@ -131,7 +131,7 @@
                                 <button id="btn-export-branches" class="secondary" data-translate-key="export_to_excel">Export</button>
                             </div>
                         </div>
-                        <div class="report-area"><table id="table-branches"><thead><tr><th data-translate-key="table_h_code">Code</th><th data-translate-key="table_h_name">Name</th><th data-translate-key="table_h_actions">Actions</th></tr></thead><tbody></tbody></table></div>
+                        <div class="report-area"><table id="table-branches"><thead><tr><th data-translate-key="table_h_code">Code</th><th data-translate-key="table_h_name">Name</th><th data-translate-key="table_h_status">Status</th><th data-translate-key="table_h_actions">Actions</th></tr></thead><tbody></tbody></table></div>
                     </div>
                 </div>
                 
@@ -146,7 +146,7 @@
                                 <button id="btn-export-sections" class="secondary" data-translate-key="export_to_excel">Export</button>
                             </div>
                         </div>
-                        <div class="report-area"><table id="table-sections"><thead><tr><th data-translate-key="table_h_code">Code</th><th data-translate-key="table_h_name">Name</th><th data-translate-key="table_h_actions">Actions</th></tr></thead><tbody></tbody></table></div>
+                        <div class="report-area"><table id="table-sections"><thead><tr><th data-translate-key="table_h_code">Code</th><th data-translate-key="table_h_name">Name</th><th data-translate-key="table_h_status">Status</th><th data-translate-key="table_h_actions">Actions</th></tr></thead><tbody></tbody></table></div>
                     </div>
                 </div>
             </div>
@@ -214,7 +214,7 @@
                     </div>
                 </div>
 
-                <!-- Analysis Subview (Moved from Reports) -->
+                <!-- Analysis Subview -->
                 <div id="subview-yield-analysis" class="sub-view">
                     <div class="card">
                         <div class="toolbar">
@@ -223,6 +223,7 @@
                                 <select id="yield-report-type" class="small"><option value="batch">By Production Batch</option><option value="item">By Parent Item</option></select>
                                 <input type="text" id="yield-report-search" class="small" placeholder="Search Batch or Item Name...">
                                 <button id="btn-generate-yield-report" class="primary small">Generate Report</button>
+                                <button id="btn-export-yield" class="secondary small">Export Excel</button>
                             </div>
                         </div>
                         <div id="yield-report-results" class="report-area"><p style="text-align:center; color:#888;">Select options and click Generate.</p></div>
@@ -272,7 +273,8 @@
             </div>
 
             <div id="view-stock-levels" class="view"><div class="card"><div class="toolbar"><h2 id="stock-levels-title" data-translate-key="stock_by_item">Stock by Item</h2><div class="search-bar"><input type="search" id="stock-levels-search" class="search-bar-input" data-translate-placeholder="search_items_stock_placeholder"></div><button id="btn-export-stock" class="secondary" data-translate-key="export_to_excel">Export to Excel</button></div><div id="item-centric-stock-container" class="report-area"></div></div><div class="card"><h2 data-translate-key="item_stock_inquiry">Item Stock Inquiry (Drill-down)</h2><input type="search" id="item-inquiry-search" class="search-bar-input" data-translate-placeholder="item_stock_inquiry_placeholder"><div id="item-inquiry-results" class="report-area"></div></div></div>
-            <div id="view-transaction-history" class="view"><div class="card"><div class="toolbar"><h2 data-translate-key="transaction_log">Transaction Log</h2><div class="filters-container"><input type="date" id="tx-filter-start-date" class="small"><input type="date" id="tx-filter-end-date" class="small"><select id="tx-filter-type" class="small"><option value="" data-translate-key="all_types">All Types</option></select><select id="tx-filter-branch" class="small"><option value="" data-translate-key="all_branches">All Branches</option></select><input type="search" id="transaction-search" class="search-bar-input small" data-translate-placeholder="search_tx_placeholder" style="width: 250px;"></div></div><div class="report-area"><table id="table-transaction-history"><thead><tr><th data-translate-key="table_h_date">Date</th><th data-translate-key="table_h_type">Type</th><th data-translate-key="table_h_batch_ref">Batch/Ref #</th><th data-translate-key="table_h_details">Details</th><th data-translate-key="table_h_status">Status</th><th data-translate-key="actions">Actions</th></tr></thead><tbody></tbody></table></div></div></div>
+            <div id="view-transaction-history" class="view"><div class="card"><div class="toolbar"><h2 data-translate-key="transaction_log">Transaction Log</h2><div class="filters-container"><input type="date" id="tx-filter-start-date" class="small"><input type="date" id="tx-filter-end-date" class="small"><select id="tx-filter-type" class="small"><option value="" data-translate-key="all_types">All Types</option></select><select id="tx-filter-branch" class="small"><option value="" data-translate-key="all_branches">All Branches</option></select><input type="search" id="transaction-search" class="search-bar-input small" data-translate-placeholder="search_tx_placeholder" style="width: 250px;"></div>
+            <button id="btn-export-history" class="secondary small">Export Excel</button></div><div class="report-area"><table id="table-transaction-history"><thead><tr><th data-translate-key="table_h_date">Date</th><th data-translate-key="table_h_type">Type</th><th data-translate-key="table_h_batch_ref">Batch/Ref #</th><th data-translate-key="table_h_details">Details</th><th data-translate-key="table_h_status">Status</th><th data-translate-key="actions">Actions</th></tr></thead><tbody></tbody></table></div></div></div>
             <div id="view-user-management" class="view"><div class="card"><div class="toolbar"><h2 data-translate-key="users">Users</h2><button id="btn-add-new-user" class="primary" data-translate-key="add_new_user">Add New User</button></div><div class="report-area"><table id="table-users"><thead><tr><th data-translate-key="username">Username</th><th data-translate-key="table_h_fullname">Full Name</th><th data-translate-key="table_h_role">Role</th><th data-translate-key="table_h_assigned_branch_section">Assigned Branch/Section</th><th data-translate-key="table_h_status">Status</th><th data-translate-key="actions">Actions</th></tr></thead><tbody></tbody></table></div></div><div class="card"><div class="toolbar"><h2 data-translate-key="roles">Roles</h2><button id="btn-add-new-role" class="primary" data-translate-key="add_new_role">Add New Role</button></div><div class="report-area"><table id="table-roles"><thead><tr><th data-translate-key="table_h_rolename">Role Name</th><th data-translate-key="actions">Actions</th></tr></thead><tbody></tbody></table></div></div></div>
             <div id="view-activity-log" class="view"><div class="card"><h2 data-translate-key="system_activity_log">System Activity Log</h2><div class="report-area"><table id="table-activity-log"><thead><tr><th data-translate-key="table_h_timestamp">Timestamp</th><th data-translate-key="table_h_user">User</th><th data-translate-key="table_h_action">Action</th><th data-translate-key="table_h_description">Description</th></tr></thead><tbody></tbody></table></div></div></div>
             <div id="view-backup" class="view"><div class="card"><h2 class="card-title" data-translate-key="auto_backup_settings">Automatic Backup Settings</h2><div class="form-group-toggle"><label for="auto-backup-toggle" data-translate-key="enable_auto_backups">Enable Automatic Backups</label><label class="switch"><input type="checkbox" id="auto-backup-toggle"><span class="slider round"></span></label></div><div id="auto-backup-frequency-container" class="form-group" style="display: none; max-width: 300px; margin-top: 16px;"><label for="auto-backup-frequency" data-translate-key="backup_frequency">Backup Frequency</label><select id="auto-backup-frequency"><option value="daily" data-translate-key="daily_backup">Daily</option><option value="weekly" data-translate-key="weekly_backup">Weekly</option></select></div><p id="auto-backup-status" style="margin-top: 16px; color: var(--text-light-color); font-style: italic;"></p></div><div class="card"><h2 class="card-title" data-translate-key="manual_backup_restore">Manual Backup & Restore</h2><button id="btn-create-backup" class="primary" data-translate-key="create_new_manual_backup">Create New Manual Backup</button><hr style="margin: 24px 0;"><h3 data-translate-key="available_backups">Available Backups</h3><div id="backup-list-container" class="report-area"><p data-translate-key="loading_backups">Loading backup list...</p></div></div></div>
