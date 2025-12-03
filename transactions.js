@@ -96,7 +96,6 @@ export async function handleButcherySubmit(e) {
             batchId: batchNo, date: now, type: 'production_in', itemCode: c.itemCode, quantity: c.quantity, cost: c.cost, branchCode: branchCode, Status: 'Completed', isApproved: true
         }));
         
-        // Fixed Syntax Error Here
         state.transactions.push({
             batchId: batchNo, date: now, type: 'production_out', itemCode: parentCode, quantity: parentQty, cost: parentAvgCost, branchCode: branchCode, fromBranchCode: branchCode, Status: 'Completed', isApproved: true
         });
@@ -145,6 +144,9 @@ export async function handleReceiveSubmit(e) {
         poId,
         date: new Date().toISOString(),
         notes,
+        // --- FIX: Explicitly tell server this is Pending ---
+        isApproved: false, 
+        Status: 'Pending Approval',
         items: state.currentReceiveList.map(i => ({
             itemCode: i.itemCode,
             itemName: i.itemName,
@@ -152,7 +154,10 @@ export async function handleReceiveSubmit(e) {
             cost: parseFloat(i.cost),
             type: 'receive',
             batchNo: batchNo,
-            expiryDate: expiryDate
+            expiryDate: expiryDate,
+            // --- FIX: Ensure item lines are also Pending ---
+            isApproved: false,
+            Status: 'Pending Approval'
         }))
     };
 
@@ -160,11 +165,11 @@ export async function handleReceiveSubmit(e) {
     if (result) {
         showToast('Stock Received!', 'success');
         
-        // Update local state with explicit batchId and approval status
+        // Update local state to match what we sent
         payload.items.forEach(item => {
             state.transactions.push({ 
                 ...item, 
-                batchId: batchNo, // Ensure this matches payload batchId
+                batchId: batchNo, 
                 branchCode, 
                 supplierCode, 
                 invoiceNumber, 
@@ -177,7 +182,7 @@ export async function handleReceiveSubmit(e) {
         resetStateLists();
         document.getElementById('form-receive-details').reset();
         renderReceiveListTable();
-        renderPendingInvoices(); // Refresh the pending list immediately
+        renderPendingInvoices();
     }
 }
 
