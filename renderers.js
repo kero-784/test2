@@ -770,7 +770,7 @@ export function renderItemCentricStockView() {
         }
     }
     
-    let html = '<table><thead><tr><th>Code</th><th>Item</th>';
+    let html = '<table id="table-stock-levels"><thead><tr><th>Code</th><th>Item</th>';
     branchesToDisplay.forEach(b => html += `<th>${b.branchName}</th>`);
     html += `<th>Total Value</th></tr></thead><tbody>`;
     
@@ -792,10 +792,6 @@ export function renderItemCentricStockView() {
     html += `</tbody></table>`;
     container.innerHTML = html;
 }
-
-// ... (Keep renderInvoicesInModal, renderPaymentList, renderSupplierStatement, etc.) ...
-// ... (Keep renderTransactionHistory, renderPendingTransfers, renderInTransitReport, etc.) ...
-// ... (Keep renderYieldAnalysisReport) ...
 
 export function renderInvoicesInModal() {
     const listEl = document.getElementById('modal-invoice-list');
@@ -889,7 +885,7 @@ export function renderSupplierStatement(code, d1, d2) {
             }
         });
         runningBalance = openingBalance;
-        tableHtml += `<tr style="background:#eee; font-weight:bold;"><td colspan="3">Opening Balance</td><td>-</td><td>-</td><td>${formatCurrency(openingBalance)}</td></tr>`;
+        tableHtml += `<tr style="background:#eee; font-weight:bold;"><td colspan="3">Opening Balance</td><td>-</td><td>-</td><td>${formatCurrency(openingBalance)}</td><td></td></tr>`;
     }
 
     data.events.forEach(e => {
@@ -897,7 +893,7 @@ export function renderSupplierStatement(code, d1, d2) {
         if ((!sDate || d >= sDate) && (!eDate || d <= eDate)) {
             runningBalance += (e.debit - e.credit);
             
-            // ACTION BUTTON LOGIC (Print Voucher)
+            // ACTION BUTTON LOGIC
             let actionBtn = '';
             if (e.type === 'Pay' && e.ref) {
                 actionBtn = `<button class="secondary small btn-print-voucher" data-id="${e.ref}" style="margin-left:10px; padding:4px 8px;">Print</button>`;
@@ -908,21 +904,27 @@ export function renderSupplierStatement(code, d1, d2) {
                 <td>${e.type}</td>
                 <td>${e.ref}</td>
                 <td>${e.debit > 0 ? formatCurrency(e.debit) : '-'}</td>
-                <td>${e.credit > 0 ? formatCurrency(e.credit) : '-'} ${actionBtn}</td>
-                <td>${formatCurrency(runningBalance)}</td>
+                <td>${e.credit > 0 ? formatCurrency(e.credit) : '-'}</td>
+                <td style="font-weight:bold;">${formatCurrency(runningBalance)}</td>
+                <td>${actionBtn}</td>
             </tr>`;
         }
     });
 
-    // ADD "PAY THIS SUPPLIER" BUTTON
+    // ADD TOTALS FOOTER
+    tableHtml += `
+        <tr style="background-color:#e9ecef; font-weight:bold; font-size:1.1em;">
+            <td colspan="5" style="text-align:right;">Closing Balance:</td>
+            <td colspan="2" style="color:${runningBalance > 0 ? '#d32f2f' : 'green'}">${formatCurrency(runningBalance)}</td>
+        </tr>`;
+
     const payButton = `
-        <div style="margin-top: 20px; text-align: right;">
-            <button class="primary btn-pay-supplier" data-supplier="${supplier.supplierCode}">
-                Pay This Supplier
-            </button>
+        <div style="margin-top: 20px; text-align: right; display:flex; justify-content:flex-end; gap:10px;">
+            <button class="secondary" id="btn-export-statement">Export to Excel</button>
+            <button class="primary btn-pay-supplier" data-supplier="${supplier.supplierCode}">Pay This Supplier</button>
         </div>`;
 
-    container.innerHTML = `<div class="printable-document"><h3>Statement: ${supplier.name}</h3><table><thead><tr><th>Date</th><th>Type</th><th>Ref</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead><tbody>${tableHtml}</tbody></table>${payButton}</div>`;
+    container.innerHTML = `<div class="printable-document"><h3>Statement: ${supplier.name}</h3><table id="table-supplier-statement"><thead><tr><th>Date</th><th>Type</th><th>Ref</th><th>Debit</th><th>Credit</th><th>Balance</th><th>Action</th></tr></thead><tbody>${tableHtml}</tbody></table>${payButton}</div>`;
     container.style.display = 'block';
 }
 
@@ -1160,7 +1162,7 @@ export function renderYieldAnalysisReport(type, filterText) {
 
     if (type === 'batch') {
         // --- MODE 1: BATCH LIST ---
-        html = `<table><thead><tr><th>Date</th><th>Ref</th><th>Branch</th><th>Parent Item</th><th>Input (KG)</th><th>Output (KG)</th><th>Yield %</th><th>Action</th></tr></thead><tbody>`;
+        html = `<table id="table-yield-batch"><thead><tr><th>Date</th><th>Ref</th><th>Branch</th><th>Parent Item</th><th>Input (KG)</th><th>Output (KG)</th><th>Yield %</th><th>Action</th></tr></thead><tbody>`;
         
         batches.forEach(b => {
             if (filterText && !b.batchNo.toLowerCase().includes(filterText.toLowerCase())) return;
@@ -1203,7 +1205,7 @@ export function renderYieldAnalysisReport(type, filterText) {
             if(group.batches.length === 0) continue;
             
             html += `<div class="card" style="border:1px solid #eee; margin-bottom:15px;"><h3>${group.name} (${code})</h3>`;
-            html += `<table><thead><tr><th>Date</th><th>Batch</th><th>Input Used</th><th>Total Cuts</th><th>Efficiency</th><th>Detail</th></tr></thead><tbody>`;
+            html += `<table id="table-yield-${code}"><thead><tr><th>Date</th><th>Batch</th><th>Input Used</th><th>Total Cuts</th><th>Efficiency</th><th>Detail</th></tr></thead><tbody>`;
             
             group.batches.forEach(b => {
                 const out = b.childItems.reduce((s, i) => s + i.quantity, 0);
