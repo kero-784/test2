@@ -1,3 +1,5 @@
+// --- START OF FILE transactions.js ---
+
 import { state, resetStateLists } from './state.js';
 import { postData, showToast, _t, generateId, findByKey, requestAdminContext } from './utils.js';
 import { 
@@ -96,7 +98,7 @@ export async function handleButcherySubmit(e) {
         
         state.transactions.push({
             batchId: batchNo, date: now, type: 'production_out', itemCode: parentCode, quantity: parentQty, cost: parentAvgCost, branchCode: branchCode, fromBranchCode: branchCode, Status: 'Completed', isApproved: true
-        });
+        }));
 
         state.currentButcheryList = [];
         document.getElementById('form-butchery').reset();
@@ -157,15 +159,25 @@ export async function handleReceiveSubmit(e) {
     if (result) {
         showToast('Stock Received!', 'success');
         
-        // Assume pending approval unless told otherwise by backend reload
+        // --- FIX: Explicitly set batchId and isApproved=false in local state ---
         payload.items.forEach(item => {
-            state.transactions.push({ ...item, branchCode, supplierCode, invoiceNumber, isApproved: false, Status: 'Pending Approval' });
+            state.transactions.push({ 
+                ...item, 
+                batchId: batchNo, // Crucial for grouping in pending list
+                branchCode, 
+                supplierCode, 
+                invoiceNumber, 
+                isApproved: false, 
+                Status: 'Pending Approval' 
+            });
         });
         
         generateReceiveDocument(payload);
         resetStateLists();
         document.getElementById('form-receive-details').reset();
         renderReceiveListTable();
+        
+        // Force refresh the pending invoices view
         renderPendingInvoices();
     }
 }
