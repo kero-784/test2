@@ -1,3 +1,5 @@
+// --- START OF FILE renderers.js ---
+
 import { state } from './state.js';
 import { _t, findByKey, userCan, populateOptions, formatCurrency, formatDate, Logger, printContent } from './utils.js';
 import { calculateStockLevels, calculateSupplierFinancials } from './calculations.js';
@@ -431,7 +433,9 @@ export function renderTransactionHistory(filters = {}) {
         if(first.type === 'receive') {
             details = `Received from <strong>${findByKey(state.suppliers, 'supplierCode', first.supplierCode)?.name || 'N/A'}</strong>`;
             refNum = first.invoiceNumber;
-            statusTag = first.isApproved ? `<span class="status-tag status-approved">${_t('status_approved')}</span>` : `<span class="status-tag status-pendingapproval">${_t('status_pending')}</span>`;
+            // FIX: Explicitly check for true. If not explicitly true, it is Pending.
+            const isApproved = first.isApproved === true || String(first.isApproved).toUpperCase() === 'TRUE';
+            statusTag = isApproved ? `<span class="status-tag status-approved">${_t('status_approved')}</span>` : `<span class="status-tag status-pendingapproval">${_t('status_pending')}</span>`;
         } else if (first.type === 'transfer_out' || first.type === 'transfer_in') {
             details = `To: ${findByKey(state.branches, 'branchCode', first.toBranchCode)?.branchName}`;
             statusTag = `<span class="status-tag status-${(first.Status || '').toLowerCase().replace(/ /g,'')}">${_t('status_' + (first.Status || '').toLowerCase().replace(/ /g,''))}</span>`;
@@ -501,7 +505,15 @@ export function renderPendingInvoices() {
 
     // Group Receives (GRNs)
     const pendingReceivesGroups = {};
-    (state.transactions || []).filter(t => t.type === 'receive' && (t.isApproved === false || String(t.isApproved).toUpperCase() === 'FALSE')).forEach(t => {
+    
+    // FIX: logic changed to include NULL, undefined, and empty string as Pending.
+    const isPending = (t) => {
+        const val = t.isApproved;
+        // It is Pending if it is NOT explicitly true.
+        return !(val === true || String(val).toUpperCase() === 'TRUE');
+    };
+
+    (state.transactions || []).filter(t => t.type === 'receive' && isPending(t)).forEach(t => {
         if (!pendingReceivesGroups[t.batchId]) {
             pendingReceivesGroups[t.batchId] = {
                 date: t.date,
