@@ -6,7 +6,7 @@ import { generateButcheryReport } from './documents.js';
 
 // --- CONFIG: PERMISSION DEFINITIONS ---
 const PERMISSION_GROUPS = {
-    {
+    
     'Administration': [
         { key: 'manageUsers', label: 'Manage Users & Roles' },
         { key: 'viewAllBranches', label: 'View All Branches (Super User)' },
