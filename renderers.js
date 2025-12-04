@@ -24,6 +24,7 @@ const PERMISSION_GROUPS = {
         { key: 'opStockAdjustment', label: 'Stock Adjustments' },
         { key: 'opProduction', label: 'Butchery & Production' },
         { key: 'opApproveGRN', label: 'Approve Invoices/GRNs' }
+        { key: 'opRecordSales', label: 'Record Sales' }
     ],
     'Financials': [
         { key: 'opCreatePO', label: 'Create PO' },
@@ -31,6 +32,7 @@ const PERMISSION_GROUPS = {
         { key: 'opEditInvoice', label: 'Edit GRN/Invoice' },
         { key: 'opRecordPayment', label: 'Record Payments' },
         { key: 'viewYieldReports', label: 'View Butchery Reports' }
+        { key: 'opManagePriceLists', label: 'Manage Selling Prices' }
     ]
 };
 
