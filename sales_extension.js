@@ -15,15 +15,21 @@ const salesState = {
 // --- 2. PERMISSION & INJECTION ---
 function initSalesModule() {
     if(salesState.initialized) return;
+    
+    // SAFETY CHECK: Ensure DOM is ready
+    if(!document.getElementById('main-nav')) return;
 
     // PERMISSION CHECK
     const user = state.currentUser;
-    // We assume 'opRecordSales' is the key. If you haven't added it to roles yet, 
-    // you can use 'opStockAdjustment' as a temporary fallback or add the role in the app.
-    const hasPermission = user.permissions?.opRecordSales || user.permissions?.opStockAdjustment; 
+    if (!user) return; // Still not logged in
+
+    // Allow if user has specific permission OR is Admin/SuperUser
+    // We check RoleName directly as a fallback since you haven't updated the Roles UI checkboxes yet
+    const isSuperUser = user.RoleName === 'Admin' || user.RoleName === 'Super User' || user.RoleName === 'Manager';
+    const hasPermission = user.permissions?.opRecordSales || user.permissions?.opStockAdjustment || isSuperUser; 
     
     if (!hasPermission) {
-        console.log("User does not have permission to view Sales.");
+        // Silent fail: user just won't see the tab
         return;
     }
 
@@ -39,10 +45,15 @@ function injectSalesUI() {
     if (sidebar && !document.getElementById('nav-sales-link')) {
         const li = document.createElement('li');
         li.className = 'nav-item';
+        // Add specific ID for styling or debugging
+        li.id = 'nav-item-sales'; 
         li.innerHTML = `<a href="#" id="nav-sales-link" data-view="sales">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.41 16.09V20h-2.67v-1.93c-1.71-.36-3.16-1.46-3.27-3.4h1.96c.1 1.05 1.18 1.91 2.53 1.91 1.29 0 2.13-.72 2.13-1.55 0-1.35-1.91-1.53-3.55-2.11C9.6 12.48 8 11.4 8 8.99c0-2.08 1.55-3.18 3.23-3.6V3.49h2.67v1.63c1.5.18 2.8 1.18 2.94 3.01h-2.02c-.13-.88-1.07-1.57-2.31-1.57-1.16 0-1.95.73-1.95 1.48 0 1.2 2.05 1.43 3.68 2.03 2.01.73 3.32 1.87 3.32 3.97 0 2.06-1.4 3.16-3.15 3.55z"></path></svg>
-            <span>Sales</span>
+            <!-- Simple SVG Icon -->
+            <svg style="width:22px;height:22px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+            <span style="margin-left:10px;">Sales</span>
         </a>`;
+        
+        // Insert it nicely in the list
         const refEntry = sidebar.querySelector('a[data-view="operations"]')?.parentElement;
         if (refEntry) refEntry.after(li);
         else sidebar.appendChild(li);
@@ -65,7 +76,7 @@ function injectSalesUI() {
                 <div class="card">
                     <div class="toolbar">
                         <h2>Record Sales Period</h2>
-                        <div style="display:flex; gap:10px;">
+                        <div style="display:flex; gap:10px; flex-wrap:wrap;">
                             <input type="file" id="ext-sales-upload" accept=".xlsx, .xls" style="display:none">
                             <button class="secondary small" onclick="document.getElementById('ext-sales-upload').click()">Upload Matrix Excel</button>
                             <button class="secondary small" id="ext-btn-template">Download Template</button>
@@ -174,14 +185,19 @@ function injectSalesUI() {
 // --- 3. EVENT LISTENERS ---
 function attachEventListeners() {
     // Nav Click
-    document.getElementById('nav-sales-link')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-        document.querySelectorAll('.nav-item a').forEach(l => l.classList.remove('active'));
-        document.getElementById('view-sales').classList.add('active');
-        e.currentTarget.classList.add('active');
-        updateRecordContext();
-    });
+    const navLink = document.getElementById('nav-sales-link');
+    if (navLink) {
+        navLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            document.querySelectorAll('.nav-item a').forEach(l => l.classList.remove('active'));
+            
+            document.getElementById('view-sales').classList.add('active');
+            e.currentTarget.classList.add('active');
+            
+            updateRecordContext();
+        });
+    }
 
     // Sub-Nav Tabs
     document.querySelectorAll('.sub-nav-item').forEach(btn => {
@@ -191,7 +207,6 @@ function attachEventListeners() {
                 document.querySelectorAll('.sales-tab').forEach(t => t.style.display = 'none');
                 e.target.classList.add('active');
                 document.getElementById(`tab-${e.target.dataset.target}`).style.display = 'block';
-                
                 if(e.target.dataset.target === 'sales-report') initReportFilters();
             }
         });
@@ -250,6 +265,8 @@ function updateRecordContext() {
     const div = document.getElementById('ext-div-branch-select');
     const helper = document.getElementById('ext-helper-text');
     
+    if(!select) return;
+
     select.innerHTML = '';
     state.branches.forEach(b => select.innerHTML += `<option value="${b.branchCode}">${b.branchName}</option>`);
 
@@ -262,11 +279,11 @@ function updateRecordContext() {
         salesState.isAdmin = false;
         select.value = user.AssignedBranchCode;
         select.disabled = true;
-        helper.textContent = "Search and select items to add them to the list.";
+        if(helper) helper.textContent = "Search and select items to add them to the list.";
     } else {
         salesState.isAdmin = true;
-        div.style.display = 'none'; // Admin uses matrix logic
-        helper.textContent = "Select an item to enter sales for multiple branches at once.";
+        if(div) div.style.display = 'none'; // Admin uses matrix logic
+        if(helper) helper.textContent = "Select an item to enter sales for multiple branches at once.";
     }
 }
 
@@ -377,7 +394,7 @@ async function submitSales() {
 
 function initReportFilters() {
     const branchContainer = document.getElementById('rpt-branch-selector');
-    if(branchContainer.innerHTML === '') {
+    if(branchContainer && branchContainer.innerHTML === '') {
         state.branches.forEach(b => {
             if(String(b.isActive) !== 'false') {
                 branchContainer.innerHTML += `
@@ -394,14 +411,8 @@ function initReportFilters() {
 
 function handleReportItemSearch(e) {
     const val = e.target.value.toLowerCase();
-    // Simple autocomplete could go here, for now just exact match or logic to add by code
-    // Let's implement a simple dropdown logic similar to record
-    // For brevity, we will assume user hits "Enter" to add fuzzy match
-    // OR we can create a datalist.
-    // Let's use the simplest: If they type, show suggestions below.
     
-    // Actually, reused logic from record search is best.
-    // For this specific requirements, let's just make a datalist
+    // Datalist for simple suggestions
     let dl = document.getElementById('rpt-item-datalist');
     if(!dl) {
         dl = document.createElement('datalist');
@@ -445,12 +456,9 @@ function generateReport() {
     const dTo = new Date(document.getElementById('rpt-date-to').value);
     dTo.setHours(23,59,59);
 
-    // Get selected branches
     const selBranches = [];
     document.querySelectorAll('.rpt-branch-chk:checked').forEach(c => selBranches.push(c.value));
     const branchFilter = selBranches.length > 0;
-
-    // Get selected items
     const itemFilter = salesState.reportSelectedItems.size > 0;
 
     const tbody = document.querySelector('#rpt-table tbody');
@@ -460,13 +468,11 @@ function generateReport() {
 
     // Filter Transactions
     const reportData = state.transactions.filter(t => {
-        // 1. Must be sales (Type 'issue' AND has Price OR batchId starts with SALE)
-        // We look for 'price' field primarily now
+        // 1. Must be sales 
         const isSale = (t.batchId.startsWith('SALE') || (t.price !== undefined && t.price !== null));
         if(!isSale) return false;
 
-        // 2. Date Filter (Check Transaction Date OR Start/End if available)
-        // We use the transaction date which represents the End Date/Posting Date
+        // 2. Date Filter
         const tDate = new Date(t.date);
         if(tDate < dFrom || tDate > dTo) return false;
 
@@ -485,7 +491,6 @@ function generateReport() {
         return;
     }
 
-    // Sort by date
     reportData.sort((a,b) => new Date(b.date) - new Date(a.date));
 
     reportData.forEach(r => {
@@ -669,5 +674,14 @@ function downloadMatrixTemplate() {
     XLSX.writeFile(wb, "Sales_Matrix_Template.xlsx");
 }
 
-// Start
-document.addEventListener('DOMContentLoaded', () => { setTimeout(initSalesModule, 500); });
+// --- 7. AUTO-INIT ON LOGIN/LOAD ---
+// Polling to wait for login and DOM ready
+const poller = setInterval(() => {
+    if (state.currentUser && document.getElementById('main-nav') && !salesState.initialized) {
+        initSalesModule();
+        // Don't clear interval immediately, in case of re-login or view refresh logic, 
+        // but typically safe to clear if SPA doesn't do full reload.
+        // For safety in this specific architecture, we just let the initialized flag handle it.
+        clearInterval(poller);
+    }
+}, 500);
