@@ -15,8 +15,7 @@ const PERMISSION_GROUPS = {
     'Master Data Creation': [
         { key: 'createItem', label: 'Create Items' },
         { key: 'createSupplier', label: 'Create Suppliers' },
-        { key: 'createBranch', label: 'Create Branches' },
-        { key: 'createSection', label: 'Create Sections' }
+        { key: 'createBranch', label: 'Create Branches' }
     ],
     'Stock Operations': [
         { key: 'opReceive', label: 'Receive Stock (GRN)' },
