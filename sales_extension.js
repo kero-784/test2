@@ -20,10 +20,10 @@ function initSalesModule() {
     const user = state.currentUser;
     if (!user) return; 
 
-    const isSuperUser = ['Admin', 'Super User', 'Manager'].includes(user.RoleName);
-    const hasPermission = user.permissions?.opRecordSales || user.permissions?.opStockAdjustment || isSuperUser; 
+    // View Permission: User can see Sales module if they can Record Sales OR Manage Prices
+    const hasViewPermission = user.permissions?.opRecordSales || user.permissions?.opManagePriceLists || user.RoleName === 'Admin';
     
-    if (!hasPermission) return;
+    if (!hasViewPermission) return;
 
     injectSalesUI();
     attachEventListeners();
@@ -32,6 +32,11 @@ function initSalesModule() {
 }
 
 function injectSalesUI() {
+    const user = state.currentUser;
+    
+    // SPECIFIC PERMISSION CHECK FOR PRICE TAB
+    const canManagePrices = user.permissions?.opManagePriceLists === true || user.RoleName === 'Admin';
+
     // A. Sidebar Link
     const sidebar = document.getElementById('main-nav');
     if (sidebar && !document.getElementById('nav-sales-link')) {
@@ -53,11 +58,19 @@ function injectSalesUI() {
         const viewDiv = document.createElement('div');
         viewDiv.id = 'view-sales';
         viewDiv.className = 'view';
+        
+        // CONDITIONAL TAB RENDERING
+        let tabsHtml = `<button class="sub-nav-item active" data-target="sales-record">Record Sales</button>`;
+        
+        if (canManagePrices) {
+            tabsHtml += `<button class="sub-nav-item" data-target="sales-prices">Price Lists</button>`;
+        }
+        
+        tabsHtml += `<button class="sub-nav-item" data-target="sales-report">Sales Reports</button>`;
+
         viewDiv.innerHTML = `
             <div class="sub-nav">
-                <button class="sub-nav-item active" data-target="sales-record">Record Sales</button>
-                <button class="sub-nav-item" data-target="sales-prices">Price Lists</button>
-                <button class="sub-nav-item" data-target="sales-report">Sales Reports</button>
+                ${tabsHtml}
             </div>
 
             <!-- TAB 1: RECORD SALES -->
@@ -99,6 +112,7 @@ function injectSalesUI() {
             </div>
 
             <!-- TAB 2: PRICE LIST MANAGEMENT -->
+            ${canManagePrices ? `
             <div id="tab-sales-prices" class="sales-tab" style="display:none;">
                 <div class="card">
                     <div class="toolbar">
@@ -124,6 +138,7 @@ function injectSalesUI() {
                     </div>
                 </div>
             </div>
+            ` : ''}
 
             <!-- TAB 3: REPORTS -->
             <div id="tab-sales-report" class="sales-tab" style="display:none;">
@@ -249,9 +264,11 @@ function attachEventListeners() {
     document.getElementById('ext-btn-open-add-items')?.addEventListener('click', openSalesItemSelectionModal);
     document.getElementById('ext-sales-item-select-search')?.addEventListener('input', (e) => renderSalesItemSelectionList(e.target.value));
 
-    // Price Actions
-    document.getElementById('ext-price-search')?.addEventListener('input', (e) => renderPriceList(e.target.value));
-    document.getElementById('ext-btn-save-prices')?.addEventListener('click', savePriceChanges);
+    // Price Actions (Conditional)
+    if(document.getElementById('ext-price-search')) {
+        document.getElementById('ext-price-search').addEventListener('input', (e) => renderPriceList(e.target.value));
+        document.getElementById('ext-btn-save-prices').addEventListener('click', savePriceChanges);
+    }
 
     // Table Actions (Record Sales)
     const tableBody = document.querySelector('#ext-sales-table tbody');
@@ -295,18 +312,12 @@ function attachEventListeners() {
 
 // --- 4. CORE PRICING LOGIC ---
 
-// Helper: Get price for specific branch based on item
 function getPriceForBranch(branchCode, item) {
     const branch = findByKey(state.branches, 'branchCode', branchCode);
     if (!branch) return 0;
-    
-    // Default to PriceA if category not set
     const category = branch.PriceCategory || 'PriceA'; 
-    
-    // Safety check: ensure category maps to a valid column
     const validCats = ['PriceA', 'PriceB', 'PriceC'];
     const key = validCats.includes(category) ? category : 'PriceA';
-    
     return parseFloat(item[key]) || 0;
 }
 
@@ -496,9 +507,8 @@ function openMultiBranchModal(item) {
         if (String(b.isActive) === 'false') return;
         const available = stock[b.branchCode]?.[item.code]?.quantity || 0;
         
-        // DYNAMIC PRICE LOOKUP
         const branchPrice = getPriceForBranch(b.branchCode, item);
-        const catLabel = b.PriceCategory || 'A';
+        const catLabel = b.PriceCategory || 'PriceA';
 
         tbody.innerHTML += `
             <tr>
