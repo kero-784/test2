@@ -7,7 +7,7 @@ const salesState = {
     currentList: [],
     initialized: false,
     isAdmin: false,
-    // Report Filters
+    // Report Filters (Using Sets for efficient lookups)
     reportSelectedBranches: new Set(),
     reportSelectedItems: new Set()
 };
@@ -21,17 +21,13 @@ function initSalesModule() {
 
     // PERMISSION CHECK
     const user = state.currentUser;
-    if (!user) return; // Still not logged in
+    if (!user) return; 
 
-    // Allow if user has specific permission OR is Admin/SuperUser
-    // We check RoleName directly as a fallback since you haven't updated the Roles UI checkboxes yet
-    const isSuperUser = user.RoleName === 'Admin' || user.RoleName === 'Super User' || user.RoleName === 'Manager';
+    // Allow if user has specific permission OR is Admin/SuperUser/Manager
+    const isSuperUser = ['Admin', 'Super User', 'Manager'].includes(user.RoleName);
     const hasPermission = user.permissions?.opRecordSales || user.permissions?.opStockAdjustment || isSuperUser; 
     
-    if (!hasPermission) {
-        // Silent fail: user just won't see the tab
-        return;
-    }
+    if (!hasPermission) return;
 
     injectSalesUI();
     attachEventListeners();
@@ -45,15 +41,11 @@ function injectSalesUI() {
     if (sidebar && !document.getElementById('nav-sales-link')) {
         const li = document.createElement('li');
         li.className = 'nav-item';
-        // Add specific ID for styling or debugging
         li.id = 'nav-item-sales'; 
         li.innerHTML = `<a href="#" id="nav-sales-link" data-view="sales">
-            <!-- Simple SVG Icon -->
             <svg style="width:22px;height:22px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
             <span style="margin-left:10px;">Sales</span>
         </a>`;
-        
-        // Insert it nicely in the list
         const refEntry = sidebar.querySelector('a[data-view="operations"]')?.parentElement;
         if (refEntry) refEntry.after(li);
         else sidebar.appendChild(li);
@@ -116,17 +108,22 @@ function injectSalesUI() {
                     <div class="form-grid">
                         <div class="form-group"><label>From Date</label><input type="date" id="rpt-date-from"></div>
                         <div class="form-group"><label>To Date</label><input type="date" id="rpt-date-to"></div>
-                        <div class="form-group span-full">
-                            <label>Filter Branches (Leave empty for All)</label>
-                            <div id="rpt-branch-selector" style="max-height:100px; overflow-y:auto; border:1px solid #eee; padding:5px; display:grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));"></div>
+                        
+                        <!-- NEW: Popup Triggers -->
+                        <div class="form-group">
+                            <label>Filter Branches</label>
+                            <button class="secondary" id="rpt-btn-open-branch-modal" style="width:100%; justify-content:space-between;">
+                                <span id="rpt-branch-summary">All Branches</span>
+                                <span>▼</span>
+                            </button>
                         </div>
-                        <div class="form-group span-full">
-                            <label>Filter Items (Leave empty for All)</label>
-                            <div style="display:flex; gap:10px;">
-                                <input type="search" id="rpt-item-search" placeholder="Search item to add filter..." class="search-bar-input">
-                                <button class="secondary small" id="rpt-btn-clear-items">Clear</button>
-                            </div>
-                            <div id="rpt-selected-items" style="margin-top:5px; display:flex; gap:5px; flex-wrap:wrap;"></div>
+                        
+                        <div class="form-group">
+                            <label>Filter Items</label>
+                            <button class="secondary" id="rpt-btn-open-item-modal" style="width:100%; justify-content:space-between;">
+                                <span id="rpt-item-summary">All Items</span>
+                                <span>▼</span>
+                            </button>
                         </div>
                     </div>
                     <div style="margin-top:20px;">
@@ -157,7 +154,7 @@ function injectSalesUI() {
                 </div>
             </div>
 
-            <!-- MODAL FOR MULTI-BRANCH ENTRY -->
+            <!-- MODAL: MULTI-BRANCH ENTRY (For Matrix Input) -->
             <div id="ext-sales-modal" class="modal-overlay">
                 <div class="modal-content" style="max-width: 700px;">
                     <div class="modal-header">
@@ -177,6 +174,46 @@ function injectSalesUI() {
                     </div>
                 </div>
             </div>
+
+            <!-- MODAL: REPORT BRANCH SELECTION -->
+            <div id="ext-rpt-branch-modal" class="modal-overlay">
+                <div class="modal-content" style="max-width: 400px;">
+                    <div class="modal-header">
+                        <h2>Select Branches</h2>
+                        <button class="close-button" onclick="document.getElementById('ext-rpt-branch-modal').classList.remove('active')">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <div style="margin-bottom:10px; display:flex; gap:10px;">
+                            <button class="secondary small" id="rpt-branch-all">Select All</button>
+                            <button class="secondary small" id="rpt-branch-none">Clear</button>
+                        </div>
+                        <div id="rpt-branch-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="primary" onclick="document.getElementById('ext-rpt-branch-modal').classList.remove('active'); updateReportSummaries();">Done</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL: REPORT ITEM SELECTION -->
+            <div id="ext-rpt-item-modal" class="modal-overlay">
+                <div class="modal-content" style="max-width: 500px;">
+                    <div class="modal-header">
+                        <h2>Select Items</h2>
+                        <button class="close-button" onclick="document.getElementById('ext-rpt-item-modal').classList.remove('active')">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="search" id="rpt-modal-item-search" placeholder="Search items..." class="search-bar-input" style="margin-bottom:15px;">
+                        <div style="margin-bottom:10px;">
+                             <button class="secondary small" id="rpt-item-none">Clear Selection</button>
+                        </div>
+                        <div id="rpt-item-list" style="display:flex; flex-direction:column; gap:5px; max-height:400px; overflow-y:auto;"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="primary" onclick="document.getElementById('ext-rpt-item-modal').classList.remove('active'); updateReportSummaries();">Done</button>
+                    </div>
+                </div>
+            </div>
         `;
         mainContent.appendChild(viewDiv);
     }
@@ -191,10 +228,8 @@ function attachEventListeners() {
             e.preventDefault();
             document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
             document.querySelectorAll('.nav-item a').forEach(l => l.classList.remove('active'));
-            
             document.getElementById('view-sales').classList.add('active');
             e.currentTarget.classList.add('active');
-            
             updateRecordContext();
         });
     }
@@ -217,7 +252,7 @@ function attachEventListeners() {
     document.getElementById('ext-btn-submit-sales')?.addEventListener('click', submitSales);
     document.getElementById('ext-btn-template')?.addEventListener('click', downloadMatrixTemplate);
     
-    // Search Actions
+    // Search Actions (Record Tab)
     setupSearch();
 
     // Table Actions
@@ -241,11 +276,6 @@ function attachEventListeners() {
 
     // Report Actions
     document.getElementById('rpt-btn-generate')?.addEventListener('click', generateReport);
-    document.getElementById('rpt-item-search')?.addEventListener('input', handleReportItemSearch);
-    document.getElementById('rpt-btn-clear-items')?.addEventListener('click', () => {
-        salesState.reportSelectedItems.clear();
-        renderReportItemTags();
-    });
     document.getElementById('rpt-btn-export')?.addEventListener('click', () => {
         if(typeof XLSX !== 'undefined') {
             const tbl = document.getElementById('rpt-table');
@@ -254,6 +284,21 @@ function attachEventListeners() {
         } else {
             showToast('Excel library not loaded', 'error');
         }
+    });
+
+    // Report Modals
+    document.getElementById('rpt-btn-open-branch-modal')?.addEventListener('click', openReportBranchModal);
+    document.getElementById('rpt-btn-open-item-modal')?.addEventListener('click', openReportItemModal);
+    
+    // Branch Modal Buttons
+    document.getElementById('rpt-branch-all')?.addEventListener('click', () => toggleAllReportBranches(true));
+    document.getElementById('rpt-branch-none')?.addEventListener('click', () => toggleAllReportBranches(false));
+
+    // Item Modal Search & Clear
+    document.getElementById('rpt-modal-item-search')?.addEventListener('input', (e) => filterReportItemModal(e.target.value));
+    document.getElementById('rpt-item-none')?.addEventListener('click', () => {
+        salesState.reportSelectedItems.clear();
+        renderReportItemModalList(); // re-render unchecked
     });
 }
 
@@ -270,7 +315,6 @@ function updateRecordContext() {
     select.innerHTML = '';
     state.branches.forEach(b => select.innerHTML += `<option value="${b.branchCode}">${b.branchName}</option>`);
 
-    // Set Dates
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('ext-sales-from').value = today;
     document.getElementById('ext-sales-to').value = today;
@@ -339,14 +383,14 @@ async function submitSales() {
         const batchId = `SALE-${Date.now()}-${branchCode}`;
         
         const payload = {
-            type: 'issue', // Using 'issue' for stock deduction compatibility
+            type: 'issue', 
             batchId: batchId,
             ref: ref || 'Sales Period',
             branchCode: branchCode,
             fromBranchCode: branchCode,
             
             // DATES
-            date: new Date(dTo).toISOString(), // Main date = End of Period (for stock logic)
+            date: new Date(dTo).toISOString(), 
             startDate: dFrom,
             endDate: dTo,
             
@@ -364,7 +408,6 @@ async function submitSales() {
         const res = await postData('addTransactionBatch', payload, btn);
         if(res) {
             processed++;
-            // Update Local State for immediate feedback
             const now = new Date(dTo).toISOString();
             payload.items.forEach(i => {
                 state.transactions.push({
@@ -390,76 +433,117 @@ async function submitSales() {
     }
 }
 
-// --- 5. REPORTING LOGIC ---
+// --- 5. REPORTING UI LOGIC ---
 
 function initReportFilters() {
-    const branchContainer = document.getElementById('rpt-branch-selector');
-    if(branchContainer && branchContainer.innerHTML === '') {
-        state.branches.forEach(b => {
-            if(String(b.isActive) !== 'false') {
-                branchContainer.innerHTML += `
-                    <label style="display:flex; gap:5px; align-items:center; cursor:pointer;">
-                        <input type="checkbox" class="rpt-branch-chk" value="${b.branchCode}"> ${b.branchName}
-                    </label>`;
-            }
-        });
-    }
+    // Reset dates if needed
     const today = new Date().toISOString().split('T')[0];
-    document.getElementById('rpt-date-from').value = today;
-    document.getElementById('rpt-date-to').value = today;
+    if(!document.getElementById('rpt-date-from').value) {
+        document.getElementById('rpt-date-from').value = today;
+        document.getElementById('rpt-date-to').value = today;
+    }
+    updateReportSummaries();
 }
 
-function handleReportItemSearch(e) {
-    const val = e.target.value.toLowerCase();
+function updateReportSummaries() {
+    const bCount = salesState.reportSelectedBranches.size;
+    const iCount = salesState.reportSelectedItems.size;
     
-    // Datalist for simple suggestions
-    let dl = document.getElementById('rpt-item-datalist');
-    if(!dl) {
-        dl = document.createElement('datalist');
-        dl.id = 'rpt-item-datalist';
-        document.body.appendChild(dl);
-        e.target.setAttribute('list', 'rpt-item-datalist');
-    }
-    
-    if(val.length > 1) {
-        dl.innerHTML = '';
-        state.items.filter(i => i.name.toLowerCase().includes(val) || i.code.toLowerCase().includes(val))
-        .slice(0,10).forEach(i => {
-            const opt = document.createElement('option');
-            opt.value = i.name;
-            opt.dataset.code = i.code;
-            dl.appendChild(opt);
-        });
-    }
-    
-    // Check if valid selection
-    const selected = state.items.find(i => i.name === e.target.value);
-    if(selected) {
-        salesState.reportSelectedItems.add(selected.code);
-        renderReportItemTags();
-        e.target.value = '';
-    }
+    document.getElementById('rpt-branch-summary').textContent = bCount === 0 
+        ? "All Branches" 
+        : `${bCount} Branch(es) Selected`;
+
+    document.getElementById('rpt-item-summary').textContent = iCount === 0 
+        ? "All Items" 
+        : `${iCount} Item(s) Selected`;
 }
 
-function renderReportItemTags() {
-    const c = document.getElementById('rpt-selected-items');
-    c.innerHTML = '';
-    salesState.reportSelectedItems.forEach(code => {
-        const i = findByKey(state.items, 'code', code);
-        c.innerHTML += `<span style="background:#eee; padding:2px 8px; border-radius:10px; font-size:0.9em;">${i.name} <span style="cursor:pointer; color:red; font-weight:bold;" onclick="removeReportItem('${code}')">&times;</span></span>`;
+// -- Branch Modal --
+function openReportBranchModal() {
+    const container = document.getElementById('rpt-branch-list');
+    container.innerHTML = '';
+    
+    state.branches.forEach(b => {
+        if(String(b.isActive) !== 'false') {
+            const isChecked = salesState.reportSelectedBranches.has(b.branchCode) ? 'checked' : '';
+            const div = document.createElement('div');
+            div.className = 'form-group-checkbox';
+            div.innerHTML = `<input type="checkbox" id="rb-${b.branchCode}" value="${b.branchCode}" ${isChecked}>
+                             <label for="rb-${b.branchCode}">${b.branchName}</label>`;
+            
+            // Listen for change immediately
+            div.querySelector('input').addEventListener('change', (e) => {
+                if(e.target.checked) salesState.reportSelectedBranches.add(b.branchCode);
+                else salesState.reportSelectedBranches.delete(b.branchCode);
+            });
+            container.appendChild(div);
+        }
+    });
+    
+    document.getElementById('ext-rpt-branch-modal').classList.add('active');
+}
+
+function toggleAllReportBranches(selectAll) {
+    salesState.reportSelectedBranches.clear();
+    const checks = document.querySelectorAll('#rpt-branch-list input[type="checkbox"]');
+    checks.forEach(c => {
+        c.checked = selectAll;
+        if(selectAll) salesState.reportSelectedBranches.add(c.value);
     });
 }
-window.removeReportItem = (code) => { salesState.reportSelectedItems.delete(code); renderReportItemTags(); };
+
+// -- Item Modal --
+function openReportItemModal() {
+    document.getElementById('rpt-modal-item-search').value = '';
+    renderReportItemModalList();
+    document.getElementById('ext-rpt-item-modal').classList.add('active');
+}
+
+function renderReportItemModalList(filterText = '') {
+    const container = document.getElementById('rpt-item-list');
+    container.innerHTML = '';
+    const lower = filterText.toLowerCase();
+
+    // Optimize: if empty filter, show first 100 to avoid lag
+    const itemsToShow = state.items.filter(i => 
+        String(i.isActive) !== 'false' && 
+        (i.name.toLowerCase().includes(lower) || i.code.toLowerCase().includes(lower))
+    ).slice(0, 100);
+
+    itemsToShow.forEach(i => {
+        const isChecked = salesState.reportSelectedItems.has(i.code) ? 'checked' : '';
+        const div = document.createElement('div');
+        div.style.padding = '8px';
+        div.style.borderBottom = '1px solid #eee';
+        div.innerHTML = `<label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+            <input type="checkbox" ${isChecked}>
+            <div>
+                <strong>${i.name}</strong><br>
+                <small style="color:#888">${i.code}</small>
+            </div>
+        </label>`;
+        
+        div.querySelector('input').addEventListener('change', (e) => {
+            if(e.target.checked) salesState.reportSelectedItems.add(i.code);
+            else salesState.reportSelectedItems.delete(i.code);
+        });
+        container.appendChild(div);
+    });
+}
+
+function filterReportItemModal(text) {
+    renderReportItemModalList(text);
+}
+
+// --- 6. REPORT GENERATION ---
 
 function generateReport() {
     const dFrom = new Date(document.getElementById('rpt-date-from').value);
     const dTo = new Date(document.getElementById('rpt-date-to').value);
     dTo.setHours(23,59,59);
 
-    const selBranches = [];
-    document.querySelectorAll('.rpt-branch-chk:checked').forEach(c => selBranches.push(c.value));
-    const branchFilter = selBranches.length > 0;
-    const itemFilter = salesState.reportSelectedItems.size > 0;
+    const useBranchFilter = salesState.reportSelectedBranches.size > 0;
+    const useItemFilter = salesState.reportSelectedItems.size > 0;
 
     const tbody = document.querySelector('#rpt-table tbody');
     tbody.innerHTML = '';
@@ -468,7 +552,7 @@ function generateReport() {
 
     // Filter Transactions
     const reportData = state.transactions.filter(t => {
-        // 1. Must be sales 
+        // 1. Must be sales (has Price OR batchId starts with SALE)
         const isSale = (t.batchId.startsWith('SALE') || (t.price !== undefined && t.price !== null));
         if(!isSale) return false;
 
@@ -477,10 +561,10 @@ function generateReport() {
         if(tDate < dFrom || tDate > dTo) return false;
 
         // 3. Branch Filter
-        if(branchFilter && !selBranches.includes(t.branchCode)) return false;
+        if(useBranchFilter && !salesState.reportSelectedBranches.has(t.branchCode)) return false;
 
         // 4. Item Filter
-        if(itemFilter && !salesState.reportSelectedItems.has(t.itemCode)) return false;
+        if(useItemFilter && !salesState.reportSelectedItems.has(t.itemCode)) return false;
 
         return true;
     });
@@ -523,7 +607,7 @@ function generateReport() {
     document.getElementById('rpt-result-card').style.display = 'block';
 }
 
-// --- 6. EXCEL / SEARCH UTILS ---
+// --- 7. EXCEL / SEARCH UTILS ---
 
 function setupSearch() {
     const input = document.getElementById('ext-sales-item-search');
@@ -674,14 +758,10 @@ function downloadMatrixTemplate() {
     XLSX.writeFile(wb, "Sales_Matrix_Template.xlsx");
 }
 
-// --- 7. AUTO-INIT ON LOGIN/LOAD ---
-// Polling to wait for login and DOM ready
+// --- 8. AUTO-INIT ON LOGIN/LOAD ---
 const poller = setInterval(() => {
     if (state.currentUser && document.getElementById('main-nav') && !salesState.initialized) {
         initSalesModule();
-        // Don't clear interval immediately, in case of re-login or view refresh logic, 
-        // but typically safe to clear if SPA doesn't do full reload.
-        // For safety in this specific architecture, we just let the initialized flag handle it.
         clearInterval(poller);
     }
 }, 500);
