@@ -7,7 +7,7 @@ const salesState = {
     currentList: [],
     initialized: false,
     isAdmin: false,
-    // Report Filters (Using Sets for efficient lookups)
+    // Report Filters
     reportSelectedBranches: new Set(),
     reportSelectedItems: new Set()
 };
@@ -16,14 +16,13 @@ const salesState = {
 function initSalesModule() {
     if(salesState.initialized) return;
     
-    // SAFETY CHECK: Ensure DOM is ready
+    // SAFETY CHECK
     if(!document.getElementById('main-nav')) return;
 
     // PERMISSION CHECK
     const user = state.currentUser;
     if (!user) return; 
 
-    // Allow if user has specific permission OR is Admin/SuperUser/Manager
     const isSuperUser = ['Admin', 'Super User', 'Manager'].includes(user.RoleName);
     const hasPermission = user.permissions?.opRecordSales || user.permissions?.opStockAdjustment || isSuperUser; 
     
@@ -84,9 +83,10 @@ function injectSalesUI() {
                 
                 <div class="card">
                     <h2>Items to Sell</h2>
-                    <div style="display:flex; gap:10px; margin-bottom:10px;">
-                         <input type="search" id="ext-sales-item-search" placeholder="Type item name or code..." class="search-bar-input">
-                         <div id="ext-sales-item-results" style="position:absolute; background:white; border:1px solid #ddd; z-index:100; margin-top:45px; width:300px; max-height:200px; overflow-y:auto; display:none;"></div>
+                    <div style="margin-bottom:15px;">
+                        <button class="secondary" id="ext-btn-open-add-items" style="width:100%; border:1px dashed #aaa; padding:15px;">
+                            + Click to Select Items
+                        </button>
                     </div>
                     <p id="ext-helper-text" style="font-size:0.9em; color:#666; margin-bottom:10px;"></p>
                     
@@ -109,7 +109,6 @@ function injectSalesUI() {
                         <div class="form-group"><label>From Date</label><input type="date" id="rpt-date-from"></div>
                         <div class="form-group"><label>To Date</label><input type="date" id="rpt-date-to"></div>
                         
-                        <!-- NEW: Popup Triggers -->
                         <div class="form-group">
                             <label>Filter Branches</label>
                             <button class="secondary" id="rpt-btn-open-branch-modal" style="width:100%; justify-content:space-between;">
@@ -154,7 +153,24 @@ function injectSalesUI() {
                 </div>
             </div>
 
-            <!-- MODAL: MULTI-BRANCH ENTRY (For Matrix Input) -->
+            <!-- MODAL: ADD ITEMS (General Selection) -->
+            <div id="ext-sales-item-select-modal" class="modal-overlay">
+                <div class="modal-content" style="max-width: 600px;">
+                    <div class="modal-header">
+                        <h2>Select Items to Sell</h2>
+                        <button class="close-button" onclick="document.getElementById('ext-sales-item-select-modal').classList.remove('active')">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="search" id="ext-sales-item-select-search" placeholder="Search item name or code..." class="search-bar-input" style="margin-bottom:15px;">
+                        <div id="ext-sales-item-select-list" style="display:flex; flex-direction:column; gap:5px; max-height:400px; overflow-y:auto;"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="secondary" onclick="document.getElementById('ext-sales-item-select-modal').classList.remove('active')">Close</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL: MULTI-BRANCH ENTRY (Admin Only) -->
             <div id="ext-sales-modal" class="modal-overlay">
                 <div class="modal-content" style="max-width: 700px;">
                     <div class="modal-header">
@@ -252,8 +268,9 @@ function attachEventListeners() {
     document.getElementById('ext-btn-submit-sales')?.addEventListener('click', submitSales);
     document.getElementById('ext-btn-template')?.addEventListener('click', downloadMatrixTemplate);
     
-    // Search Actions (Record Tab)
-    setupSearch();
+    // -- Item Selection Modal (NEW) --
+    document.getElementById('ext-btn-open-add-items')?.addEventListener('click', openSalesItemSelectionModal);
+    document.getElementById('ext-sales-item-select-search')?.addEventListener('input', (e) => renderSalesItemSelectionList(e.target.value));
 
     // Table Actions
     const tableBody = document.querySelector('#ext-sales-table tbody');
@@ -323,7 +340,7 @@ function updateRecordContext() {
         salesState.isAdmin = false;
         select.value = user.AssignedBranchCode;
         select.disabled = true;
-        if(helper) helper.textContent = "Search and select items to add them to the list.";
+        if(helper) helper.textContent = "Select items to add them to the list.";
     } else {
         salesState.isAdmin = true;
         if(div) div.style.display = 'none'; // Admin uses matrix logic
@@ -357,6 +374,61 @@ function renderSalesTable() {
             </tr>`;
     });
     document.getElementById('ext-sales-total').textContent = formatCurrency(totalRevenue);
+}
+
+// -- NEW: SALES SELECTION MODAL --
+function openSalesItemSelectionModal() {
+    const search = document.getElementById('ext-sales-item-select-search');
+    if(search) search.value = '';
+    renderSalesItemSelectionList();
+    document.getElementById('ext-sales-item-select-modal').classList.add('active');
+}
+
+function renderSalesItemSelectionList(filterText = '') {
+    const container = document.getElementById('ext-sales-item-select-list');
+    if(!container) return;
+    container.innerHTML = '';
+    const lower = filterText.toLowerCase();
+
+    // Limit first 50 results for performance
+    const items = state.items.filter(i => 
+        String(i.isActive) !== 'false' && 
+        (i.name.toLowerCase().includes(lower) || i.code.toLowerCase().includes(lower))
+    ).slice(0, 50);
+
+    items.forEach(item => {
+        const div = document.createElement('div');
+        div.style.padding = '10px';
+        div.style.borderBottom = '1px solid #eee';
+        div.style.cursor = 'pointer';
+        div.style.display = 'flex';
+        div.style.justifyContent = 'space-between';
+        div.style.alignItems = 'center';
+        
+        div.innerHTML = `
+            <div><strong>${item.name}</strong> <small style="color:#888;">${item.code}</small></div>
+            <button class="secondary small">Select</button>
+        `;
+        
+        div.onclick = () => {
+            if (salesState.isAdmin) {
+                // Admin Flow: Open Multi-Branch Modal
+                openMultiBranchModal(item);
+                // Keep Selection modal open? Probably better to close it to focus on Matrix
+                // But let's close it so valid context is switched
+                document.getElementById('ext-sales-item-select-modal').classList.remove('active');
+            } else {
+                // User Flow: Add direct
+                const userBranch = document.getElementById('ext-sales-branch').value;
+                addItemToList(userBranch, item, 1, 0); 
+                showToast(`Added ${item.name}`);
+            }
+        };
+
+        div.onmouseover = () => div.style.backgroundColor = '#f9f9f9';
+        div.onmouseout = () => div.style.backgroundColor = 'white';
+        container.appendChild(div);
+    });
 }
 
 async function submitSales() {
@@ -607,54 +679,7 @@ function generateReport() {
     document.getElementById('rpt-result-card').style.display = 'block';
 }
 
-// --- 7. EXCEL / SEARCH UTILS ---
-
-function setupSearch() {
-    const input = document.getElementById('ext-sales-item-search');
-    const results = document.getElementById('ext-sales-item-results');
-    
-    input.addEventListener('input', (e) => {
-        const val = e.target.value.toLowerCase();
-        if(val.length < 2) { results.style.display = 'none'; return; }
-        
-        results.innerHTML = '';
-        const matches = state.items.filter(i => 
-            (i.name.toLowerCase().includes(val) || i.code.toLowerCase().includes(val)) && 
-            String(i.isActive) !== 'false'
-        ).slice(0, 10);
-        
-        if(matches.length > 0) {
-            results.style.display = 'block';
-            matches.forEach(m => {
-                const div = document.createElement('div');
-                div.style.padding = '8px';
-                div.style.cursor = 'pointer';
-                div.style.borderBottom = '1px solid #eee';
-                div.innerHTML = `<strong>${m.name}</strong> <span style="color:#888; font-size:0.8em">${m.code}</span>`;
-                
-                div.onclick = () => {
-                    results.style.display = 'none';
-                    input.value = '';
-                    if (salesState.isAdmin) openMultiBranchModal(m);
-                    else {
-                        const userBranch = document.getElementById('ext-sales-branch').value;
-                        addItemToList(userBranch, m, 1, 0); 
-                    }
-                };
-                
-                div.onmouseover = () => div.style.backgroundColor = '#f0f0f0';
-                div.onmouseout = () => div.style.backgroundColor = 'white';
-                results.appendChild(div);
-            });
-        } else {
-            results.style.display = 'none';
-        }
-    });
-
-    document.addEventListener('click', (e) => {
-        if(!e.target.closest('#ext-sales-item-search')) results.style.display = 'none';
-    });
-}
+// --- 7. UTILS ---
 
 function openMultiBranchModal(item) {
     const modal = document.getElementById('ext-sales-modal');
