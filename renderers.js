@@ -6,6 +6,7 @@ import { generateButcheryReport } from './documents.js';
 
 // --- CONFIG: PERMISSION DEFINITIONS ---
 const PERMISSION_GROUPS = {
+    {
     'Administration': [
         { key: 'manageUsers', label: 'Manage Users & Roles' },
         { key: 'viewAllBranches', label: 'View All Branches (Super User)' },
@@ -23,7 +24,7 @@ const PERMISSION_GROUPS = {
         { key: 'opReturn', label: 'Return to Supplier' },
         { key: 'opStockAdjustment', label: 'Stock Adjustments' },
         { key: 'opProduction', label: 'Butchery & Production' },
-        { key: 'opApproveGRN', label: 'Approve Invoices/GRNs' }
+        { key: 'opApproveGRN', label: 'Approve Invoices/GRNs' },
         { key: 'opRecordSales', label: 'Record Sales' }
     ],
     'Financials': [
@@ -31,10 +32,11 @@ const PERMISSION_GROUPS = {
         { key: 'opApprovePO', label: 'Approve Purchase Orders' },
         { key: 'opEditInvoice', label: 'Edit GRN/Invoice' },
         { key: 'opRecordPayment', label: 'Record Payments' },
-        { key: 'viewYieldReports', label: 'View Butchery Reports' }
+        { key: 'viewYieldReports', label: 'View Butchery Reports' },
         { key: 'opManagePriceLists', label: 'Manage Selling Prices' }
     ]
-};
+}
+
 
 // --- GENERIC TABLE RENDERER ---
 const renderDynamicListTable = (tbodyId, list, columnsConfig, emptyMessage, totalizerFn) => {
