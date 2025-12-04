@@ -1,5 +1,3 @@
-// --- START OF FILE main.js ---
-
 import { SCRIPT_URL } from './config.js';
 import { state, setState, resetStateLists } from './state.js';
 import { Logger, showToast, applyTranslations, populateOptions, findByKey, postData, formatCurrency, _t, userCan, exportTableToExcel } from './utils.js';
@@ -116,14 +114,28 @@ document.addEventListener('DOMContentLoaded', () => {
              return;
         }
 
-        // 4. EDIT BUTTONS
+        // 4. EDIT BUTTONS (Generic)
         if (btn.classList.contains('btn-edit')) {
              Renderers.renderEditModalContent(btn.dataset.type, btn.dataset.id);
              document.getElementById('edit-modal').classList.add('active');
              return;
         }
+        
+        // 5. EDIT INVOICE BUTTON (New)
+        if (btn.classList.contains('btn-edit-invoice')) {
+            Renderers.renderEditModalContent('invoice_header', btn.dataset.batchId);
+            document.getElementById('edit-modal').classList.add('active');
+            return;
+        }
+        
+        // 6. HISTORY BUTTON
+        if (btn.classList.contains('btn-history')) {
+            Renderers.renderHistoryModal(btn.dataset.id);
+            document.getElementById('history-modal').classList.add('active');
+            return;
+        }
 
-        // 5. AUTO-GEN BUTTONS
+        // 7. AUTO-GEN BUTTONS
         if (btn.id === 'btn-modal-gen-code') {
              document.getElementById('edit-item-code').value = `ITM-${Math.floor(Math.random() * 99999)}`;
              return;
@@ -133,7 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
              return;
         }
 
-        // 6. TOGGLE STATUS
+        // 8. TOGGLE STATUS
         if (btn.classList.contains('btn-toggle-status')) {
             const type = btn.dataset.type;
             const id = btn.dataset.id;
@@ -163,7 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // 7. PERMISSIONS & DELETE ROLE
+        // 9. PERMISSIONS & DELETE ROLE
         if (btn.classList.contains('btn-edit-role-perms')) {
             const roleName = btn.dataset.role;
             Renderers.renderEditModalContent('role-permissions', roleName);
@@ -426,8 +438,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- 3. TABLE INPUT LISTENER ---
+    // --- 3. GLOBAL CHANGE LISTENER (Dynamic Form Handling) ---
     document.body.addEventListener('change', (e) => {
+        // Dynamic Item Type Handler (Show/Hide Parent Select)
+        if (e.target.id === 'edit-item-type-select') {
+            const parentGroup = document.getElementById('group-edit-item-parent');
+            if (parentGroup) {
+                parentGroup.style.display = e.target.value === 'Cut' ? 'block' : 'none';
+            }
+            return;
+        }
+
+        // Table Input Handlers
         if (e.target.classList.contains('table-input')) {
             const input = e.target;
             const row = input.closest('tr');
@@ -487,15 +509,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     updates[input.name] = input.checked;
                 });
                 payload = { RoleName: roleName, updates: updates };
-            } 
-            // 2. Standard Updates
+            }
+            // 2. Invoice Header Update
+            else if (type === 'invoice_header') {
+                action = 'updateTransactionHeader';
+                payload = {
+                    batchId: form.dataset.id,
+                    invoiceNumber: formData.get('invoiceNumber'),
+                    supplierCode: formData.get('supplierCode'),
+                    notes: formData.get('notes')
+                };
+            }
+            // 3. Standard Updates
             else {
                 // Item Links specific
                 if (type === 'item') {
                     const selectedCuts = [];
                     form.querySelectorAll('input[name="DefinedCuts"]:checked').forEach(cb => selectedCuts.push(cb.value));
                     
-                    // FIXED: Use formData.get to safely retrieve value regardless of element type (input or select)
                     if (formData.get('ItemType') === 'Main') {
                         updates['DefinedCuts'] = selectedCuts.join(',');
                     }
@@ -537,6 +568,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 await reloadData();
                 if (type === 'user' || type === 'role' || type === 'role-permissions') {
                     refreshViewData('user-management');
+                } else if (type === 'invoice_header') {
+                    refreshViewData('transaction-history');
                 } else {
                     refreshViewData('master-data');
                 }
@@ -612,15 +645,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if(subEl) subEl.classList.add('active');
             refreshViewData(view.id.replace('view-', ''));
         });
-    });
-
-    const ts = document.getElementById('item-type');
-    if(ts) ts.addEventListener('change', e => {
-        const g = document.getElementById('group-item-parent');
-        if(e.target.value === 'Cut') {
-            g.style.display = 'block';
-            populateOptions(document.getElementById('item-parent'), state.items.filter(i=>i.ItemType==='Main'), 'Parent', 'code', 'name');
-        } else { g.style.display = 'none'; }
     });
 });
 
