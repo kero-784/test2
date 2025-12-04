@@ -1,5 +1,3 @@
-// --- START OF FILE renderers.js ---
-
 import { state } from './state.js';
 import { _t, findByKey, userCan, populateOptions, formatCurrency, formatDate, Logger, printContent } from './utils.js';
 import { calculateStockLevels, calculateSupplierFinancials } from './calculations.js';
@@ -151,16 +149,6 @@ export function renderPOListTable() {
         const el = document.getElementById('po-grand-total');
         if(el) el.textContent = formatCurrency(total);
     }); 
-}
-
-export function renderPOEditListTable() {
-    renderDynamicListTable('table-edit-po-list', state.currentEditingPOList, [ 
-        { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated', calculator: item => formatCurrency((parseFloat(item.quantity)||0) * (parseFloat(item.cost)||0)) } 
-    ], 'no_items_selected_toast', () => {
-        let total = state.currentEditingPOList.reduce((acc, i) => acc + ((parseFloat(i.quantity)||0) * (parseFloat(i.cost)||0)), 0);
-        const el = document.getElementById('edit-po-grand-total');
-        if(el) el.textContent = formatCurrency(total);
-    });
 }
 
 export function renderAdjustmentListTable() {
@@ -423,18 +411,19 @@ export function renderTransactionHistory(filters = {}) {
         let details = '', statusTag = '', refNum = first.ref || first.batchId;
         let typeDisplay = _t(first.type) || (first.type ? first.type.toUpperCase() : 'UNKNOWN');
         
-        const canEditInvoice = state.currentUser?.permissions?.opEditInvoice && first.type === 'receive' && (!first.isApproved);
+        // FIX: Explicitly checking isApproved for edit permission
+        const isApproved = first.isApproved === true || String(first.isApproved).toUpperCase() === 'TRUE';
+        const canEditInvoice = userCan('opEditInvoice') && first.type === 'receive' && !isApproved;
+        
         let actionsHtml = `<button class="secondary small btn-view-tx" data-batch-id="${group.batchId}" data-type="${first.type}">${_t('view_print')}</button>`;
         
-        if(canEditInvoice && userCan('opEditInvoice')){
+        if(canEditInvoice){
             actionsHtml += `<button class="secondary small btn-edit-invoice" data-batch-id="${group.batchId}">${_t('edit')}</button>`;
         }
 
         if(first.type === 'receive') {
             details = `Received from <strong>${findByKey(state.suppliers, 'supplierCode', first.supplierCode)?.name || 'N/A'}</strong>`;
             refNum = first.invoiceNumber;
-            // FIX: Explicitly check for true. If not explicitly true, it is Pending.
-            const isApproved = first.isApproved === true || String(first.isApproved).toUpperCase() === 'TRUE';
             statusTag = isApproved ? `<span class="status-tag status-approved">${_t('status_approved')}</span>` : `<span class="status-tag status-pendingapproval">${_t('status_pending')}</span>`;
         } else if (first.type === 'transfer_out' || first.type === 'transfer_in') {
             details = `To: ${findByKey(state.branches, 'branchCode', first.toBranchCode)?.branchName}`;
@@ -594,6 +583,11 @@ export function renderEditModalContent(type, id) {
             const currentUnit = safeGet(record, 'unit') || 'KG';
             const unitOptions = units.map(u => `<option value="${u}" ${currentUnit === u ? 'selected' : ''}>${u}</option>`).join('');
             
+            // Dynamic Parent Select for Cut Type
+            const isCut = safeGet(record, 'ItemType') === 'Cut';
+            const parentItems = state.items.filter(i => i.ItemType === 'Main');
+            const parentOptions = parentItems.map(p => `<option value="${p.code}" ${p.code === record.ParentCode ? 'selected' : ''}>${p.name}</option>`).join('');
+
             let cutsSection = '';
             // Only show linked cuts if editing a Main Item
             if (safeGet(record, 'ItemType') === 'Main') {
@@ -606,7 +600,6 @@ export function renderEditModalContent(type, id) {
                 cutsSection = `<div class="form-group span-full"><label>Linked Cuts</label><div style="max-height:100px;overflow-y:auto;border:1px solid #ccc;padding:5px;">${checkboxes}</div></div>`;
             }
 
-            // MODIFIED FORM with Select for Item Type and Unit, and Auto button logic prep
             formHtml = `
                 <div class="form-grid">
                     <div class="form-group">
@@ -615,9 +608,14 @@ export function renderEditModalContent(type, id) {
                             <option value="Main" ${safeGet(record, 'ItemType') === 'Main' ? 'selected' : ''}>Main (Parent)</option>
                             <option value="Cut" ${safeGet(record, 'ItemType') === 'Cut' ? 'selected' : ''}>Cut (Child)</option>
                         </select>
-                        <!-- Hidden input to ensure value is sent if disabled -->
                         ${id ? `<input type="hidden" name="ItemType" value="${safeGet(record, 'ItemType')}">` : ''}
                     </div>
+                    <!-- Parent Select Group (Hidden by default unless Cut) -->
+                    <div class="form-group" id="group-edit-item-parent" style="display:${isCut ? 'block' : 'none'};">
+                        <label>Parent Item (For Yield)</label>
+                        <select name="ParentCode">${parentOptions}</select>
+                    </div>
+                    
                     <div class="form-group">
                         <label>${_t('item_code')}</label>
                         <div style="display:flex; gap:5px;">
@@ -715,7 +713,6 @@ export function renderEditModalContent(type, id) {
             for (const [groupName, perms] of Object.entries(PERMISSION_GROUPS)) {
                 permissionsHtml += `<div class="permission-category">${groupName}</div><div class="permissions-grid">`;
                 perms.forEach(perm => {
-                    // Check if role has this permission set to TRUE (or true boolean)
                     const isChecked = roleData && (roleData[perm.key] === true || String(roleData[perm.key]).toUpperCase() === 'TRUE');
                     permissionsHtml += `
                         <div class="form-group-checkbox">
@@ -725,9 +722,37 @@ export function renderEditModalContent(type, id) {
                 });
                 permissionsHtml += `</div>`;
             }
-            
-            // Add RoleName as hidden field for submission
             formHtml = `<input type="hidden" name="RoleName" value="${id}"><div style="padding-bottom:10px;">${permissionsHtml}</div>`;
+            editModalBody.innerHTML = formHtml;
+            break;
+            
+        case 'invoice_header':
+            // Logic to fetch header details from the first row of a batch
+            const txs = state.transactions.filter(t => t.batchId === id);
+            if (!txs.length) { editModalBody.innerHTML = '<p>Error: Transaction not found.</p>'; return; }
+            const header = txs[0];
+            
+            editModalTitle.textContent = `Edit Invoice Header (${id})`;
+            const supplierOptions = state.suppliers.map(s => `<option value="${s.supplierCode}" ${s.supplierCode === header.supplierCode ? 'selected' : ''}>${s.name}</option>`).join('');
+            
+            formHtml = `
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Invoice Number</label>
+                        <input type="text" name="invoiceNumber" value="${header.invoiceNumber || ''}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Supplier</label>
+                        <select name="supplierCode">${supplierOptions}</select>
+                    </div>
+                    <div class="form-group span-full">
+                        <label>Notes</label>
+                        <textarea name="notes" rows="3">${header.notes || ''}</textarea>
+                    </div>
+                    <div class="form-group span-full" style="color:orange; font-size:0.9em;">
+                        Warning: Changing the supplier here will update it for all items in this invoice.
+                    </div>
+                </div>`;
             editModalBody.innerHTML = formHtml;
             break;
     }
@@ -748,7 +773,7 @@ export function renderItemsInModal(filter = '') {
 
     state.items.filter(item => {
         const isActive = item.isActive !== false && String(item.isActive).toUpperCase() !== 'FALSE';
-        if(!isActive) return false; // Don't show disabled items
+        if(!isActive) return false;
 
         const matchesText = item.name.toLowerCase().includes(lowerFilter) || item.code.toLowerCase().includes(lowerFilter);
         let matchesContext = true;
@@ -760,6 +785,58 @@ export function renderItemsInModal(filter = '') {
         const isChecked = state.modalSelections.has(item.code);
         listEl.innerHTML += `<div class="modal-item"><input type="checkbox" id="modal-item-${item.code}" data-code="${item.code}" ${isChecked ? 'checked' : ''}><label for="modal-item-${item.code}"><strong>${item.name}</strong><br><small style="color:var(--text-light-color)">${item.code}</small></label></div>`;
     });
+}
+
+// --- HISTORY MODAL RENDERER ---
+export function renderHistoryModal(itemId) {
+    const item = findByKey(state.items, 'code', itemId);
+    if (!item) return;
+
+    document.getElementById('history-modal-title').textContent = `${_t('item_history_modal_title')}: ${item.name}`;
+
+    // 1. Price History
+    const priceContainer = document.getElementById('subview-price-history');
+    const priceHistory = (state.priceHistory || []).filter(ph => ph.ItemCode === itemId);
+    
+    let priceHtml = '<table style="width:100%"><thead><tr><th>Date</th><th>Old Cost</th><th>New Cost</th><th>User</th><th>Source</th></tr></thead><tbody>';
+    if(priceHistory.length === 0) {
+        priceHtml += '<tr><td colspan="5" style="text-align:center">No price history found.</td></tr>';
+    } else {
+        priceHistory.slice().reverse().forEach(ph => {
+            priceHtml += `<tr>
+                <td>${formatDate(ph.Timestamp)}</td>
+                <td>${formatCurrency(ph.OldCost)}</td>
+                <td>${formatCurrency(ph.NewCost)}</td>
+                <td>${ph.UpdatedBy || '-'}</td>
+                <td>${ph.Source || '-'}</td>
+            </tr>`;
+        });
+    }
+    priceHtml += '</tbody></table>';
+    priceContainer.innerHTML = priceHtml;
+
+    // 2. Movement History
+    const moveContainer = document.getElementById('movement-history-table-container');
+    const movements = state.transactions.filter(t => t.itemCode === itemId);
+    
+    let moveHtml = '<table style="width:100%"><thead><tr><th>Date</th><th>Type</th><th>Ref</th><th>Qty</th><th>Branch</th></tr></thead><tbody>';
+    if(movements.length === 0) {
+        moveHtml += '<tr><td colspan="5" style="text-align:center">No movement history found.</td></tr>';
+    } else {
+        movements.slice().reverse().forEach(mv => {
+            let branch = mv.branchCode || mv.fromBranchCode || mv.toBranchCode;
+            let branchName = findByKey(state.branches, 'branchCode', branch)?.branchName || branch;
+            moveHtml += `<tr>
+                <td>${formatDate(mv.date)}</td>
+                <td>${mv.type}</td>
+                <td>${mv.batchId}</td>
+                <td>${parseFloat(mv.quantity).toFixed(3)}</td>
+                <td>${branchName}</td>
+            </tr>`;
+        });
+    }
+    moveHtml += '</tbody></table>';
+    moveContainer.innerHTML = moveHtml;
 }
 
 // --- STOCK VIEW ---
