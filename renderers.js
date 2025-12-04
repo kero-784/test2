@@ -302,39 +302,7 @@ export function renderBranchesTable(data = state.branches) {
     });
 }
 
-export function renderSectionsTable(data = state.sections) {
-    const table = document.getElementById('table-sections');
-    if (!table) return;
-    const tbody = table.querySelector('tbody');
-    if (!tbody) return;
-    tbody.innerHTML = '';
-    
-    if (!data || data.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;">${_t('no_sections_found')}</td></tr>`;
-        return;
-    }
-    
-    data.forEach(section => {
-        const isDisabled = section.isActive === false || String(section.isActive).toUpperCase() === 'FALSE';
-        const tr = document.createElement('tr');
-        if (isDisabled) tr.style.backgroundColor = '#f8d7da';
-        
-        const toggleBtnText = isDisabled ? 'Enable' : 'Disable';
-        const toggleBtnClass = isDisabled ? 'success' : 'danger';
 
-        tr.innerHTML = `
-            <td>${section.sectionCode || ''}</td>
-            <td>${section.sectionName}</td>
-            <td>${isDisabled ? 'Disabled' : 'Active'}</td>
-            <td>
-                <div class="action-buttons">
-                    ${userCan('createSection') ? `<button class="secondary small btn-edit" data-type="section" data-id="${section.sectionCode}">${_t('edit')}</button>` : ''}
-                    ${userCan('createSection') ? `<button class="${toggleBtnClass} small btn-toggle-status" data-type="section" data-id="${section.sectionCode}" data-current="${isDisabled}">${toggleBtnText}</button>` : ''}
-                </div>
-            </td>`;
-        tbody.appendChild(tr);
-    });
-}
 
 // --- REPORT & HISTORY RENDERERS ---
 
@@ -664,12 +632,7 @@ export function renderEditModalContent(type, id) {
             editModalBody.innerHTML = formHtml;
             break;
 
-        case 'section':
-            if (id) record = findByKey(state.sections, 'sectionCode', id) || {};
-            editModalTitle.textContent = id ? _t('edit_section') : _t('add_new_section');
-            formHtml = `<div class="form-grid"><div class="form-group"><label>${_t('section_code')}</label><input type="text" name="sectionCode" value="${safeGet(record, 'sectionCode')}" ${id ? 'readonly' : ''}></div><div class="form-group"><label>${_t('section_name')}</label><input type="text" name="sectionName" value="${safeGet(record, 'sectionName')}" required></div></div>`;
-            editModalBody.innerHTML = formHtml;
-            break;
+      
 
         case 'user':
             if (id) record = findByKey(state.allUsers, 'Username', id) || {};
