@@ -7,7 +7,7 @@ const salesState = {
     currentList: [],
     initialized: false,
     isAdmin: false,
-    // Report Filters
+    priceChanges: new Map(),
     reportSelectedBranches: new Set(),
     reportSelectedItems: new Set()
 };
@@ -15,11 +15,8 @@ const salesState = {
 // --- 2. PERMISSION & INJECTION ---
 function initSalesModule() {
     if(salesState.initialized) return;
-    
-    // SAFETY CHECK
     if(!document.getElementById('main-nav')) return;
 
-    // PERMISSION CHECK
     const user = state.currentUser;
     if (!user) return; 
 
@@ -59,10 +56,11 @@ function injectSalesUI() {
         viewDiv.innerHTML = `
             <div class="sub-nav">
                 <button class="sub-nav-item active" data-target="sales-record">Record Sales</button>
+                <button class="sub-nav-item" data-target="sales-prices">Price Lists</button>
                 <button class="sub-nav-item" data-target="sales-report">Sales Reports</button>
             </div>
 
-            <!-- RECORD TAB -->
+            <!-- TAB 1: RECORD SALES -->
             <div id="tab-sales-record" class="sales-tab active">
                 <div class="card">
                     <div class="toolbar">
@@ -77,7 +75,7 @@ function injectSalesUI() {
                         <div class="form-group" id="ext-div-branch-select"><label>Default Branch (Manual)</label><select id="ext-sales-branch"></select></div>
                         <div class="form-group"><label>Period From</label><input type="date" id="ext-sales-from" required></div>
                         <div class="form-group"><label>Period To</label><input type="date" id="ext-sales-to" required></div>
-                        <div class="form-group"><label>Reference</label><input type="text" id="ext-sales-ref" placeholder="e.g. Weekly Sales"></div>
+                        <div class="form-group span-full"><label>Reference</label><input type="text" id="ext-sales-ref" placeholder="e.g. Weekly Sales"></div>
                     </form>
                 </div>
                 
@@ -88,7 +86,6 @@ function injectSalesUI() {
                             + Click to Select Items
                         </button>
                     </div>
-                    <p id="ext-helper-text" style="font-size:0.9em; color:#666; margin-bottom:10px;"></p>
                     
                     <table id="ext-sales-table">
                         <thead><tr><th>Branch</th><th>Item</th><th>Stock</th><th>Qty Sold</th><th>Price</th><th>Total</th><th>Action</th></tr></thead>
@@ -101,27 +98,50 @@ function injectSalesUI() {
                 </div>
             </div>
 
-            <!-- REPORT TAB -->
+            <!-- TAB 2: PRICE LIST MANAGEMENT -->
+            <div id="tab-sales-prices" class="sales-tab" style="display:none;">
+                <div class="card">
+                    <div class="toolbar">
+                        <h2>Manage Price Lists</h2>
+                        <div style="display:flex; gap:10px;">
+                            <input type="search" id="ext-price-search" placeholder="Search Items..." class="search-bar-input">
+                            <button class="primary" id="ext-btn-save-prices">Save Changes</button>
+                        </div>
+                    </div>
+                    <div class="report-area" style="max-height:600px; overflow-y:auto;">
+                        <table id="ext-price-table">
+                            <thead>
+                                <tr>
+                                    <th>Code</th>
+                                    <th>Item Name</th>
+                                    <th>Price A</th>
+                                    <th>Price B</th>
+                                    <th>Price C</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: REPORTS -->
             <div id="tab-sales-report" class="sales-tab" style="display:none;">
                 <div class="card">
                     <h2>Generate Sales Report</h2>
                     <div class="form-grid">
                         <div class="form-group"><label>From Date</label><input type="date" id="rpt-date-from"></div>
                         <div class="form-group"><label>To Date</label><input type="date" id="rpt-date-to"></div>
-                        
                         <div class="form-group">
                             <label>Filter Branches</label>
                             <button class="secondary" id="rpt-btn-open-branch-modal" style="width:100%; justify-content:space-between;">
-                                <span id="rpt-branch-summary">All Branches</span>
-                                <span>▼</span>
+                                <span id="rpt-branch-summary">All Branches</span><span>▼</span>
                             </button>
                         </div>
-                        
                         <div class="form-group">
                             <label>Filter Items</label>
                             <button class="secondary" id="rpt-btn-open-item-modal" style="width:100%; justify-content:space-between;">
-                                <span id="rpt-item-summary">All Items</span>
-                                <span>▼</span>
+                                <span id="rpt-item-summary">All Items</span><span>▼</span>
                             </button>
                         </div>
                     </div>
@@ -139,95 +159,55 @@ function injectSalesUI() {
                         <table id="rpt-table">
                             <thead><tr><th>Date</th><th>Period</th><th>Branch</th><th>Item</th><th>Qty</th><th>Price</th><th>Revenue</th><th>Ref</th></tr></thead>
                             <tbody></tbody>
-                            <tfoot>
-                                <tr>
-                                    <td colspan="4" style="text-align:right;"><strong>Totals:</strong></td>
-                                    <td id="rpt-total-qty">0</td>
-                                    <td>-</td>
-                                    <td id="rpt-total-rev">0.00</td>
-                                    <td></td>
-                                </tr>
-                            </tfoot>
+                            <tfoot><tr><td colspan="4" style="text-align:right;"><strong>Totals:</strong></td><td id="rpt-total-qty">0</td><td>-</td><td id="rpt-total-rev">0.00</td><td></td></tr></tfoot>
                         </table>
                     </div>
                 </div>
             </div>
 
-            <!-- MODAL: ADD ITEMS (General Selection) -->
+            <!-- MODALS -->
             <div id="ext-sales-item-select-modal" class="modal-overlay">
                 <div class="modal-content" style="max-width: 600px;">
-                    <div class="modal-header">
-                        <h2>Select Items to Sell</h2>
-                        <button class="close-button" onclick="document.getElementById('ext-sales-item-select-modal').classList.remove('active')">×</button>
-                    </div>
+                    <div class="modal-header"><h2>Select Items to Sell</h2><button class="close-button" onclick="document.getElementById('ext-sales-item-select-modal').classList.remove('active')">×</button></div>
                     <div class="modal-body">
-                        <input type="search" id="ext-sales-item-select-search" placeholder="Search item name or code..." class="search-bar-input" style="margin-bottom:15px;">
+                        <input type="search" id="ext-sales-item-select-search" placeholder="Search item..." class="search-bar-input" style="margin-bottom:15px;">
                         <div id="ext-sales-item-select-list" style="display:flex; flex-direction:column; gap:5px; max-height:400px; overflow-y:auto;"></div>
                     </div>
-                    <div class="modal-footer">
-                        <button class="secondary" onclick="document.getElementById('ext-sales-item-select-modal').classList.remove('active')">Close</button>
-                    </div>
                 </div>
             </div>
 
-            <!-- MODAL: MULTI-BRANCH ENTRY (Admin Only) -->
             <div id="ext-sales-modal" class="modal-overlay">
                 <div class="modal-content" style="max-width: 700px;">
-                    <div class="modal-header">
-                        <h2 id="ext-modal-title">Sales for Item</h2>
-                        <button class="close-button" onclick="document.getElementById('ext-sales-modal').classList.remove('active')">×</button>
-                    </div>
+                    <div class="modal-header"><h2 id="ext-modal-title">Sales for Item</h2><button class="close-button" onclick="document.getElementById('ext-sales-modal').classList.remove('active')">×</button></div>
                     <div class="modal-body">
-                        <p style="margin-bottom:15px; color:#666;">Enter sales quantity and price for each branch.</p>
-                        <table style="width:100%">
-                            <thead><tr><th>Branch</th><th>Stock</th><th>Qty Sold</th><th>Price</th></tr></thead>
-                            <tbody id="ext-modal-tbody"></tbody>
-                        </table>
+                        <p style="color:#666; font-size:0.9em; margin-bottom:10px;">Prices are automatically populated based on Branch Category.</p>
+                        <table style="width:100%"><thead><tr><th>Branch</th><th>Cat</th><th>Stock</th><th>Qty Sold</th><th>Price</th></tr></thead><tbody id="ext-modal-tbody"></tbody></table>
                     </div>
-                    <div class="modal-footer">
-                        <button class="secondary" onclick="document.getElementById('ext-sales-modal').classList.remove('active')">Cancel</button>
-                        <button class="primary" id="ext-btn-modal-add">Add to List</button>
-                    </div>
+                    <div class="modal-footer"><button class="primary" id="ext-btn-modal-add">Add to List</button></div>
                 </div>
             </div>
 
-            <!-- MODAL: REPORT BRANCH SELECTION -->
+            <!-- REPORT MODALS -->
             <div id="ext-rpt-branch-modal" class="modal-overlay">
                 <div class="modal-content" style="max-width: 400px;">
-                    <div class="modal-header">
-                        <h2>Select Branches</h2>
-                        <button class="close-button" onclick="document.getElementById('ext-rpt-branch-modal').classList.remove('active')">×</button>
-                    </div>
+                    <div class="modal-header"><h2>Select Branches</h2><button class="close-button" onclick="document.getElementById('ext-rpt-branch-modal').classList.remove('active')">×</button></div>
                     <div class="modal-body">
-                        <div style="margin-bottom:10px; display:flex; gap:10px;">
-                            <button class="secondary small" id="rpt-branch-all">Select All</button>
-                            <button class="secondary small" id="rpt-branch-none">Clear</button>
-                        </div>
+                        <div style="margin-bottom:10px; display:flex; gap:10px;"><button class="secondary small" id="rpt-branch-all">Select All</button><button class="secondary small" id="rpt-branch-none">Clear</button></div>
                         <div id="rpt-branch-list" style="display:flex; flex-direction:column; gap:8px;"></div>
                     </div>
-                    <div class="modal-footer">
-                        <button class="primary" onclick="document.getElementById('ext-rpt-branch-modal').classList.remove('active'); updateReportSummaries();">Done</button>
-                    </div>
+                    <div class="modal-footer"><button class="primary" onclick="document.getElementById('ext-rpt-branch-modal').classList.remove('active'); updateReportSummaries();">Done</button></div>
                 </div>
             </div>
 
-            <!-- MODAL: REPORT ITEM SELECTION -->
             <div id="ext-rpt-item-modal" class="modal-overlay">
                 <div class="modal-content" style="max-width: 500px;">
-                    <div class="modal-header">
-                        <h2>Select Items</h2>
-                        <button class="close-button" onclick="document.getElementById('ext-rpt-item-modal').classList.remove('active')">×</button>
-                    </div>
+                    <div class="modal-header"><h2>Select Items</h2><button class="close-button" onclick="document.getElementById('ext-rpt-item-modal').classList.remove('active')">×</button></div>
                     <div class="modal-body">
-                        <input type="search" id="rpt-modal-item-search" placeholder="Search items..." class="search-bar-input" style="margin-bottom:15px;">
-                        <div style="margin-bottom:10px;">
-                             <button class="secondary small" id="rpt-item-none">Clear Selection</button>
-                        </div>
+                        <input type="search" id="rpt-modal-item-search" placeholder="Search..." class="search-bar-input" style="margin-bottom:15px;">
+                        <button class="secondary small" id="rpt-item-none" style="margin-bottom:10px;">Clear Selection</button>
                         <div id="rpt-item-list" style="display:flex; flex-direction:column; gap:5px; max-height:400px; overflow-y:auto;"></div>
                     </div>
-                    <div class="modal-footer">
-                        <button class="primary" onclick="document.getElementById('ext-rpt-item-modal').classList.remove('active'); updateReportSummaries();">Done</button>
-                    </div>
+                    <div class="modal-footer"><button class="primary" onclick="document.getElementById('ext-rpt-item-modal').classList.remove('active'); updateReportSummaries();">Done</button></div>
                 </div>
             </div>
         `;
@@ -238,17 +218,14 @@ function injectSalesUI() {
 // --- 3. EVENT LISTENERS ---
 function attachEventListeners() {
     // Nav Click
-    const navLink = document.getElementById('nav-sales-link');
-    if (navLink) {
-        navLink.addEventListener('click', (e) => {
-            e.preventDefault();
-            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-            document.querySelectorAll('.nav-item a').forEach(l => l.classList.remove('active'));
-            document.getElementById('view-sales').classList.add('active');
-            e.currentTarget.classList.add('active');
-            updateRecordContext();
-        });
-    }
+    document.getElementById('nav-sales-link')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        document.querySelectorAll('.nav-item a').forEach(l => l.classList.remove('active'));
+        document.getElementById('view-sales').classList.add('active');
+        e.currentTarget.classList.add('active');
+        updateRecordContext();
+    });
 
     // Sub-Nav Tabs
     document.querySelectorAll('.sub-nav-item').forEach(btn => {
@@ -258,21 +235,25 @@ function attachEventListeners() {
                 document.querySelectorAll('.sales-tab').forEach(t => t.style.display = 'none');
                 e.target.classList.add('active');
                 document.getElementById(`tab-${e.target.dataset.target}`).style.display = 'block';
+                
                 if(e.target.dataset.target === 'sales-report') initReportFilters();
+                if(e.target.dataset.target === 'sales-prices') renderPriceList();
             }
         });
     });
 
-    // Record Actions
+    // Actions
     document.getElementById('ext-sales-upload')?.addEventListener('change', handleExcel);
     document.getElementById('ext-btn-submit-sales')?.addEventListener('click', submitSales);
     document.getElementById('ext-btn-template')?.addEventListener('click', downloadMatrixTemplate);
-    
-    // -- Item Selection Modal (NEW) --
     document.getElementById('ext-btn-open-add-items')?.addEventListener('click', openSalesItemSelectionModal);
     document.getElementById('ext-sales-item-select-search')?.addEventListener('input', (e) => renderSalesItemSelectionList(e.target.value));
 
-    // Table Actions
+    // Price Actions
+    document.getElementById('ext-price-search')?.addEventListener('input', (e) => renderPriceList(e.target.value));
+    document.getElementById('ext-btn-save-prices')?.addEventListener('click', savePriceChanges);
+
+    // Table Actions (Record Sales)
     const tableBody = document.querySelector('#ext-sales-table tbody');
     if(tableBody) {
         tableBody.addEventListener('change', (e) => {
@@ -298,34 +279,43 @@ function attachEventListeners() {
             const tbl = document.getElementById('rpt-table');
             const wb = XLSX.utils.table_to_book(tbl);
             XLSX.writeFile(wb, 'Sales_Report.xlsx');
-        } else {
-            showToast('Excel library not loaded', 'error');
-        }
+        } else showToast('Excel library not loaded', 'error');
     });
 
-    // Report Modals
     document.getElementById('rpt-btn-open-branch-modal')?.addEventListener('click', openReportBranchModal);
     document.getElementById('rpt-btn-open-item-modal')?.addEventListener('click', openReportItemModal);
-    
-    // Branch Modal Buttons
     document.getElementById('rpt-branch-all')?.addEventListener('click', () => toggleAllReportBranches(true));
     document.getElementById('rpt-branch-none')?.addEventListener('click', () => toggleAllReportBranches(false));
-
-    // Item Modal Search & Clear
     document.getElementById('rpt-modal-item-search')?.addEventListener('input', (e) => filterReportItemModal(e.target.value));
     document.getElementById('rpt-item-none')?.addEventListener('click', () => {
         salesState.reportSelectedItems.clear();
-        renderReportItemModalList(); // re-render unchecked
+        renderReportItemModalList();
     });
 }
 
-// --- 4. RECORD SALES LOGIC ---
+// --- 4. CORE PRICING LOGIC ---
+
+// Helper: Get price for specific branch based on item
+function getPriceForBranch(branchCode, item) {
+    const branch = findByKey(state.branches, 'branchCode', branchCode);
+    if (!branch) return 0;
+    
+    // Default to PriceA if category not set
+    const category = branch.PriceCategory || 'PriceA'; 
+    
+    // Safety check: ensure category maps to a valid column
+    const validCats = ['PriceA', 'PriceB', 'PriceC'];
+    const key = validCats.includes(category) ? category : 'PriceA';
+    
+    return parseFloat(item[key]) || 0;
+}
+
+// --- 5. RECORD SALES UI ---
 
 function updateRecordContext() {
     const user = state.currentUser;
     const select = document.getElementById('ext-sales-branch');
     const div = document.getElementById('ext-div-branch-select');
-    const helper = document.getElementById('ext-helper-text');
     
     if(!select) return;
 
@@ -340,11 +330,9 @@ function updateRecordContext() {
         salesState.isAdmin = false;
         select.value = user.AssignedBranchCode;
         select.disabled = true;
-        if(helper) helper.textContent = "Select items to add them to the list.";
     } else {
         salesState.isAdmin = true;
-        if(div) div.style.display = 'none'; // Admin uses matrix logic
-        if(helper) helper.textContent = "Select an item to enter sales for multiple branches at once.";
+        if(div) div.style.display = 'none'; 
     }
 }
 
@@ -376,10 +364,69 @@ function renderSalesTable() {
     document.getElementById('ext-sales-total').textContent = formatCurrency(totalRevenue);
 }
 
-// -- NEW: SALES SELECTION MODAL --
+// -- PRICE LIST TAB --
+function renderPriceList(filter = '') {
+    const tbody = document.querySelector('#ext-price-table tbody');
+    if(!tbody) return;
+    tbody.innerHTML = '';
+    
+    const lower = filter.toLowerCase();
+    
+    state.items.filter(i => 
+        String(i.isActive) !== 'false' && 
+        (i.name.toLowerCase().includes(lower) || i.code.toLowerCase().includes(lower))
+    ).forEach(item => {
+        const changes = salesState.priceChanges.get(item.code) || {};
+        const pA = changes.PriceA !== undefined ? changes.PriceA : (parseFloat(item.PriceA) || 0);
+        const pB = changes.PriceB !== undefined ? changes.PriceB : (parseFloat(item.PriceB) || 0);
+        const pC = changes.PriceC !== undefined ? changes.PriceC : (parseFloat(item.PriceC) || 0);
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${item.code}</td>
+            <td>${item.name}</td>
+            <td><input type="number" step="0.01" class="table-input p-edit" data-col="PriceA" data-code="${item.code}" value="${pA}"></td>
+            <td><input type="number" step="0.01" class="table-input p-edit" data-col="PriceB" data-code="${item.code}" value="${pB}"></td>
+            <td><input type="number" step="0.01" class="table-input p-edit" data-col="PriceC" data-code="${item.code}" value="${pC}"></td>
+        `;
+        
+        tr.querySelectorAll('.p-edit').forEach(input => {
+            input.addEventListener('change', (e) => {
+                const code = e.target.dataset.code;
+                const col = e.target.dataset.col;
+                const val = parseFloat(e.target.value);
+                if(!salesState.priceChanges.has(code)) salesState.priceChanges.set(code, {});
+                salesState.priceChanges.get(code)[col] = val;
+                e.target.style.backgroundColor = '#fff3cd'; 
+            });
+        });
+        tbody.appendChild(tr);
+    });
+}
+
+async function savePriceChanges() {
+    if(salesState.priceChanges.size === 0) { showToast('No changes', 'info'); return; }
+    const btn = document.getElementById('ext-btn-save-prices');
+    btn.textContent = 'Saving...'; btn.disabled = true;
+    let count = 0;
+    
+    for (const [itemCode, updates] of salesState.priceChanges.entries()) {
+        const res = await postData('updateData', { type: 'item', id: itemCode, updates: updates }, null);
+        if(res) {
+            const item = findByKey(state.items, 'code', itemCode);
+            if(item) Object.assign(item, updates);
+            count++;
+        }
+    }
+    salesState.priceChanges.clear();
+    btn.textContent = 'Save Changes'; btn.disabled = false;
+    showToast(`Updated ${count} items`, 'success');
+    renderPriceList();
+}
+
+// -- ITEM SELECTION MODAL --
 function openSalesItemSelectionModal() {
-    const search = document.getElementById('ext-sales-item-select-search');
-    if(search) search.value = '';
+    document.getElementById('ext-sales-item-select-search').value = '';
     renderSalesItemSelectionList();
     document.getElementById('ext-sales-item-select-modal').classList.add('active');
 }
@@ -390,7 +437,6 @@ function renderSalesItemSelectionList(filterText = '') {
     container.innerHTML = '';
     const lower = filterText.toLowerCase();
 
-    // Limit first 50 results for performance
     const items = state.items.filter(i => 
         String(i.isActive) !== 'false' && 
         (i.name.toLowerCase().includes(lower) || i.code.toLowerCase().includes(lower))
@@ -403,7 +449,6 @@ function renderSalesItemSelectionList(filterText = '') {
         div.style.cursor = 'pointer';
         div.style.display = 'flex';
         div.style.justifyContent = 'space-between';
-        div.style.alignItems = 'center';
         
         div.innerHTML = `
             <div><strong>${item.name}</strong> <small style="color:#888;">${item.code}</small></div>
@@ -412,25 +457,75 @@ function renderSalesItemSelectionList(filterText = '') {
         
         div.onclick = () => {
             if (salesState.isAdmin) {
-                // Admin Flow: Open Multi-Branch Modal
                 openMultiBranchModal(item);
-                // Keep Selection modal open? Probably better to close it to focus on Matrix
-                // But let's close it so valid context is switched
                 document.getElementById('ext-sales-item-select-modal').classList.remove('active');
             } else {
-                // User Flow: Add direct
                 const userBranch = document.getElementById('ext-sales-branch').value;
-                addItemToList(userBranch, item, 1, 0); 
+                const autoPrice = getPriceForBranch(userBranch, item);
+                addItemToList(userBranch, item, 1, autoPrice); 
                 showToast(`Added ${item.name}`);
             }
         };
-
-        div.onmouseover = () => div.style.backgroundColor = '#f9f9f9';
-        div.onmouseout = () => div.style.backgroundColor = 'white';
         container.appendChild(div);
     });
 }
 
+function addItemToList(branchCode, item, qty, price) {
+    salesState.currentList.push({
+        branchCode: branchCode,
+        itemCode: item.code,
+        itemName: item.name,
+        quantity: qty,
+        price: price,
+        cost: parseFloat(item.cost)
+    });
+    renderSalesTable();
+}
+
+function openMultiBranchModal(item) {
+    const modal = document.getElementById('ext-sales-modal');
+    const tbody = document.getElementById('ext-modal-tbody');
+    const title = document.getElementById('ext-modal-title');
+    const btnAdd = document.getElementById('ext-btn-modal-add');
+
+    title.textContent = `Sales for: ${item.name}`;
+    tbody.innerHTML = '';
+    const stock = calculateStockLevels();
+
+    state.branches.forEach(b => {
+        if (String(b.isActive) === 'false') return;
+        const available = stock[b.branchCode]?.[item.code]?.quantity || 0;
+        
+        // DYNAMIC PRICE LOOKUP
+        const branchPrice = getPriceForBranch(b.branchCode, item);
+        const catLabel = b.PriceCategory || 'A';
+
+        tbody.innerHTML += `
+            <tr>
+                <td>${b.branchName}</td>
+                <td style="font-size:0.8em; color:#666;">${catLabel}</td>
+                <td style="color:${available <= 0 ? 'red' : 'green'}">${available.toFixed(3)}</td>
+                <td><input type="number" class="table-input modal-qty" data-branch="${b.branchCode}" placeholder="Qty"></td>
+                <td><input type="number" class="table-input modal-price" data-branch="${b.branchCode}" value="${branchPrice}" placeholder="Price"></td>
+            </tr>`;
+    });
+
+    btnAdd.onclick = () => {
+        document.querySelectorAll('.modal-qty').forEach(input => {
+            const qty = parseFloat(input.value);
+            if (qty > 0) {
+                const branchCode = input.dataset.branch;
+                const priceVal = parseFloat(document.querySelector(`.modal-price[data-branch="${branchCode}"]`).value) || 0;
+                addItemToList(branchCode, item, qty, priceVal);
+            }
+        });
+        modal.classList.remove('active');
+        renderSalesTable();
+    };
+    modal.classList.add('active');
+}
+
+// --- SUBMIT SALES ---
 async function submitSales() {
     const btn = document.getElementById('ext-btn-submit-sales');
     const dFrom = document.getElementById('ext-sales-from').value;
@@ -453,19 +548,15 @@ async function submitSales() {
 
     for (const [branchCode, items] of Object.entries(batches)) {
         const batchId = `SALE-${Date.now()}-${branchCode}`;
-        
         const payload = {
             type: 'issue', 
             batchId: batchId,
             ref: ref || 'Sales Period',
             branchCode: branchCode,
             fromBranchCode: branchCode,
-            
-            // DATES
             date: new Date(dTo).toISOString(), 
             startDate: dFrom,
             endDate: dTo,
-            
             notes: `SALES (${dFrom} to ${dTo})`, 
             items: items.map(i => ({
                 itemCode: i.itemCode,
@@ -505,10 +596,8 @@ async function submitSales() {
     }
 }
 
-// --- 5. REPORTING UI LOGIC ---
-
+// --- REPORTING LOGIC ---
 function initReportFilters() {
-    // Reset dates if needed
     const today = new Date().toISOString().split('T')[0];
     if(!document.getElementById('rpt-date-from').value) {
         document.getElementById('rpt-date-from').value = today;
@@ -520,30 +609,19 @@ function initReportFilters() {
 function updateReportSummaries() {
     const bCount = salesState.reportSelectedBranches.size;
     const iCount = salesState.reportSelectedItems.size;
-    
-    document.getElementById('rpt-branch-summary').textContent = bCount === 0 
-        ? "All Branches" 
-        : `${bCount} Branch(es) Selected`;
-
-    document.getElementById('rpt-item-summary').textContent = iCount === 0 
-        ? "All Items" 
-        : `${iCount} Item(s) Selected`;
+    document.getElementById('rpt-branch-summary').textContent = bCount === 0 ? "All Branches" : `${bCount} Branch(es)`;
+    document.getElementById('rpt-item-summary').textContent = iCount === 0 ? "All Items" : `${iCount} Item(s)`;
 }
 
-// -- Branch Modal --
 function openReportBranchModal() {
     const container = document.getElementById('rpt-branch-list');
     container.innerHTML = '';
-    
     state.branches.forEach(b => {
         if(String(b.isActive) !== 'false') {
             const isChecked = salesState.reportSelectedBranches.has(b.branchCode) ? 'checked' : '';
             const div = document.createElement('div');
             div.className = 'form-group-checkbox';
-            div.innerHTML = `<input type="checkbox" id="rb-${b.branchCode}" value="${b.branchCode}" ${isChecked}>
-                             <label for="rb-${b.branchCode}">${b.branchName}</label>`;
-            
-            // Listen for change immediately
+            div.innerHTML = `<input type="checkbox" id="rb-${b.branchCode}" value="${b.branchCode}" ${isChecked}><label for="rb-${b.branchCode}">${b.branchName}</label>`;
             div.querySelector('input').addEventListener('change', (e) => {
                 if(e.target.checked) salesState.reportSelectedBranches.add(b.branchCode);
                 else salesState.reportSelectedBranches.delete(b.branchCode);
@@ -551,7 +629,6 @@ function openReportBranchModal() {
             container.appendChild(div);
         }
     });
-    
     document.getElementById('ext-rpt-branch-modal').classList.add('active');
 }
 
@@ -564,7 +641,6 @@ function toggleAllReportBranches(selectAll) {
     });
 }
 
-// -- Item Modal --
 function openReportItemModal() {
     document.getElementById('rpt-modal-item-search').value = '';
     renderReportItemModalList();
@@ -575,8 +651,6 @@ function renderReportItemModalList(filterText = '') {
     const container = document.getElementById('rpt-item-list');
     container.innerHTML = '';
     const lower = filterText.toLowerCase();
-
-    // Optimize: if empty filter, show first 100 to avoid lag
     const itemsToShow = state.items.filter(i => 
         String(i.isActive) !== 'false' && 
         (i.name.toLowerCase().includes(lower) || i.code.toLowerCase().includes(lower))
@@ -587,14 +661,7 @@ function renderReportItemModalList(filterText = '') {
         const div = document.createElement('div');
         div.style.padding = '8px';
         div.style.borderBottom = '1px solid #eee';
-        div.innerHTML = `<label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
-            <input type="checkbox" ${isChecked}>
-            <div>
-                <strong>${i.name}</strong><br>
-                <small style="color:#888">${i.code}</small>
-            </div>
-        </label>`;
-        
+        div.innerHTML = `<label style="display:flex; align-items:center; gap:10px; cursor:pointer;"><input type="checkbox" ${isChecked}><div><strong>${i.name}</strong><br><small style="color:#888">${i.code}</small></div></label>`;
         div.querySelector('input').addEventListener('change', (e) => {
             if(e.target.checked) salesState.reportSelectedItems.add(i.code);
             else salesState.reportSelectedItems.delete(i.code);
@@ -603,11 +670,7 @@ function renderReportItemModalList(filterText = '') {
     });
 }
 
-function filterReportItemModal(text) {
-    renderReportItemModalList(text);
-}
-
-// --- 6. REPORT GENERATION ---
+function filterReportItemModal(text) { renderReportItemModalList(text); }
 
 function generateReport() {
     const dFrom = new Date(document.getElementById('rpt-date-from').value);
@@ -619,30 +682,20 @@ function generateReport() {
 
     const tbody = document.querySelector('#rpt-table tbody');
     tbody.innerHTML = '';
-    let totalQty = 0;
-    let totalRev = 0;
+    let totalQty = 0; let totalRev = 0;
 
-    // Filter Transactions
     const reportData = state.transactions.filter(t => {
-        // 1. Must be sales (has Price OR batchId starts with SALE)
         const isSale = (t.batchId.startsWith('SALE') || (t.price !== undefined && t.price !== null));
         if(!isSale) return false;
-
-        // 2. Date Filter
         const tDate = new Date(t.date);
         if(tDate < dFrom || tDate > dTo) return false;
-
-        // 3. Branch Filter
         if(useBranchFilter && !salesState.reportSelectedBranches.has(t.branchCode)) return false;
-
-        // 4. Item Filter
         if(useItemFilter && !salesState.reportSelectedItems.has(t.itemCode)) return false;
-
         return true;
     });
 
     if(reportData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center">No records found for criteria.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center">No records found.</td></tr>';
         document.getElementById('rpt-result-card').style.display = 'block';
         return;
     }
@@ -655,80 +708,16 @@ function generateReport() {
         const rev = qty * price;
         totalQty += qty;
         totalRev += rev;
-
         const period = (r.StartDate && r.EndDate) ? `${r.StartDate} to ${r.EndDate}` : '-';
         const bName = findByKey(state.branches, 'branchCode', r.branchCode)?.branchName || r.branchCode;
         const iName = findByKey(state.items, 'code', r.itemCode)?.name || r.itemCode;
 
-        tbody.innerHTML += `
-            <tr>
-                <td>${formatDate(r.date)}</td>
-                <td>${period}</td>
-                <td>${bName}</td>
-                <td>${iName}</td>
-                <td>${qty.toFixed(3)}</td>
-                <td>${price.toFixed(2)}</td>
-                <td>${rev.toFixed(2)}</td>
-                <td>${r.ref || r.batchId}</td>
-            </tr>
-        `;
+        tbody.innerHTML += `<tr><td>${formatDate(r.date)}</td><td>${period}</td><td>${bName}</td><td>${iName}</td><td>${qty.toFixed(3)}</td><td>${price.toFixed(2)}</td><td>${rev.toFixed(2)}</td><td>${r.ref || r.batchId}</td></tr>`;
     });
 
     document.getElementById('rpt-total-qty').textContent = totalQty.toFixed(3);
     document.getElementById('rpt-total-rev').textContent = formatCurrency(totalRev);
     document.getElementById('rpt-result-card').style.display = 'block';
-}
-
-// --- 7. UTILS ---
-
-function openMultiBranchModal(item) {
-    const modal = document.getElementById('ext-sales-modal');
-    const tbody = document.getElementById('ext-modal-tbody');
-    const title = document.getElementById('ext-modal-title');
-    const btnAdd = document.getElementById('ext-btn-modal-add');
-
-    title.textContent = `Sales for: ${item.name}`;
-    tbody.innerHTML = '';
-    const stock = calculateStockLevels();
-
-    state.branches.forEach(b => {
-        if (String(b.isActive) === 'false') return;
-        const available = stock[b.branchCode]?.[item.code]?.quantity || 0;
-
-        tbody.innerHTML += `
-            <tr>
-                <td>${b.branchName}</td>
-                <td style="color:${available <= 0 ? 'red' : 'green'}">${available.toFixed(3)}</td>
-                <td><input type="number" class="table-input modal-qty" data-branch="${b.branchCode}" placeholder="Qty"></td>
-                <td><input type="number" class="table-input modal-price" data-branch="${b.branchCode}" placeholder="Price"></td>
-            </tr>`;
-    });
-
-    btnAdd.onclick = () => {
-        document.querySelectorAll('.modal-qty').forEach(input => {
-            const qty = parseFloat(input.value);
-            if (qty > 0) {
-                const branchCode = input.dataset.branch;
-                const price = parseFloat(document.querySelector(`.modal-price[data-branch="${branchCode}"]`).value) || 0;
-                addItemToList(branchCode, item, qty, price);
-            }
-        });
-        modal.classList.remove('active');
-        renderSalesTable();
-    };
-    modal.classList.add('active');
-}
-
-function addItemToList(branchCode, item, qty, price) {
-    salesState.currentList.push({
-        branchCode: branchCode,
-        itemCode: item.code,
-        itemName: item.name,
-        quantity: qty,
-        price: price,
-        cost: parseFloat(item.cost)
-    });
-    renderSalesTable();
 }
 
 function handleExcel(e) {
@@ -740,7 +729,6 @@ function handleExcel(e) {
         const wb = XLSX.read(data, {type:'array'});
         const ws = wb.Sheets[wb.SheetNames[0]];
         const json = XLSX.utils.sheet_to_json(ws);
-        
         let found = 0;
         if(json.length === 0) { showToast('Empty file', 'error'); return; }
         const headers = Object.keys(json[0]);
@@ -748,22 +736,26 @@ function handleExcel(e) {
 
         json.forEach(r => {
             const code = r['ItemCode'];
-            const price = parseFloat(r['SellingPrice'] || r['Price'] || 0);
+            // Manual overrides in Excel still take precedence, else lookup
+            let manualPrice = parseFloat(r['SellingPrice'] || r['Price'] || 0);
+            
             if(code) {
                 const item = findByKey(state.items, 'code', code);
                 if(item) {
                     branchCols.forEach(branchCode => {
                         const qty = parseFloat(r[branchCode]);
-                        if(qty > 0) addItemToList(branchCode, item, qty, price);
+                        if(qty > 0) {
+                            // If Excel has specific price use it, else lookup branch category price
+                            const price = manualPrice > 0 ? manualPrice : getPriceForBranch(branchCode, item);
+                            addItemToList(branchCode, item, qty, price);
+                        }
                     });
                     found++;
                 }
             }
         });
-        if(found > 0) {
-            showToast(`Imported ${found} rows.`, 'success');
-            renderSalesTable();
-        } else showToast('No data found.', 'info');
+        if(found > 0) { showToast(`Imported ${found} rows.`, 'success'); renderSalesTable(); } 
+        else showToast('No data found.', 'info');
         e.target.value = '';
     };
     reader.readAsArrayBuffer(file);
@@ -773,7 +765,7 @@ function downloadMatrixTemplate() {
     const data = [];
     state.items.forEach(item => {
         if(String(item.isActive) === 'false') return;
-        const row = { "ItemCode": item.code, "ItemName": item.name, "SellingPrice": 0 };
+        const row = { "ItemCode": item.code, "ItemName": item.name };
         state.branches.forEach(b => { if(String(b.isActive) !== 'false') row[b.branchCode] = ""; });
         data.push(row);
     });
@@ -783,7 +775,6 @@ function downloadMatrixTemplate() {
     XLSX.writeFile(wb, "Sales_Matrix_Template.xlsx");
 }
 
-// --- 8. AUTO-INIT ON LOGIN/LOAD ---
 const poller = setInterval(() => {
     if (state.currentUser && document.getElementById('main-nav') && !salesState.initialized) {
         initSalesModule();
