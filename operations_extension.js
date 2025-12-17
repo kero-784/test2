@@ -33,7 +33,7 @@ function initOperationsModule() {
 
 // --- UI INJECTION ---
 function injectOperationsUI(user) {
-    // 1. Sidebar Link
+    // 1. Sidebar Link - Injected AFTER Dashboard
     const sidebar = document.getElementById('main-nav');
     if (sidebar && !document.getElementById('nav-operations-link')) {
         const li = document.createElement('li');
@@ -43,10 +43,13 @@ function injectOperationsUI(user) {
             <span style="margin-left:10px;">Stock Operations</span>
         </a>`;
         
-        // Insert after Dashboard
-        const refEntry = sidebar.querySelector('a[data-view="dashboard"]')?.parentElement;
-        if (refEntry) refEntry.after(li);
-        else sidebar.appendChild(li);
+        // LOGIC: Insert AFTER 'Dashboard'
+        const dashboardBtn = sidebar.querySelector('a[data-view="dashboard"]')?.parentElement;
+        if (dashboardBtn) {
+            dashboardBtn.after(li);
+        } else {
+            sidebar.prepend(li);
+        }
     }
 
     // 2. Main View
@@ -458,6 +461,9 @@ function renderOpsInTransit() {
     });
     if(tbody.innerHTML === '') tbody.innerHTML = '<tr><td colspan="7" style="text-align:center">No items in transit</td></tr>';
 }
+
+// Make global so transactions.js can call it
+window.renderOpsInTransit = renderOpsInTransit;
 
 function renderOpsPendingInvoices() {
     const tbody = document.querySelector('#ext-table-pending-invoices tbody');
