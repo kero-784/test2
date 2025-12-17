@@ -1,6 +1,6 @@
 // --- FULL COMPLETE sw.js ---
 
-const CACHE_NAME = 'meat-stock-v6'; // Version incremented to force update
+const CACHE_NAME = 'meat-stock-v7'; // Version incremented
 const ASSETS = [
   './',
   './index.html',
@@ -18,13 +18,13 @@ const ASSETS = [
   './price_generator.js',
   './butchery_extension.js',
   './financials_extension.js',
+  './operations_extension.js',
   // External Library
   'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'
 ];
 
-// 1. Install Event: Cache all assets immediately
 self.addEventListener('install', (e) => {
-  self.skipWaiting(); // Force this service worker to become active immediately
+  self.skipWaiting();
   e.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(ASSETS);
@@ -32,7 +32,6 @@ self.addEventListener('install', (e) => {
   );
 });
 
-// 2. Activate Event: Clean up old caches
 self.addEventListener('activate', (e) => {
     e.waitUntil(
         caches.keys().then((keys) => {
@@ -43,15 +42,13 @@ self.addEventListener('activate', (e) => {
     );
 });
 
-// 3. Fetch Event: Network First Strategy
-// (Try network -> if success, update cache -> if fail, use cache)
 self.addEventListener('fetch', (e) => {
-  // Ignore POST requests (API calls cannot be cached)
+  // Ignore POST requests (API calls)
   if (e.request.method !== 'GET') {
     return;
   }
 
-  // Ignore non-http requests (like chrome-extension://)
+  // Ignore chrome extensions
   if (!e.request.url.startsWith('http')) {
     return;
   }
@@ -59,20 +56,16 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(
     fetch(e.request)
       .then((res) => {
-        // If response is valid, clone it and update the cache
         if (!res || res.status !== 200 || res.type !== 'basic') {
           return res;
         }
-
         const resClone = res.clone();
         caches.open(CACHE_NAME).then((cache) => {
           cache.put(e.request, resClone);
         });
-
         return res;
       })
       .catch(() => {
-        // If network fails, try to return from cache
         return caches.match(e.request);
       })
   );
