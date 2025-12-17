@@ -1,10 +1,5 @@
-```
 
-### 3. `main.js`
-*Updated to show the install button inside the login box immediately upon `beforeinstallprompt`.*
 
-```javascript
---- START OF FILE main.js ---
 
 import { SCRIPT_URL } from './config.js';
 import { state, setState, resetStateLists } from './state.js';
