@@ -1,4 +1,4 @@
-
+--- START OF FILE style.css ---
 
 /* ========================================= */
 /* 1. GLOBAL VARIABLES & RESET               */
@@ -47,7 +47,7 @@ body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     -webkit-tap-highlight-color: transparent;
-    overflow-x: hidden; /* Prevents horizontal scroll on body */
+    overflow-x: hidden;
 }
 
 html[dir="rtl"] body {
@@ -71,6 +71,8 @@ html[dir="rtl"] body {
     height: 100vh; 
     background-color: var(--bg-color); 
     padding: 20px;
+    position: fixed; 
+    top: 0; left: 0; width: 100%; z-index: 9999;
 }
 
 .login-box { 
@@ -301,6 +303,30 @@ html[dir="rtl"] body {
     flex-shrink: 0; 
 }
 
+/* --- CRITICAL FIX: View Toggling --- */
+.view { 
+    display: none !important; 
+}
+
+.view.active { 
+    display: block !important; 
+    animation: fadeIn 0.4s ease-in-out; 
+}
+
+.sub-view { 
+    display: none !important; 
+}
+
+.sub-view.active { 
+    display: block !important; 
+    animation: fadeIn 0.4s; 
+}
+
+@keyframes fadeIn { 
+    from { opacity: 0; transform: translateY(15px); } 
+    to { opacity: 1; transform: translateY(0); } 
+}
+
 /* Sub-Navigation (Tabs) */
 .sub-nav { 
     display: flex; 
@@ -336,16 +362,7 @@ html[dir="rtl"] body {
     border-bottom-color: var(--primary-color); 
 }
 
-.sub-view { 
-    display: none; 
-}
-
-.sub-view.active { 
-    display: block; 
-    animation: fadeIn 0.4s; 
-}
-
-/* Cards & Containers */
+/* Cards */
 .card { 
     background-color: var(--card-bg-color); 
     padding: 24px; 
@@ -552,7 +569,7 @@ button:disabled {
 }
 
 /* ========================================= */
-/* 6. TABLES & REPORTS                       */
+/* 6. TABLES & REPORTS (FIXED)               */
 /* ========================================= */
 
 table { 
@@ -590,13 +607,11 @@ tbody tr:hover {
     background-color: #f7faff; 
 }
 
-/* IMPORTANT: Report Area Container - Handles Scrolling */
+/* Report Area: Handles Horizontal Scroll */
 .report-area {
     width: 100%;
-    /* Enables horizontal scrolling on small screens */
     overflow-x: auto;
     -webkit-overflow-scrolling: touch; 
-    /* Ensures it doesn't break parent width */
     max-width: 100%; 
     display: block;
     border: 1px solid var(--border-color);
@@ -604,16 +619,15 @@ tbody tr:hover {
     background: white;
 }
 
-/* Force Table Width to trigger scrolling */
+/* Table Width Fix */
 .report-area table {
     width: 100%;
-    min-width: 600px; /* Force minimum width so it scrolls */
+    min-width: 600px; /* Forces scroll on small screens */
     border-collapse: separate; 
     border-spacing: 0;
     margin-top: 0;
 }
 
-/* Report Generator Controls */
 .report-generator-controls { 
     display: flex; 
     gap: 12px; 
@@ -890,8 +904,19 @@ input:checked + .slider:before { transform: translateX(22px); }
     box-shadow: 0 4px 10px rgba(0,0,0,0.1);
 }
 
-.pwa-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: var(--text-color); }
-.pwa-desc { font-size: 14px; color: var(--text-light-color); margin-bottom: 20px; max-width: 300px; }
+.pwa-title { 
+    font-size: 18px; 
+    font-weight: 700; 
+    margin-bottom: 8px; 
+    color: var(--text-color); 
+}
+
+.pwa-desc { 
+    font-size: 14px; 
+    color: var(--text-light-color); 
+    margin-bottom: 20px; 
+    max-width: 300px; 
+}
 
 .pwa-btn-group {
     display: flex;
@@ -909,9 +934,19 @@ input:checked + .slider:before { transform: translateX(22px); }
     cursor: pointer;
 }
 
-.pwa-btn.install { background-color: var(--primary-color); color: white; }
-.pwa-btn.install:active { background-color: var(--primary-dark); }
-.pwa-btn.cancel { background-color: #f1f3f4; color: var(--text-color); }
+.pwa-btn.install { 
+    background-color: var(--primary-color); 
+    color: white; 
+}
+
+.pwa-btn.install:active { 
+    background-color: var(--primary-dark); 
+}
+
+.pwa-btn.cancel { 
+    background-color: #f1f3f4; 
+    color: var(--text-color); 
+}
 
 /* iOS Specific Instructions */
 .ios-install-guide {
@@ -925,9 +960,24 @@ input:checked + .slider:before { transform: translateX(22px); }
     width: 100%;
     display: none;
 }
-.ios-install-guide ol { padding-left: 20px; margin: 5px 0; }
-.ios-install-guide li { margin-bottom: 5px; }
-.ios-icon-share { width: 16px; height: 16px; vertical-align: middle; display: inline-block; background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%23007AFF" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>') no-repeat center; background-size: contain; }
+
+.ios-install-guide ol { 
+    padding-left: 20px; 
+    margin: 5px 0; 
+}
+
+.ios-install-guide li { 
+    margin-bottom: 5px; 
+}
+
+.ios-icon-share { 
+    width: 16px; 
+    height: 16px; 
+    vertical-align: middle; 
+    display: inline-block; 
+    background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%23007AFF" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>') no-repeat center; 
+    background-size: contain; 
+}
 
 /* Desktop Adjustment for PWA Prompt */
 @media (min-width: 769px) {
@@ -938,7 +988,7 @@ input:checked + .slider:before { transform: translateX(22px); }
         border-radius: 16px;
         text-align: left;
         align-items: flex-start;
-        border-top-left-radius: 16px; /* Reset mobile style */
+        border-top-left-radius: 16px; 
         border-top-right-radius: 16px;
     }
     .pwa-icon-large { margin-bottom: 0; margin-right: 15px; float: left; }
@@ -983,7 +1033,7 @@ input:checked + .slider:before { transform: translateX(22px); }
         padding: 16px;
         padding-top: 76px; /* Header height + spacing */
         width: 100%;
-        overflow-x: hidden; /* Prevent horizontal scrolling of body */
+        overflow-x: hidden; 
     }
 
     /* 3. Header Cleanup */
