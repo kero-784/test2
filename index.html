@@ -78,7 +78,7 @@
                 
                 <!-- Operational Views -->
                 <li class="nav-item" data-permission="opReceive,opTransfer,opReturn,opStockAdjustment,opApproveGRN"><a href="#" data-view="operations"><span data-translate-key="stock_operations">Stock Operations</span></a></li>
-                <li class="nav-item" data-permission="opProduction,viewYieldReports"><a href="#" data-view="butchery"><span data-translate-key="butchery_production">Butchery & Yield</span></a></li>
+                
                 
                 <!-- Common Read Views -->
                 <li class="nav-item"><a href="#" data-view="stock-levels"><span data-translate-key="stock_levels">Stock Levels</span></a></li>
@@ -231,12 +231,6 @@
                 </div>
             </div>
 
-            <!-- VIEW: BUTCHERY & YIELD -->
-            <div id="view-butchery" class="view">
-                <div class="sub-nav">
-                    <button class="sub-nav-item active" data-subview="butchery-production" data-translate-key="butchery_production">Production</button>
-                    <button class="sub-nav-item" data-subview="yield-analysis" data-permission="viewYieldReports">Yield Analysis</button>
-                </div>
 
                 <!-- Production Subview -->
                 <div id="subview-butchery-production" class="sub-view active">
@@ -413,5 +407,6 @@
     <script type="module" src="main.js"></script>
     <script type="module" src="sales_extension.js"></script>
     <script type="module" src="price_generator.js"></script>
+    <script type="module" src="butchery_extension.js"></script>
 </body>
 </html>
