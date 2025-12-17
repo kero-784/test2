@@ -716,12 +716,16 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.sub-nav-item').forEach(item => {
         item.addEventListener('click', (e) => {
             e.preventDefault();
+            // FIX: Safe check for view
             const view = e.target.closest('.view');
+            if(!view) return;
+
             view.querySelectorAll('.sub-nav-item, .sub-view').forEach(x => x.classList.remove('active'));
             e.target.classList.add('active');
             const subId = e.target.dataset.subview;
             const subEl = document.getElementById(`subview-${subId}`);
             if(subEl) subEl.classList.add('active');
+            
             refreshViewData(view.id.replace('view-', ''));
         });
     });
@@ -875,8 +879,14 @@ async function reloadData() {
         if(data.status !== 'error') {
             Object.keys(data).forEach(key => { if(key!=='user') setState(key, data[key]); });
             showToast(_t('data_refreshed_toast'));
-            const active = document.querySelector('.view.active').id.replace('view-', '');
-            refreshViewData(active);
+            
+            // FIX: Safe navigation to active view
+            const activeView = document.querySelector('.view.active');
+            if (activeView) {
+                refreshViewData(activeView.id.replace('view-', ''));
+            } else {
+                refreshViewData('dashboard');
+            }
         }
     } catch(e) { Logger.error(e); }
 }
