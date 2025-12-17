@@ -1,6 +1,6 @@
 // --- FULL COMPLETE sw.js ---
 
-const CACHE_NAME = 'meat-stock-v7'; // Version incremented
+const CACHE_NAME = 'meat-stock-v8'; // Version incremented
 const ASSETS = [
   './',
   './index.html',
