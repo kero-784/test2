@@ -1,3 +1,10 @@
+```
+
+### 3. `main.js`
+*Updated to show the install button inside the login box immediately upon `beforeinstallprompt`.*
+
+```javascript
+--- START OF FILE main.js ---
 
 import { SCRIPT_URL } from './config.js';
 import { state, setState, resetStateLists } from './state.js';
@@ -23,70 +30,77 @@ const isInStandaloneMode = () => ('standalone' in window.navigator) && (window.n
 window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
-    // Show install prompt after a short delay so it doesn't block the login screen immediately
-    setTimeout(() => showInstallPromotion(), 2000);
+    
+    // Show the login install button immediately if available
+    const loginInstallBtn = document.getElementById('login-install-wrapper');
+    if(loginInstallBtn) loginInstallBtn.style.display = 'block';
 });
 
-function showInstallPromotion() {
-    // Logic: Don't annoy user if they dismissed it recently (e.g., 3 days)
-    if (localStorage.getItem('pwa_dismissed_ts')) {
-        const dismissedTime = parseInt(localStorage.getItem('pwa_dismissed_ts'));
-        if (Date.now() - dismissedTime < 259200000) return; // 3 days in ms
-    }
-
+// Logic to show/hide install options based on platform
+function handleInstallClick() {
     const sheet = document.getElementById('pwa-install-sheet');
     const iosGuide = document.getElementById('pwa-ios-guide');
     const stdActions = document.getElementById('pwa-standard-actions');
     
-    if (sheet) {
-        if (isIos() && !isInStandaloneMode()) {
-            // Show iOS specific guide
-            if(iosGuide) iosGuide.style.display = 'block';
-            if(stdActions) stdActions.style.display = 'none';
-            sheet.classList.add('active');
-        } else if (deferredPrompt) {
-            // Show Android/Desktop Prompt
-            if(iosGuide) iosGuide.style.display = 'none';
-            if(stdActions) stdActions.style.display = 'flex';
-            sheet.classList.add('active');
-        }
+    if (isIos() && !isInStandaloneMode()) {
+        // Show iOS specific guide
+        if(iosGuide) iosGuide.style.display = 'block';
+        if(stdActions) stdActions.style.display = 'none';
+        sheet.classList.add('active');
+    } else if (deferredPrompt) {
+        // Trigger Native Prompt
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+            if (choiceResult.outcome === 'accepted') {
+                console.log('User accepted the install prompt');
+                const loginInstallBtn = document.getElementById('login-install-wrapper');
+                if(loginInstallBtn) loginInstallBtn.style.display = 'none';
+            }
+            deferredPrompt = null;
+        });
+    } else {
+        // Fallback for desktop/other if prompt isn't ready but button was clicked
+        if(iosGuide) iosGuide.style.display = 'none';
+        if(stdActions) stdActions.style.display = 'flex';
+        sheet.classList.add('active');
     }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     Logger.info('Initializing Meat Stock Manager...');
 
+    // Check for iOS on load to show login button even without event
+    if (isIos() && !isInStandaloneMode()) {
+        const loginInstallBtn = document.getElementById('login-install-wrapper');
+        if(loginInstallBtn) loginInstallBtn.style.display = 'block';
+    }
+
     // --- PWA BUTTON HANDLERS ---
-    const btnInstall = document.getElementById('btn-pwa-confirm');
+    const btnLoginInstall = document.getElementById('btn-login-install');
+    const btnSheetInstall = document.getElementById('btn-pwa-confirm');
     const btnCancel = document.getElementById('btn-pwa-cancel');
     const btnIosClose = document.getElementById('btn-pwa-ios-close');
     const sheet = document.getElementById('pwa-install-sheet');
 
-    if (btnInstall) {
-        btnInstall.addEventListener('click', async () => {
-            if (deferredPrompt) {
-                deferredPrompt.prompt();
-                const { outcome } = await deferredPrompt.userChoice;
-                if (outcome === 'accepted') {
-                    console.log('User accepted the install prompt');
-                }
-                deferredPrompt = null;
-                sheet.classList.remove('active');
-            }
-        });
+    // 1. Button on Login Screen
+    if (btnLoginInstall) {
+        btnLoginInstall.addEventListener('click', handleInstallClick);
+    }
+
+    // 2. Button inside Bottom Sheet
+    if (btnSheetInstall) {
+        btnSheetInstall.addEventListener('click', handleInstallClick);
     }
 
     if (btnCancel) {
         btnCancel.addEventListener('click', () => {
             sheet.classList.remove('active');
-            localStorage.setItem('pwa_dismissed_ts', Date.now());
         });
     }
 
     if (btnIosClose) {
         btnIosClose.addEventListener('click', () => {
             sheet.classList.remove('active');
-            localStorage.setItem('pwa_dismissed_ts', Date.now());
         });
     }
 
@@ -918,3 +932,4 @@ async function reloadData() {
         }
     } catch(e) { Logger.error(e); }
 }
+
