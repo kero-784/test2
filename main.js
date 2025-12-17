@@ -1,6 +1,3 @@
-
-
-
 import { SCRIPT_URL } from './config.js';
 import { state, setState, resetStateLists } from './state.js';
 import { Logger, showToast, applyTranslations, populateOptions, findByKey, postData, formatCurrency, _t, userCan, exportTableToExcel } from './utils.js';
@@ -217,17 +214,6 @@ document.addEventListener('DOMContentLoaded', () => {
             exportTableToExcel('table-supplier-statement', `${supName}.xlsx`);
             return;
         }
-        
-        if (btn.id === 'btn-export-yield') {
-            const tbl = document.querySelector('#yield-report-results table');
-            if(tbl) {
-                if(!tbl.id) tbl.id = 'temp-yield-export';
-                exportTableToExcel(tbl.id, 'Yield_Report.xlsx');
-            } else {
-                showToast("Generate a report first.", "error");
-            }
-            return;
-        }
 
         // 3. MODAL CONTROLS
         if (btn.classList.contains('close-button') || btn.classList.contains('modal-cancel')) {
@@ -354,14 +340,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 300);
             return;
         }
-
-        // --- REPORT GENERATOR (YIELD) ---
-        if (btn.id === 'btn-generate-yield-report') {
-            const type = document.getElementById('yield-report-type').value;
-            const search = document.getElementById('yield-report-search').value;
-            Renderers.renderYieldAnalysisReport(type, search);
-            return;
-        }
         
         // --- REPORT GENERATOR (STATEMENT) ---
         if (btn.id === 'btn-generate-supplier-statement') {
@@ -411,12 +389,6 @@ document.addEventListener('DOMContentLoaded', () => {
              m.dataset.context = btn.dataset.context;
              m.dataset.allowedItems = "";
              
-             if (btn.dataset.context === 'butchery-child') {
-                 const pc = document.getElementById('butchery-parent-code').value;
-                 if (!pc) { showToast('Select Parent First', 'error'); return; }
-                 const p = findByKey(state.items, 'code', pc);
-                 if(p && p.DefinedCuts) m.dataset.allowedItems = JSON.stringify(p.DefinedCuts.split(','));
-             }
              state.modalSelections.clear();
              Renderers.renderItemsInModal();
              m.classList.add('active');
@@ -429,43 +401,34 @@ document.addEventListener('DOMContentLoaded', () => {
             const ctx = m.dataset.context;
             const sel = Array.from(state.modalSelections);
             
-            if (ctx === 'butchery-parent') {
-                const i = findByKey(state.items, 'code', sel[0]);
-                if(i) { 
-                    document.getElementById('butchery-parent-display').value = i.name; 
-                    document.getElementById('butchery-parent-code').value = i.code; 
-                }
-            } else {
-                const map = { 
-                    'receive': 'currentReceiveList', 
-                    'butchery-child': 'currentButcheryList', 
-                    'transfer': 'currentTransferList', 
-                    'po': 'currentPOList', 
-                    'return': 'currentReturnList', 
-                    'adjustment': 'currentAdjustmentList'
-                };
-                const listName = map[ctx];
-                
-                if(listName) {
-                    sel.forEach(c => {
-                        const i = findByKey(state.items, 'code', c);
-                        if(i && !state[listName].find(x => x.itemCode === c)) {
-                            state[listName].push({ 
-                                itemCode: i.code, 
-                                itemName: i.name, 
-                                quantity: '', 
-                                cost: parseFloat(i.cost) || 0 
-                            });
-                        }
-                    });
-                    if(ctx === 'receive') Renderers.renderReceiveListTable();
-                    if(ctx === 'butchery-child') Renderers.renderButcheryListTable();
-                    if(ctx === 'transfer') Renderers.renderTransferListTable();
-                    if(ctx === 'return') Renderers.renderReturnListTable();
-                    if(ctx === 'adjustment') Renderers.renderAdjustmentListTable();
-                    if(ctx === 'po') Renderers.renderPOListTable();
-                }
+            const map = { 
+                'receive': 'currentReceiveList', 
+                'transfer': 'currentTransferList', 
+                'po': 'currentPOList', 
+                'return': 'currentReturnList', 
+                'adjustment': 'currentAdjustmentList'
+            };
+            const listName = map[ctx];
+            
+            if(listName) {
+                sel.forEach(c => {
+                    const i = findByKey(state.items, 'code', c);
+                    if(i && !state[listName].find(x => x.itemCode === c)) {
+                        state[listName].push({ 
+                            itemCode: i.code, 
+                            itemName: i.name, 
+                            quantity: '', 
+                            cost: parseFloat(i.cost) || 0 
+                        });
+                    }
+                });
+                if(ctx === 'receive') Renderers.renderReceiveListTable();
+                if(ctx === 'transfer') Renderers.renderTransferListTable();
+                if(ctx === 'return') Renderers.renderReturnListTable();
+                if(ctx === 'adjustment') Renderers.renderAdjustmentListTable();
+                if(ctx === 'po') Renderers.renderPOListTable();
             }
+            
             m.classList.remove('active');
             state.modalSelections.clear();
             return;
@@ -486,7 +449,6 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const tableMap = {
                 'table-receive-list': { list: 'currentReceiveList', render: Renderers.renderReceiveListTable },
-                'table-butchery-children': { list: 'currentButcheryList', render: Renderers.renderButcheryListTable },
                 'table-transfer-list': { list: 'currentTransferList', render: Renderers.renderTransferListTable },
                 'table-po-list': { list: 'currentPOList', render: Renderers.renderPOListTable },
                 'table-return-list': { list: 'currentReturnList', render: Renderers.renderReturnListTable },
@@ -581,7 +543,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const tableMap = {
                 'table-receive-list': { list: 'currentReceiveList', render: Renderers.renderReceiveListTable },
-                'table-butchery-children': { list: 'currentButcheryList', render: Renderers.renderButcheryListTable },
                 'table-transfer-list': { list: 'currentTransferList', render: Renderers.renderTransferListTable },
                 'table-po-list': { list: 'currentPOList', render: Renderers.renderPOListTable },
                 'table-return-list': { list: 'currentReturnList', render: Renderers.renderReturnListTable },
@@ -594,8 +555,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 config.render();
             }
         }
-        
-        if(e.target.id === 'butchery-parent-qty') Renderers.renderButcheryListTable();
         
         if (e.target.closest('#modal-invoice-list') && e.target.type === 'checkbox') {
              const num = e.target.dataset.number;
@@ -738,7 +697,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     bindBtn('btn-submit-receive-batch', Transactions.handleReceiveSubmit);
-    bindBtn('btn-submit-butchery', Transactions.handleButcherySubmit);
     bindBtn('btn-submit-transfer-batch', Transactions.handleTransferSubmit);
     bindBtn('btn-submit-po', Transactions.handlePOSubmit);
     bindBtn('btn-submit-return', Transactions.handleReturnSubmit);
@@ -810,7 +768,6 @@ function initializeAppUI() {
 
     populateOptions(document.getElementById('receive-branch'), state.branches, 'Branch', 'branchCode', 'branchName');
     populateOptions(document.getElementById('receive-supplier'), state.suppliers, 'Supplier', 'supplierCode', 'name');
-    populateOptions(document.getElementById('butchery-branch'), state.branches, 'Branch', 'branchCode', 'branchName');
     populateOptions(document.getElementById('item-supplier'), state.suppliers, 'Supplier', 'supplierCode', 'name');
     Renderers.updateNotifications();
     showView('dashboard');
@@ -862,10 +819,6 @@ function refreshViewData(id) {
         Renderers.renderItemsTable();
         Renderers.renderSuppliersTable();
         Renderers.renderBranchesTable();
-    }
-    if(id === 'butchery') {
-        populateOptions(document.getElementById('butchery-branch'), state.branches, _t('branch'), 'branchCode', 'branchName');
-        Renderers.renderButcheryListTable();
     }
     if(id === 'operations') {
         ['receive', 'transfer-from', 'transfer-to', 'return', 'adjustment'].forEach(prefix => {
@@ -927,4 +880,3 @@ async function reloadData() {
         }
     } catch(e) { Logger.error(e); }
 }
-
