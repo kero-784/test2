@@ -113,15 +113,36 @@ document.addEventListener('DOMContentLoaded', () => {
             sidebar.classList.remove('open');
             overlay.classList.remove('active');
         });
-
-        // Close Sidebar when a nav link is clicked
-        document.querySelectorAll('.nav-item a').forEach(link => {
-            link.addEventListener('click', () => {
-                sidebar.classList.remove('open');
-                overlay.classList.remove('active');
-            });
-        });
     }
+    
+    // --- GLOBAL NAVIGATION HANDLER (Fix for Title Update on Injected Tabs) ---
+    document.addEventListener('click', (e) => {
+        // Find closest anchor tag inside a nav item
+        const link = e.target.closest('.nav-item a');
+        
+        if (link) {
+            // Check if it's logout
+            if (link.id === 'btn-logout') {
+                e.preventDefault();
+                sessionStorage.clear();
+                location.reload();
+                return;
+            }
+
+            // View Switching & Title Updating
+            const viewId = link.dataset.view;
+            if (viewId) {
+                e.preventDefault();
+                showView(viewId); // This function handles the title update logic
+                
+                // Close mobile menu if open
+                if (sidebar && sidebar.classList.contains('open')) {
+                    sidebar.classList.remove('open');
+                    overlay.classList.remove('active');
+                }
+            }
+        }
+    });
 
     // --- LOGIN HANDLER ---
     const loginForm = document.getElementById('login-form');
@@ -182,7 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- GLOBAL CLICK LISTENER ---
+    // --- GLOBAL CLICK LISTENER (BUTTONS) ---
     document.body.addEventListener('click', async (e) => {
         const btn = e.target.closest('button');
         if (!btn) return;
@@ -327,17 +348,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btn.classList.contains('btn-pay-supplier')) {
             const supplierCode = btn.dataset.supplier;
             showView('financials');
-            const recordTab = document.querySelector('button[data-subview="record-payment"]');
-            if(recordTab) recordTab.click();
-            
-            setTimeout(() => {
-                const select = document.getElementById('payment-supplier-select');
-                if(select) {
-                    select.value = supplierCode;
-                    Renderers.renderInvoicesInModal();
-                    document.getElementById('invoice-selector-modal').classList.add('active');
-                }
-            }, 300);
+            // This relies on the financials extension being loaded and handling the click event
+            // The extension will catch this if we simulate a click on the menu item, OR if we dispatch a custom event.
+            // Simpler: Trigger the Financials Menu Link
+            const link = document.querySelector('a[data-view="financials-ext"]');
+            if(link) {
+                link.click();
+                setTimeout(() => {
+                    const sel = document.getElementById('ext-pay-supplier');
+                    if(sel) sel.value = supplierCode;
+                    const btn = document.getElementById('ext-btn-sel-inv');
+                    if(btn) btn.click();
+                }, 300);
+            }
             return;
         }
         
@@ -374,11 +397,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // --- NOTIFICATION CLICK LOGIC ---
         if (e.target.id === 'pending-requests-widget' || e.target.closest('#pending-requests-widget')) {
-             showView('operations');
-             setTimeout(() => {
-                 const tab = document.querySelector('button[data-subview="in-transit"]');
-                 if(tab) tab.click();
-             }, 100);
+             // Go to Operations
+             const opsLink = document.querySelector('a[data-view="operations-ext"]');
+             if(opsLink) {
+                 opsLink.click();
+                 setTimeout(() => {
+                     const tab = document.querySelector('button[data-target="ops-intransit"]');
+                     if(tab) tab.click();
+                 }, 100);
+             }
              return; 
         }
         
@@ -401,20 +428,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const ctx = m.dataset.context;
             const sel = Array.from(state.modalSelections);
             
-            const map = { 
-                'receive': 'currentReceiveList', 
-                'transfer': 'currentTransferList', 
-                'po': 'currentPOList', 
-                'return': 'currentReturnList', 
-                'adjustment': 'currentAdjustmentList'
-            };
-            const listName = map[ctx];
-            
-            if(listName) {
+            // Only handle Core Lists (PO). Extensions handle their own confirmation.
+            if(ctx === 'po') {
                 sel.forEach(c => {
                     const i = findByKey(state.items, 'code', c);
-                    if(i && !state[listName].find(x => x.itemCode === c)) {
-                        state[listName].push({ 
+                    if(i && !state.currentPOList.find(x => x.itemCode === c)) {
+                        state.currentPOList.push({ 
                             itemCode: i.code, 
                             itemName: i.name, 
                             quantity: '', 
@@ -422,8 +441,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     }
                 });
-                // Note: Only PO list is rendered in main renderers now. Others are in extensions.
-                if(ctx === 'po') Renderers.renderPOListTable();
+                Renderers.renderPOListTable();
             }
             
             m.classList.remove('active');
@@ -438,13 +456,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btn.id === 'btn-gen-item-code') { document.getElementById('item-code').value = `ITM-${Math.floor(Math.random()*9999)}`; return; }
         if (btn.id === 'btn-gen-invoice') { document.getElementById('receive-invoice').value = `INV-${Date.now().toString().slice(-6)}`; return; }
 
-        // Remove Row Logic (Only for PO list here)
+        // Remove Row Logic (Core PO)
         if (btn.classList.contains('danger') && btn.dataset.index !== undefined && btn.textContent === 'X') {
             const row = btn.closest('tr');
+            if(!row) return;
             const tableId = row.closest('table').id;
             const idx = parseInt(btn.dataset.index);
             
-            if (tableId === 'table-po-list') {
+            if(tableId === 'table-po-list') {
                 state.currentPOList.splice(idx, 1);
                 Renderers.renderPOListTable();
             }
@@ -485,11 +504,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(res) {
                     showToast('Updated', 'success');
                     await reloadData();
-                    if (type === 'receive') {
-                        refreshViewData('operations');
-                    } else {
-                        refreshViewData('purchasing');
-                    }
+                    // Let the active view refresh
                 }
             }
             return;
@@ -520,7 +535,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Table Input Handlers (Only for PO list here)
+        // Table Input Handlers (Core PO)
         if (e.target.classList.contains('table-input')) {
             const input = e.target;
             const row = input.closest('tr');
@@ -682,15 +697,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('global-refresh-button').addEventListener('click', async () => { await reloadData(); });
 
-    // --- NAVIGATION HANDLER ---
-    document.querySelectorAll('#main-nav a').forEach(link => {
-        link.addEventListener('click', (e) => {
-            e.preventDefault();
-            if(link.id === 'btn-logout') { sessionStorage.clear(); location.reload(); }
-            showView(link.dataset.view);
-        });
-    });
-    
+    // --- SUB-NAVIGATION HANDLER ---
     document.querySelectorAll('.sub-nav-item').forEach(item => {
         item.addEventListener('click', (e) => {
             e.preventDefault();
@@ -738,12 +745,11 @@ function initializeAppUI() {
     // --- 1. DYNAMIC USER GREETING FIX ---
     const u = state.currentUser;
     const greetingEl = document.getElementById('user-greeting');
-    if (greetingEl && u && u.Name) {
-        // Gets first name, capitalizes first letter
-        const firstName = u.Name.split(' ')[0];
-        // Use translation logic or direct replacement
-        const template = _t('hi_user') || 'Hi, {userFirstName}';
-        greetingEl.textContent = template.replace('{userFirstName}', firstName); 
+    if (greetingEl && u) {
+        // Try multiple variations of 'Name'
+        const rawName = u.Name || u.FullName || u.EmployeeName || u.Username || "User";
+        const firstName = rawName.split(' ')[0]; // Take first part
+        greetingEl.textContent = `Hi, ${firstName}`;
     }
     
     // --- Update Mobile Header Branch Display ---
@@ -773,17 +779,22 @@ function showView(id) {
 
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.querySelectorAll('.nav-item a').forEach(l => l.classList.remove('active'));
+    
     const v = document.getElementById(`view-${id}`);
     if(v) v.classList.add('active');
     
+    // Find link even if injected later
     const link = document.querySelector(`a[data-view="${id}"]`);
     if(link) {
         link.classList.add('active');
+        
         // --- 2. DYNAMIC TITLE FIX ---
         const titleEl = document.getElementById('view-title');
         // Extract text from span inside link, ignore icon
         const textSpan = link.querySelector('span');
-        if (titleEl && textSpan) titleEl.textContent = textSpan.textContent;
+        if (titleEl) {
+            titleEl.textContent = textSpan ? textSpan.textContent.trim() : link.innerText.trim();
+        }
     }
 
     refreshViewData(id);
@@ -804,12 +815,6 @@ function refreshViewData(id) {
     if(id === 'transaction-history') {
         populateOptions(document.getElementById('tx-filter-branch'), state.branches, 'All Branches', 'branchCode', 'branchName');
         Renderers.renderTransactionHistory();
-    }
-    if(id === 'financials') { 
-        populateOptions(document.getElementById('payment-supplier-select'), state.suppliers, 'Select Supplier', 'supplierCode', 'name');
-        populateOptions(document.getElementById('supplier-statement-select'), state.suppliers, 'Select Supplier', 'supplierCode', 'name');
-        const listContainer = document.getElementById('payment-invoice-list-container');
-        if(listContainer) listContainer.style.display = 'none';
     }
     if(id === 'master-data') {
         Renderers.renderItemsTable();
@@ -842,7 +847,7 @@ async function reloadData() {
             Object.keys(data).forEach(key => { if(key!=='user') setState(key, data[key]); });
             showToast(_t('data_refreshed_toast'));
             
-            // FIX: Safe navigation
+            // FIX: Safe navigation to active view
             const activeView = document.querySelector('.view.active');
             if (activeView) {
                 refreshViewData(activeView.id.replace('view-', ''));
