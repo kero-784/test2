@@ -1,4 +1,3 @@
---- START OF FILE main.js ---
 
 import { SCRIPT_URL } from './config.js';
 import { state, setState, resetStateLists } from './state.js';
