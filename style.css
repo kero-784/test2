@@ -1,3 +1,9 @@
+--- START OF FILE style.css ---
+
+/* ========================================= */
+/* 1. GLOBAL VARIABLES & RESET               */
+/* ========================================= */
+
 :root {
     --primary-color: #D32F2F; /* Meat Red */
     --primary-dark: #B71C1C;
@@ -6,25 +12,32 @@
     --danger-color: #D32F2F;
     --warning-color: #FBC02D;
     --info-color: #7f8c8d;
+    
     --bg-color: #F7F8FC;
     --sidebar-bg: #FFFFFF;
     --card-bg-color: #FFFFFF;
+    
     --text-color: #24292E;
     --text-light-color: #586069;
     --text-on-primary: #FFFFFF;
+    
     --border-color: #E1E4E8;
     --border-radius: 12px;
+    
     --shadow-sm: 0 1px 2px rgba(27, 31, 35, 0.07);
     --shadow-md: 0 4px 12px rgba(27, 31, 35, 0.08);
     --shadow-lg: 0 10px 30px rgba(27, 31, 35, 0.1);
     --shadow-focus-ring: 0 0 0 3px rgba(211, 47, 47, 0.25);
+    
     --sidebar-width: 250px;
     --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Tajawal:wght@400;500;700&display=swap');
 
-*, *::before, *::after { box-sizing: border-box; }
+*, *::before, *::after { 
+    box-sizing: border-box; 
+}
 
 body {
     margin: 0;
@@ -33,149 +46,907 @@ body {
     color: var(--text-color);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
+    -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden; /* Prevents horizontal scroll on body */
 }
 
 html[dir="rtl"] body {
     font-family: 'Tajawal', sans-serif;
 }
 
-.app-container { display: flex; }
+.app-container { 
+    display: flex; 
+    width: 100%;
+    min-height: 100vh;
+}
 
-/* --- Login Screen --- */
-#login-container { display: flex; justify-content: center; align-items: center; height: 100vh; background-color: var(--bg-color); }
-.login-box { background-color: var(--card-bg-color); padding: 40px; border-radius: var(--border-radius); box-shadow: var(--shadow-lg); width: 100%; max-width: 400px; text-align: center; }
-.login-header { display: flex; justify-content: center; align-items: center; gap: 12px; margin-bottom: 24px; }
-.login-header .logo-icon { width: 32px; height: 32px; color: var(--primary-color); }
-.login-header h1 { font-size: 24px; margin: 0; }
-.login-box p { color: var(--text-light-color); margin-bottom: 24px; }
-.login-box .form-group { text-align: left; margin-bottom: 16px; }
-#login-code { font-size: 16px; }
-.login-error { margin-top: 15px; color: var(--danger-color); font-weight: 500; min-height: 20px; }
-#login-loader { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 15px; margin-top: 15px; }
-#login-loader .spinner { width: 30px; height: 30px; border-width: 3px; }
+/* ========================================= */
+/* 2. LOGIN SCREEN                           */
+/* ========================================= */
 
-/* --- Sidebar --- */
-.sidebar { width: var(--sidebar-width); height: 100vh; position: fixed; top: 0; left: 0; background-color: var(--sidebar-bg); border-right: 1px solid var(--border-color); padding: 24px 0; display: flex; flex-direction: column; transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1); z-index: 200; }
-.sidebar-header { padding: 0 24px; margin-bottom: 24px; display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
-.sidebar-header .logo-container { display: flex; align-items: center; gap: 12px;}
-.sidebar-header .logo-icon { width: 32px; height: 32px; color: var(--primary-color); }
-.sidebar-header h1 { font-size: 22px; color: var(--text-color); margin: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.language-switcher { margin: 10px 24px 0; }
-.language-switcher select { width: 100%; }
-#global-refresh-button { width: calc(100% - 48px); margin: 0 24px; }
-.sidebar-nav { list-style: none; padding: 0 16px; margin: 24px 0 0 0; flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; -webkit-overflow-scrolling: touch; }
-.nav-item a { display: flex; align-items: center; gap: 16px; padding: 12px 16px; color: var(--text-light-color); text-decoration: none; font-weight: 500; font-size: 15px; border-radius: var(--border-radius); transition: all 0.2s ease-in-out; margin-bottom: 4px; }
-.nav-item a:hover { background-color: var(--bg-color); color: var(--primary-dark); }
-.nav-item a.active { background-color: var(--primary-light); color: var(--primary-dark); font-weight: 600; }
-.nav-item-logout { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border-color); }
-.nav-item-logout a:hover { background-color: #FDEDE9; color: var(--danger-color); }
+#login-container { 
+    display: flex; 
+    justify-content: center; 
+    align-items: center; 
+    height: 100vh; 
+    background-color: var(--bg-color); 
+    padding: 20px;
+}
 
-/* --- Main Content Area --- */
-.main-content { flex-grow: 1; margin-left: var(--sidebar-width); padding: 32px; height: 100vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-.main-header { display: flex; justify-content: flex-start; align-items: center; margin-bottom: 24px; gap: 16px;}
-#view-title { font-size: 32px; font-weight: 700; margin: 0; flex-shrink: 0; }
-.pending-requests-widget { display: flex; align-items: center; gap: 8px; background-color: var(--warning-color); color: white; padding: 6px 12px; border-radius: var(--border-radius); font-weight: 600; font-size: 14px; margin-left: 24px; cursor: pointer; }
-.user-branch-display { margin-left: auto; background-color: var(--primary-light); color: var(--primary-dark); font-size: 14px; font-weight: 600; padding: 6px 12px; border-radius: 8px; flex-shrink: 0; }
+.login-box { 
+    background-color: var(--card-bg-color); 
+    padding: 40px; 
+    border-radius: var(--border-radius); 
+    box-shadow: var(--shadow-lg); 
+    width: 100%; 
+    max-width: 400px; 
+    text-align: center; 
+}
 
-/* --- Sub-Navigation --- */
-.sub-nav { display: flex; gap: 8px; border-bottom: 2px solid var(--border-color); margin-bottom: 24px; flex-wrap: wrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
-.sub-nav-item { background: transparent; border: none; padding: 12px 20px; font-weight: 600; font-size: 16px; color: var(--text-light-color); cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.2s ease; margin-bottom: -2px; white-space: nowrap; }
-.sub-nav-item:hover { color: var(--text-color); }
-.sub-nav-item.active { color: var(--primary-color); border-bottom-color: var(--primary-color); }
-.sub-view { display: none; }
-.sub-view.active { display: block; animation: fadeIn 0.4s; }
+.login-header { 
+    display: flex; 
+    justify-content: center; 
+    align-items: center; 
+    gap: 12px; 
+    margin-bottom: 24px; 
+}
 
-/* --- Card & Container --- */
-.card { background-color: var(--card-bg-color); padding: 24px; border-radius: var(--border-radius); border: none; margin-bottom: 24px; box-shadow: var(--shadow-md); }
-.card h2 { font-size: 20px; font-weight: 600; margin: 0 0 24px 0; padding-bottom: 16px; border-bottom: 1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; }
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }
-.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; }
-.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 24px; }
-.form-grid .span-full { grid-column: 1 / -1; }
-.toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 20px; flex-wrap: wrap; }
-.toolbar .search-bar { flex-grow: 1; max-width: 400px; margin-bottom: 0; }
-.toolbar .toolbar-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-left: auto; }
-.toolbar h2 { margin: 0; padding: 0; border: none; font-size: 20px; font-weight: 600;}
+.login-header .logo-icon { 
+    width: 32px; 
+    height: 32px; 
+    color: var(--primary-color); 
+}
 
-/* --- Form Elements --- */
-.form-group { margin-bottom: 16px; }
-.form-group label { display: block; font-weight: 500; font-size: 14px; margin-bottom: 8px; color: var(--text-light-color); }
-input, select, button, textarea { font-family: inherit; font-size: 16px; }
-input, select, textarea, .search-bar-input { width: 100%; padding: 12px 16px; background-color: var(--bg-color); border: 1px solid var(--border-color); border-radius: var(--border-radius); transition: border-color 0.2s, box-shadow 0.2s; -webkit-appearance: none; /* iOS Reset */ }
-textarea { resize: vertical; }
-input:focus, select:focus, textarea:focus, .search-bar-input:focus { outline: none; border-color: var(--primary-color); background-color: var(--card-bg-color); box-shadow: var(--shadow-focus-ring); }
-input[readonly], select[disabled] { background-color: #E9ECEF; color: var(--text-light-color); cursor: not-allowed; opacity: 1; }
+.login-header h1 { 
+    font-size: 24px; 
+    margin: 0; 
+}
 
-/* --- Buttons --- */
-button { padding: 12px 24px; border-radius: var(--border-radius); border: 1px solid transparent; cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; line-height: 1; -webkit-appearance: none; }
-button.primary { background-color: var(--primary-color); color: var(--text-on-primary); border-color: var(--primary-color); }
-button.primary:active { transform: scale(0.98); }
-button.secondary { background-color: transparent; color: var(--primary-color); border-color: var(--primary-color); }
-button.secondary.small, button.small.btn-edit { padding: 8px 12px; font-size: 14px; font-weight: 500; border-radius: 8px; border-color: var(--border-color); color: var(--text-light-color); }
-button.danger { background-color: var(--danger-color); color: white; }
-button.danger.small { padding: 6px 12px; font-size: 14px; border-radius: 8px; }
-button:disabled { background-color: #D1D5DB; border-color: #D1D5DB; color: #6B7280; cursor: not-allowed; }
-.button-spinner { width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 1s linear infinite; }
-.action-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
-.icon-btn { padding: 8px; background: transparent; border: none; color: var(--text-color); border-radius: 50%; }
+.login-box p { 
+    color: var(--text-light-color); 
+    margin-bottom: 24px; 
+}
 
-/* --- Tables --- */
-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-th, td { padding: 16px; text-align: left; vertical-align: middle; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
-th { font-size: 13px; font-weight: 600; color: var(--text-light-color); background-color: var(--bg-color); text-transform: uppercase; letter-spacing: 0.5px; position: sticky; top: 0; z-index: 10; }
-td { font-size: 14px; }
-tbody tr:hover { background-color: #f7faff; }
-/* Essential for mobile tables */
-.report-area { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; border: 1px solid var(--border-color); }
+.login-box .form-group { 
+    text-align: left; 
+    margin-bottom: 16px; 
+}
 
-/* --- Views & Animations --- */
-.view { display: none; }
-.view.active { display: block; animation: fadeIn 0.4s ease-in-out; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+#login-code { 
+    font-size: 16px; 
+}
 
-/* --- Toasts --- */
-#toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 1001; display: flex; flex-direction: column; gap: 10px; }
-.toast { padding: 16px 24px; border-radius: var(--border-radius); color: white; font-weight: 500; box-shadow: var(--shadow-lg); transform: translateX(calc(100% + 20px)); animation: slideIn 0.5s forwards; }
-@keyframes slideIn { to { transform: translateX(0); } }
+.login-error { 
+    margin-top: 15px; 
+    color: var(--danger-color); 
+    font-weight: 500; 
+    min-height: 20px; 
+}
+
+#login-loader { 
+    display: flex; 
+    flex-direction: column; 
+    justify-content: center; 
+    align-items: center; 
+    gap: 15px; 
+    margin-top: 15px; 
+}
+
+#login-loader .spinner { 
+    width: 30px; 
+    height: 30px; 
+    border-width: 3px; 
+}
+
+/* ========================================= */
+/* 3. SIDEBAR NAVIGATION                     */
+/* ========================================= */
+
+.sidebar { 
+    width: var(--sidebar-width); 
+    height: 100vh; 
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    background-color: var(--sidebar-bg); 
+    border-right: 1px solid var(--border-color); 
+    padding: 24px 0; 
+    display: flex; 
+    flex-direction: column; 
+    transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1); 
+    z-index: 200; 
+}
+
+.sidebar-header { 
+    padding: 0 24px; 
+    margin-bottom: 24px; 
+    display: flex; 
+    flex-direction: column; 
+    align-items: flex-start; 
+    gap: 16px; 
+}
+
+.sidebar-header .logo-container { 
+    display: flex; 
+    align-items: center; 
+    gap: 12px;
+}
+
+.sidebar-header .logo-icon { 
+    width: 32px; 
+    height: 32px; 
+    color: var(--primary-color); 
+}
+
+.sidebar-header h1 { 
+    font-size: 22px; 
+    color: var(--text-color); 
+    margin: 0; 
+    font-weight: 600; 
+    white-space: nowrap; 
+    overflow: hidden; 
+    text-overflow: ellipsis; 
+}
+
+.language-switcher { 
+    margin: 10px 24px 0; 
+}
+
+.language-switcher select { 
+    width: 100%; 
+}
+
+#global-refresh-button { 
+    width: calc(100% - 48px); 
+    margin: 0 24px; 
+}
+
+.sidebar-nav { 
+    list-style: none; 
+    padding: 0 16px; 
+    margin: 24px 0 0 0; 
+    flex-grow: 1; 
+    overflow-y: auto; 
+    display: flex; 
+    flex-direction: column; 
+    -webkit-overflow-scrolling: touch; 
+}
+
+.nav-item a { 
+    display: flex; 
+    align-items: center; 
+    gap: 16px; 
+    padding: 12px 16px; 
+    color: var(--text-light-color); 
+    text-decoration: none; 
+    font-weight: 500; 
+    font-size: 15px; 
+    border-radius: var(--border-radius); 
+    transition: all 0.2s ease-in-out; 
+    margin-bottom: 4px; 
+}
+
+.nav-item a:hover { 
+    background-color: var(--bg-color); 
+    color: var(--primary-dark); 
+}
+
+.nav-item a.active { 
+    background-color: var(--primary-light); 
+    color: var(--primary-dark); 
+    font-weight: 600; 
+}
+
+.nav-item-logout { 
+    margin-top: auto; 
+    padding-top: 16px; 
+    border-top: 1px solid var(--border-color); 
+}
+
+.nav-item-logout a:hover { 
+    background-color: #FDEDE9; 
+    color: var(--danger-color); 
+}
+
+/* ========================================= */
+/* 4. MAIN LAYOUT COMPONENTS                 */
+/* ========================================= */
+
+.main-content { 
+    flex-grow: 1; 
+    margin-left: var(--sidebar-width); 
+    padding: 32px; 
+    height: 100vh; 
+    overflow-y: auto; 
+    -webkit-overflow-scrolling: touch; 
+}
+
+.main-header { 
+    display: flex; 
+    justify-content: flex-start; 
+    align-items: center; 
+    margin-bottom: 24px; 
+    gap: 16px;
+}
+
+#view-title { 
+    font-size: 32px; 
+    font-weight: 700; 
+    margin: 0; 
+    flex-shrink: 0; 
+}
+
+.pending-requests-widget { 
+    display: flex; 
+    align-items: center; 
+    gap: 8px; 
+    background-color: var(--warning-color); 
+    color: white; 
+    padding: 6px 12px; 
+    border-radius: var(--border-radius); 
+    font-weight: 600; 
+    font-size: 14px; 
+    margin-left: 24px; 
+    cursor: pointer; 
+}
+
+.user-branch-display { 
+    margin-left: auto; 
+    background-color: var(--primary-light); 
+    color: var(--primary-dark); 
+    font-size: 14px; 
+    font-weight: 600; 
+    padding: 6px 12px; 
+    border-radius: 8px; 
+    flex-shrink: 0; 
+}
+
+/* Sub-Navigation (Tabs) */
+.sub-nav { 
+    display: flex; 
+    gap: 8px; 
+    border-bottom: 2px solid var(--border-color); 
+    margin-bottom: 24px; 
+    flex-wrap: wrap; 
+    overflow-x: auto; 
+    -webkit-overflow-scrolling: touch; 
+    padding-bottom: 2px; 
+}
+
+.sub-nav-item { 
+    background: transparent; 
+    border: none; 
+    padding: 12px 20px; 
+    font-weight: 600; 
+    font-size: 16px; 
+    color: var(--text-light-color); 
+    cursor: pointer; 
+    border-bottom: 3px solid transparent; 
+    transition: all 0.2s ease; 
+    margin-bottom: -2px; 
+    white-space: nowrap; 
+}
+
+.sub-nav-item:hover { 
+    color: var(--text-color); 
+}
+
+.sub-nav-item.active { 
+    color: var(--primary-color); 
+    border-bottom-color: var(--primary-color); 
+}
+
+.sub-view { 
+    display: none; 
+}
+
+.sub-view.active { 
+    display: block; 
+    animation: fadeIn 0.4s; 
+}
+
+/* Cards & Containers */
+.card { 
+    background-color: var(--card-bg-color); 
+    padding: 24px; 
+    border-radius: var(--border-radius); 
+    border: none; 
+    margin-bottom: 24px; 
+    box-shadow: var(--shadow-md); 
+}
+
+.card h2 { 
+    font-size: 20px; 
+    font-weight: 600; 
+    margin: 0 0 24px 0; 
+    padding-bottom: 16px; 
+    border-bottom: 1px solid var(--border-color); 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+}
+
+.grid { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); 
+    gap: 24px; 
+}
+
+.kpi-grid { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); 
+    gap: 24px; 
+}
+
+.form-grid { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
+    gap: 24px; 
+}
+
+.form-grid .span-full { 
+    grid-column: 1 / -1; 
+}
+
+/* Toolbar */
+.toolbar { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    margin-bottom: 20px; 
+    gap: 20px; 
+    flex-wrap: wrap; 
+}
+
+.toolbar .search-bar { 
+    flex-grow: 1; 
+    max-width: 400px; 
+    margin-bottom: 0; 
+}
+
+.toolbar .toolbar-actions { 
+    display: flex; 
+    gap: 10px; 
+    flex-wrap: wrap; 
+    align-items: center; 
+    margin-left: auto; 
+}
+
+.toolbar h2 { 
+    margin: 0; 
+    padding: 0; 
+    border: none; 
+    font-size: 20px; 
+    font-weight: 600;
+}
+
+/* ========================================= */
+/* 5. FORM ELEMENTS & BUTTONS                */
+/* ========================================= */
+
+.form-group { 
+    margin-bottom: 16px; 
+}
+
+.form-group label { 
+    display: block; 
+    font-weight: 500; 
+    font-size: 14px; 
+    margin-bottom: 8px; 
+    color: var(--text-light-color); 
+}
+
+input, select, button, textarea { 
+    font-family: inherit; 
+    font-size: 16px; 
+}
+
+input, select, textarea, .search-bar-input { 
+    width: 100%; 
+    padding: 12px 16px; 
+    background-color: var(--bg-color); 
+    border: 1px solid var(--border-color); 
+    border-radius: var(--border-radius); 
+    transition: border-color 0.2s, box-shadow 0.2s; 
+    -webkit-appearance: none; 
+}
+
+textarea { 
+    resize: vertical; 
+}
+
+input:focus, select:focus, textarea:focus, .search-bar-input:focus { 
+    outline: none; 
+    border-color: var(--primary-color); 
+    background-color: var(--card-bg-color); 
+    box-shadow: var(--shadow-focus-ring); 
+}
+
+input[readonly], select[disabled] { 
+    background-color: #E9ECEF; 
+    color: var(--text-light-color); 
+    cursor: not-allowed; 
+    opacity: 1; 
+}
+
+/* Buttons */
+button { 
+    padding: 12px 24px; 
+    border-radius: var(--border-radius); 
+    border: 1px solid transparent; 
+    cursor: pointer; 
+    transition: all 0.2s ease; 
+    display: inline-flex; 
+    align-items: center; 
+    justify-content: center; 
+    gap: 8px; 
+    font-weight: 600; 
+    line-height: 1; 
+    -webkit-appearance: none; 
+}
+
+button.primary { 
+    background-color: var(--primary-color); 
+    color: var(--text-on-primary); 
+    border-color: var(--primary-color); 
+}
+
+button.primary:active { 
+    transform: scale(0.98); 
+}
+
+button.secondary { 
+    background-color: transparent; 
+    color: var(--primary-color); 
+    border-color: var(--primary-color); 
+}
+
+button.secondary.small, button.small.btn-edit { 
+    padding: 8px 12px; 
+    font-size: 14px; 
+    font-weight: 500; 
+    border-radius: 8px; 
+    border-color: var(--border-color); 
+    color: var(--text-light-color); 
+}
+
+button.danger { 
+    background-color: var(--danger-color); 
+    color: white; 
+}
+
+button.danger.small { 
+    padding: 6px 12px; 
+    font-size: 14px; 
+    border-radius: 8px; 
+}
+
+button:disabled { 
+    background-color: #D1D5DB; 
+    border-color: #D1D5DB; 
+    color: #6B7280; 
+    cursor: not-allowed; 
+}
+
+.button-spinner { 
+    width: 20px; 
+    height: 20px; 
+    border: 2px solid rgba(255,255,255,0.3); 
+    border-top-color: white; 
+    border-radius: 50%; 
+    animation: spin 1s linear infinite; 
+}
+
+.action-buttons { 
+    display: flex; 
+    gap: 8px; 
+    flex-wrap: wrap; 
+}
+
+.icon-btn { 
+    padding: 8px; 
+    background: transparent; 
+    border: none; 
+    color: var(--text-color); 
+    border-radius: 50%; 
+}
+
+/* ========================================= */
+/* 6. TABLES & REPORTS                       */
+/* ========================================= */
+
+table { 
+    width: 100%; 
+    border-collapse: collapse; 
+    margin-top: 20px; 
+}
+
+th, td { 
+    padding: 16px; 
+    text-align: left; 
+    vertical-align: middle; 
+    border-bottom: 1px solid var(--border-color); 
+    white-space: nowrap; 
+}
+
+th { 
+    font-size: 13px; 
+    font-weight: 600; 
+    color: var(--text-light-color); 
+    background-color: #f8f9fa; 
+    text-transform: uppercase; 
+    letter-spacing: 0.5px; 
+    position: sticky; 
+    top: 0; 
+    z-index: 5; 
+    box-shadow: 0 1px 1px rgba(0,0,0,0.05); 
+}
+
+td { 
+    font-size: 14px; 
+}
+
+tbody tr:hover { 
+    background-color: #f7faff; 
+}
+
+/* IMPORTANT: Report Area Container - Handles Scrolling */
+.report-area {
+    width: 100%;
+    /* Enables horizontal scrolling on small screens */
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch; 
+    /* Ensures it doesn't break parent width */
+    max-width: 100%; 
+    display: block;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: white;
+}
+
+/* Force Table Width to trigger scrolling */
+.report-area table {
+    width: 100%;
+    min-width: 600px; /* Force minimum width so it scrolls */
+    border-collapse: separate; 
+    border-spacing: 0;
+    margin-top: 0;
+}
+
+/* Report Generator Controls */
+.report-generator-controls { 
+    display: flex; 
+    gap: 12px; 
+    align-items: center; 
+    flex-wrap: wrap; 
+}
+
+.report-generator-controls select { 
+    min-width: 150px; 
+} 
+
+.report-generator-controls input { 
+    min-width: 120px; 
+} 
+
+/* ========================================= */
+/* 7. MODALS & NOTIFICATIONS                 */
+/* ========================================= */
+
+.modal-overlay { 
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%; 
+    background-color: rgba(36, 41, 46, 0.6); 
+    display: none; 
+    justify-content: center; 
+    align-items: center; 
+    z-index: 1000; 
+    backdrop-filter: blur(4px); 
+    animation: fadeIn 0.2s ease; 
+}
+
+.modal-overlay.active { 
+    display: flex; 
+}
+
+.modal-content, #form-edit-record.modal-content { 
+    background-color: white; 
+    padding: 0; 
+    border-radius: 16px; 
+    width: 90%; 
+    max-width: 800px; 
+    max-height: 90vh; 
+    display: flex; 
+    flex-direction: column; 
+    box-shadow: var(--shadow-lg); 
+    overflow: hidden; 
+    transform: scale(0.95); 
+    animation: modal-pop-in 0.3s ease-out forwards; 
+}
+
+@keyframes modal-pop-in { 
+    to { transform: scale(1); } 
+}
+
+.modal-header { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    border-bottom: 1px solid var(--border-color); 
+    padding: 20px 24px; 
+    flex-shrink: 0; 
+}
+
+.modal-header h2 { 
+    margin: 0; 
+    border: none; 
+    padding: 0; 
+    font-size: 18px; 
+    font-weight: 600; 
+}
+
+.close-button { 
+    background: transparent; 
+    border: none; 
+    font-size: 28px; 
+    cursor: pointer; 
+    padding: 0; 
+    line-height: 1; 
+    color: var(--text-light-color); 
+    transition: color 0.2s; 
+}
+
+.modal-body { 
+    flex-grow: 1; 
+    overflow-y: auto; 
+    padding: 24px; 
+    -webkit-overflow-scrolling: touch; 
+}
+
+.modal-footer { 
+    display: flex; 
+    justify-content: flex-end; 
+    gap: 12px; 
+    padding: 20px 24px; 
+    border-top: 1px solid var(--border-color); 
+    background-color: #F7F8FC; 
+    flex-shrink: 0; 
+}
+
+#toast-container { 
+    position: fixed; 
+    bottom: 20px; 
+    right: 20px; 
+    z-index: 1001; 
+    display: flex; 
+    flex-direction: column; 
+    gap: 10px; 
+}
+
+.toast { 
+    padding: 16px 24px; 
+    border-radius: var(--border-radius); 
+    color: white; 
+    font-weight: 500; 
+    box-shadow: var(--shadow-lg); 
+    transform: translateX(calc(100% + 20px)); 
+    animation: slideIn 0.5s forwards; 
+}
+
+@keyframes slideIn { 
+    to { transform: translateX(0); } 
+}
+
 .toast.success { background: linear-gradient(45deg, var(--secondary-color), #2dbd9d); }
 .toast.error { background: linear-gradient(45deg, var(--danger-color), #d93a2b); }
 .toast.info { background: linear-gradient(45deg, var(--info-color), #5d6d7e); }
 
-/* --- Modals --- */
-.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(36, 41, 46, 0.6); display: none; justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(4px); animation: fadeIn 0.2s ease; }
-.modal-overlay.active { display: flex; }
-.modal-content, #form-edit-record.modal-content { background-color: white; padding: 0; border-radius: 16px; width: 90%; max-width: 800px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: var(--shadow-lg); overflow: hidden; transform: scale(0.95); animation: modal-pop-in 0.3s ease-out forwards; }
-@keyframes modal-pop-in { to { transform: scale(1); } }
-.modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding: 20px 24px; flex-shrink: 0; }
-.modal-header h2 { margin: 0; border: none; padding: 0; font-size: 18px; font-weight: 600; }
-.close-button { background: transparent; border: none; font-size: 28px; cursor: pointer; padding: 0; line-height: 1; color: var(--text-light-color); transition: color 0.2s; }
-.modal-body { flex-grow: 1; overflow-y: auto; padding: 24px; -webkit-overflow-scrolling: touch; }
-.modal-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 20px 24px; border-top: 1px solid var(--border-color); background-color: #F7F8FC; flex-shrink: 0; }
+/* ========================================= */
+/* 8. STATUS TAGS & WIDGETS                  */
+/* ========================================= */
 
-/* --- Status Tags --- */
-.status-tag { padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+.status-tag { 
+    padding: 4px 12px; 
+    border-radius: 999px; 
+    font-size: 12px; 
+    font-weight: 600; 
+    text-transform: uppercase; 
+    letter-spacing: 0.5px; 
+    white-space: nowrap; 
+}
+
 .status-paid, .status-completed, .status-approved { background-color: #E6F8F3; color: #008761; }
 .status-unpaid, .status-rejected, .status-cancelled { background-color: #FDEDE9; color: var(--danger-color); }
 .status-pending, .status-intransit, .status-pendingapproval { background-color: #eaf2fc; color: var(--primary-dark); }
 
-/* --- Mobile Specific Elements --- */
-.mobile-header-bar { display: none; background-color: var(--sidebar-bg); padding: 10px 15px; align-items: center; border-bottom: 1px solid var(--border-color); position: fixed; top: 0; left: 0; width: 100%; z-index: 150; height: 60px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-.mobile-app-title { margin: 0 0 0 12px; font-size: 18px; font-weight: 700; color: var(--primary-color); flex-grow: 1; }
-.sidebar-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 190; display: none; backdrop-filter: blur(2px); }
-.sidebar-overlay.active { display: block; }
-.branch-badge { background-color: var(--primary-light); color: var(--primary-dark); font-size: 12px; font-weight: 600; padding: 4px 8px; border-radius: 6px; }
+/* Mobile Header Elements */
+.mobile-header-bar { 
+    display: none; 
+    background-color: var(--sidebar-bg); 
+    padding: 10px 15px; 
+    align-items: center; 
+    border-bottom: 1px solid var(--border-color); 
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    z-index: 150; 
+    height: 60px; 
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05); 
+}
 
-/* Toggle */
-.switch { position: relative; display: inline-block; width: 50px; height: 28px; }
+.mobile-app-title { 
+    margin: 0 0 0 12px; 
+    font-size: 18px; 
+    font-weight: 700; 
+    color: var(--primary-color); 
+    flex-grow: 1; 
+}
+
+.sidebar-overlay { 
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%; 
+    background: rgba(0, 0, 0, 0.5); 
+    z-index: 190; 
+    display: none; 
+    backdrop-filter: blur(2px); 
+}
+
+.sidebar-overlay.active { 
+    display: block; 
+}
+
+.branch-badge { 
+    background-color: var(--primary-light); 
+    color: var(--primary-dark); 
+    font-size: 12px; 
+    font-weight: 600; 
+    padding: 4px 8px; 
+    border-radius: 6px; 
+}
+
+/* Toggle Switch */
+.form-group-toggle { 
+    display: flex; 
+    align-items: center; 
+    justify-content: space-between; 
+    max-width: 400px; 
+}
+
+.switch { 
+    position: relative; 
+    display: inline-block; 
+    width: 50px; 
+    height: 28px; 
+}
+
 .switch input { opacity: 0; width: 0; height: 0; }
-.slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }
-.slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+
+.slider { 
+    position: absolute; 
+    cursor: pointer; 
+    top: 0; 
+    left: 0; 
+    right: 0; 
+    bottom: 0; 
+    background-color: #ccc; 
+    transition: .4s; 
+    border-radius: 34px; 
+}
+
+.slider:before { 
+    position: absolute; 
+    content: ""; 
+    height: 20px; 
+    width: 20px; 
+    left: 4px; 
+    bottom: 4px; 
+    background-color: white; 
+    transition: .4s; 
+    border-radius: 50%; 
+}
+
 input:checked + .slider { background-color: var(--primary-color); }
 input:checked + .slider:before { transform: translateX(22px); }
 
 /* ========================================= */
-/* === MOBILE / SMALL SCREEN OPTIMIZATIONS === */
+/* 9. ADVANCED INSTALL PROMPT (PWA)          */
+/* ========================================= */
+
+#pwa-install-sheet {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: white;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+    padding: 25px;
+    z-index: 2000;
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+#pwa-install-sheet.active {
+    transform: translateY(0);
+}
+
+.pwa-icon-large {
+    width: 64px;
+    height: 64px;
+    margin-bottom: 15px;
+    border-radius: 14px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+.pwa-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: var(--text-color); }
+.pwa-desc { font-size: 14px; color: var(--text-light-color); margin-bottom: 20px; max-width: 300px; }
+
+.pwa-btn-group {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+}
+
+.pwa-btn {
+    flex: 1;
+    padding: 12px;
+    border-radius: 12px;
+    border: none;
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+}
+
+.pwa-btn.install { background-color: var(--primary-color); color: white; }
+.pwa-btn.install:active { background-color: var(--primary-dark); }
+.pwa-btn.cancel { background-color: #f1f3f4; color: var(--text-color); }
+
+/* iOS Specific Instructions */
+.ios-install-guide {
+    margin-top: 15px;
+    padding: 15px;
+    background: #F2F2F7;
+    border-radius: 12px;
+    font-size: 13px;
+    color: #333;
+    text-align: left;
+    width: 100%;
+    display: none;
+}
+.ios-install-guide ol { padding-left: 20px; margin: 5px 0; }
+.ios-install-guide li { margin-bottom: 5px; }
+.ios-icon-share { width: 16px; height: 16px; vertical-align: middle; display: inline-block; background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%23007AFF" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>') no-repeat center; background-size: contain; }
+
+/* Desktop Adjustment for PWA Prompt */
+@media (min-width: 769px) {
+    #pwa-install-sheet {
+        bottom: 20px;
+        left: 20px;
+        width: 350px;
+        border-radius: 16px;
+        text-align: left;
+        align-items: flex-start;
+        border-top-left-radius: 16px; /* Reset mobile style */
+        border-top-right-radius: 16px;
+    }
+    .pwa-icon-large { margin-bottom: 0; margin-right: 15px; float: left; }
+    .pwa-desc { text-align: left; }
+}
+
+/* ========================================= */
+/* 10. MOBILE / SMALL SCREEN OPTIMIZATIONS   */
 /* ========================================= */
 
 @media (max-width: 768px) {
@@ -183,7 +954,10 @@ input:checked + .slider:before { transform: translateX(22px); }
         --sidebar-width: 0px; 
     }
 
-    body { font-size: 14px; background-color: #f2f4f8; } /* Slightly darker bg for contrast */
+    body { 
+        font-size: 14px; 
+        background-color: #f2f4f8; 
+    }
 
     /* 1. Sidebar as Drawer */
     .mobile-header-bar { display: flex; }
@@ -209,6 +983,7 @@ input:checked + .slider:before { transform: translateX(22px); }
         padding: 16px;
         padding-top: 76px; /* Header height + spacing */
         width: 100%;
+        overflow-x: hidden; /* Prevent horizontal scrolling of body */
     }
 
     /* 3. Header Cleanup */
@@ -218,8 +993,9 @@ input:checked + .slider:before { transform: translateX(22px); }
         gap: 10px;
         margin-bottom: 16px;
     }
+    
     .main-header h2 { font-size: 24px; margin-bottom: 0; }
-    .user-branch-display { display: none; } /* Moved to mobile header */
+    .user-branch-display { display: none; }
     
     .pending-requests-widget {
         margin-left: 0;
@@ -236,7 +1012,7 @@ input:checked + .slider:before { transform: translateX(22px); }
     }
     
     .grid, .kpi-grid, .form-grid {
-        grid-template-columns: 1fr; /* Stack everything */
+        grid-template-columns: 1fr;
         gap: 16px;
     }
 
@@ -259,22 +1035,14 @@ input:checked + .slider:before { transform: translateX(22px); }
     /* 6. Form Inputs & Buttons (Touch Targets) */
     input, select, textarea, button {
         font-size: 16px; /* Prevents iOS zoom */
-        min-height: 48px; /* Touch target size */
+        min-height: 48px;
     }
     
     .form-group label { font-size: 13px; }
 
-    /* 7. Tables (The big fix) */
-    table { min-width: 600px; } /* Ensure tables have width to scroll */
+    /* 7. Tables Override */
     td, th { padding: 12px 10px; }
     
-    .report-area {
-        margin: 0 -16px; /* Bleed to edges inside card */
-        padding: 0 16px;
-        border: none;
-        box-shadow: inset 5px 0 10px -5px rgba(0,0,0,0.05), inset -5px 0 10px -5px rgba(0,0,0,0.05); /* Scroll hints */
-    }
-
     /* 8. Modals as Bottom Sheets */
     .modal-content, #form-edit-record.modal-content {
         width: 100%;
@@ -307,7 +1075,9 @@ input:checked + .slider:before { transform: translateX(22px); }
         -ms-overflow-style: none;
         scrollbar-width: none;
     }
+    
     .sub-nav::-webkit-scrollbar { display: none; }
+    
     .sub-nav-item {
         padding: 10px 16px;
         font-size: 14px;
@@ -331,862 +1101,15 @@ input:checked + .slider:before { transform: translateX(22px); }
     html[dir="rtl"] .mobile-app-title { margin: 0 15px 0 0; }
 }
 
-/* Print Styles */
-@media print { body { background-color: #fff !important; } .app-container, .no-print, .mobile-header-bar { display: none !important; } #print-area { display: block !important; } .printable-document { display: block !important; box-shadow: none; border: none; padding:0; } #print-area table { width: 100%; border-collapse: collapse; } #print-area th, #print-area td { border: 1px solid #000; padding: 4px; font-size: 12px; } }
---- START OF FILE main.js ---
+/* ========================================= */
+/* 11. PRINT STYLES                          */
+/* ========================================= */
 
-import { SCRIPT_URL } from './config.js';
-import { state, setState, resetStateLists } from './state.js';
-import { Logger, showToast, applyTranslations, populateOptions, findByKey, postData, formatCurrency, _t, userCan, exportTableToExcel } from './utils.js';
-import { calculateStockLevels } from './calculations.js';
-import * as Renderers from './renderers.js';
-import * as Transactions from './transactions.js';
-import * as Documents from './documents.js';
-
-// --- PWA INSTALLATION PROMPT ---
-let deferredPrompt;
-window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-    const installBtn = document.getElementById('install-app-container');
-    if(installBtn) installBtn.style.display = 'block';
-});
-
-document.addEventListener('DOMContentLoaded', () => {
-    Logger.info('Initializing Meat Stock Manager...');
-
-    // --- PWA INSTALL HANDLER ---
-    const installBtn = document.getElementById('btn-install-app');
-    if(installBtn) {
-        installBtn.addEventListener('click', async () => {
-            if (deferredPrompt) {
-                deferredPrompt.prompt();
-                const { outcome } = await deferredPrompt.userChoice;
-                if (outcome === 'accepted') {
-                    document.getElementById('install-app-container').style.display = 'none';
-                }
-                deferredPrompt = null;
-            }
-        });
-    }
-
-    // --- MOBILE MENU HANDLER ---
-    const btnToggleSidebar = document.getElementById('btn-toggle-sidebar');
-    const sidebar = document.getElementById('app-sidebar');
-    const overlay = document.getElementById('sidebar-overlay');
-
-    if (btnToggleSidebar && sidebar && overlay) {
-        // Toggle Sidebar
-        btnToggleSidebar.addEventListener('click', () => {
-            sidebar.classList.toggle('open');
-            overlay.classList.toggle('active');
-        });
-
-        // Close Sidebar when clicking overlay
-        overlay.addEventListener('click', () => {
-            sidebar.classList.remove('open');
-            overlay.classList.remove('active');
-        });
-
-        // Close Sidebar when a nav link is clicked (UX improvement for mobile)
-        document.querySelectorAll('.nav-item a').forEach(link => {
-            link.addEventListener('click', () => {
-                sidebar.classList.remove('open');
-                overlay.classList.remove('active');
-            });
-        });
-    }
-
-
-    // --- LOGIN HANDLER ---
-    const loginForm = document.getElementById('login-form');
-    if (loginForm) {
-        loginForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const username = document.getElementById('login-username').value.trim();
-            const code = document.getElementById('login-code').value;
-            const loader = document.getElementById('login-loader');
-            const errorEl = document.getElementById('login-error');
-            
-            loginForm.style.display = 'none';
-            loader.style.display = 'flex';
-            errorEl.textContent = '';
-            
-            try {
-                const response = await fetch(`${SCRIPT_URL}?username=${encodeURIComponent(username)}&loginCode=${encodeURIComponent(code)}`);
-                const data = await response.json();
-                
-                if (data.status !== 'error' && data.user) {
-                    if (String(data.user.isDisabled).toUpperCase() === 'TRUE') throw new Error('Account disabled.');
-                    
-                    sessionStorage.setItem('meatUser', username);
-                    sessionStorage.setItem('meatPass', code);
-
-                    setState('currentUser', data.user);
-                    setState('username', username);
-                    setState('loginCode', code);
-                    
-                    Object.keys(data).forEach(key => { if (key !== 'user') setState(key, data[key]); });
-                    
-                    document.getElementById('login-container').style.display = 'none';
-                    document.getElementById('app-container').style.display = 'flex'; 
-                    
-                    initializeAppUI();
-                } else {
-                    throw new Error(data.message || 'Invalid credentials');
-                }
-            } catch (error) {
-                errorEl.textContent = error.message;
-                loginForm.style.display = 'block';
-            } finally {
-                loader.style.display = 'none';
-            }
-        });
-    }
-
-    // --- LANGUAGE SWITCHER HANDLER ---
-    const langSwitcher = document.getElementById('lang-switcher');
-    if (langSwitcher) {
-        langSwitcher.value = state.currentLanguage || 'en';
-        langSwitcher.addEventListener('change', (e) => {
-            const newLang = e.target.value;
-            setState('currentLanguage', newLang);
-            applyTranslations();
-            initializeAppUI();
-        });
-    }
-
-    // --- GLOBAL CLICK LISTENER ---
-    document.body.addEventListener('click', async (e) => {
-        const btn = e.target.closest('button');
-        if (!btn) return;
-
-        // 1. ADD NEW BUTTONS (MASTER DATA)
-        if (['btn-add-item', 'btn-add-supplier', 'btn-add-branch', 'btn-add-section', 'btn-add-new-user', 'btn-add-new-role'].includes(btn.id)) {
-            const map = {
-                'btn-add-item': 'item',
-                'btn-add-supplier': 'supplier',
-                'btn-add-branch': 'branch',
-                'btn-add-section': 'section',
-                'btn-add-new-user': 'user',
-                'btn-add-new-role': 'role'
-            };
-            Renderers.renderEditModalContent(map[btn.id], null);
-            document.getElementById('edit-modal').classList.add('active');
-            return;
-        }
-
-        // 2. EXPORT BUTTONS
-        if (btn.id === 'btn-export-items') { exportTableToExcel('table-items', 'Items_List.xlsx'); return; }
-        if (btn.id === 'btn-export-suppliers') { exportTableToExcel('table-suppliers', 'Suppliers_List.xlsx'); return; }
-        if (btn.id === 'btn-export-branches') { exportTableToExcel('table-branches', 'Branches_List.xlsx'); return; }
-        if (btn.id === 'btn-export-stock') { exportTableToExcel('table-stock-levels', 'Stock_Report.xlsx'); return; }
-        if (btn.id === 'btn-export-history') { exportTableToExcel('table-transaction-history', 'Transaction_Log.xlsx'); return; }
-        
-        if (btn.id === 'btn-export-statement') {
-            const supName = document.querySelector('#supplier-statement-results h3')?.innerText || 'Statement';
-            exportTableToExcel('table-supplier-statement', `${supName}.xlsx`);
-            return;
-        }
-        
-        if (btn.id === 'btn-export-yield') {
-            const tbl = document.querySelector('#yield-report-results table');
-            if(tbl) {
-                if(!tbl.id) tbl.id = 'temp-yield-export';
-                exportTableToExcel(tbl.id, 'Yield_Report.xlsx');
-            } else {
-                showToast("Generate a report first.", "error");
-            }
-            return;
-        }
-
-        // 3. MODAL CONTROLS
-        if (btn.classList.contains('close-button') || btn.classList.contains('modal-cancel')) {
-             document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
-             return;
-        }
-
-        // 4. EDIT BUTTONS (Generic)
-        if (btn.classList.contains('btn-edit')) {
-             Renderers.renderEditModalContent(btn.dataset.type, btn.dataset.id);
-             document.getElementById('edit-modal').classList.add('active');
-             return;
-        }
-        
-        // 5. EDIT INVOICE BUTTON
-        if (btn.classList.contains('btn-edit-invoice')) {
-            Renderers.renderEditModalContent('invoice_header', btn.dataset.batchId);
-            document.getElementById('edit-modal').classList.add('active');
-            return;
-        }
-        
-        // 6. HISTORY BUTTON
-        if (btn.classList.contains('btn-history')) {
-            Renderers.renderHistoryModal(btn.dataset.id);
-            document.getElementById('history-modal').classList.add('active');
-            return;
-        }
-
-        // 7. AUTO-GEN BUTTONS
-        if (btn.id === 'btn-modal-gen-code') {
-             document.getElementById('edit-item-code').value = `ITM-${Math.floor(Math.random() * 99999)}`;
-             return;
-        }
-        if (btn.id === 'btn-modal-gen-supplier') {
-             document.getElementById('edit-supplier-code').value = `SUP-${Math.floor(Math.random() * 99999)}`;
-             return;
-        }
-
-        // 8. TOGGLE STATUS
-        if (btn.classList.contains('btn-toggle-status')) {
-            const type = btn.dataset.type;
-            const id = btn.dataset.id;
-            const isCurrentlyDisabled = btn.dataset.current === 'true'; 
-            
-            let action = 'updateData';
-            let updates = {};
-            
-            if (type === 'user') {
-                action = 'updateUser';
-                updates = { isDisabled: !isCurrentlyDisabled }; 
-            } else {
-                updates = { isActive: isCurrentlyDisabled }; 
-            }
-
-            const payload = type === 'user' ? { Username: id, updates } : { type, id, updates };
-
-            if(confirm(`Change status for ${type} ${id}?`)) {
-                const res = await postData(action, payload, btn);
-                if(res) {
-                    showToast('Status updated', 'success');
-                    await reloadData();
-                    if (type === 'user') refreshViewData('user-management');
-                    else refreshViewData('master-data');
-                }
-            }
-            return;
-        }
-
-        // 9. PERMISSIONS & DELETE ROLE
-        if (btn.classList.contains('btn-edit-role-perms')) {
-            const roleName = btn.dataset.role;
-            Renderers.renderEditModalContent('role-permissions', roleName);
-            document.getElementById('edit-modal').classList.add('active');
-            return;
-        }
-        if (btn.classList.contains('btn-delete-role')) {
-            if(confirm('Are you sure you want to delete this role?')) {
-                const roleName = btn.dataset.role;
-                const res = await postData('deleteRole', { roleName: roleName }, btn);
-                if(res) {
-                     showToast('Role deleted');
-                     await reloadData(); 
-                     refreshViewData('user-management');
-                }
-            }
-            return;
-        }
-
-        // --- FINANCIALS: PRINT VOUCHER FROM HISTORY ---
-        if (btn.classList.contains('btn-print-voucher')) {
-            const paymentId = btn.dataset.id;
-            const paymentLines = state.payments.filter(p => p.paymentId === paymentId);
-            
-            if (paymentLines.length > 0) {
-                const first = paymentLines[0];
-                const voucherData = {
-                    supplierCode: first.supplierCode,
-                    date: first.date,
-                    method: first.method,
-                    totalAmount: paymentLines.reduce((sum, l) => sum + (parseFloat(l.amount) || 0), 0),
-                    payments: paymentLines 
-                };
-                Documents.generatePaymentVoucher(voucherData);
-            } else {
-                showToast('Payment details not found.', 'error');
-            }
-            return;
-        }
-
-        // --- FINANCIALS: PAY SUPPLIER SHORTCUT ---
-        if (btn.classList.contains('btn-pay-supplier')) {
-            const supplierCode = btn.dataset.supplier;
-            showView('financials');
-            const recordTab = document.querySelector('button[data-subview="record-payment"]');
-            if(recordTab) recordTab.click();
-            
-            setTimeout(() => {
-                const select = document.getElementById('payment-supplier-select');
-                if(select) {
-                    select.value = supplierCode;
-                    Renderers.renderInvoicesInModal();
-                    document.getElementById('invoice-selector-modal').classList.add('active');
-                }
-            }, 300);
-            return;
-        }
-
-        // --- REPORT GENERATOR (YIELD) ---
-        if (btn.id === 'btn-generate-yield-report') {
-            const type = document.getElementById('yield-report-type').value;
-            const search = document.getElementById('yield-report-search').value;
-            Renderers.renderYieldAnalysisReport(type, search);
-            return;
-        }
-        
-        // --- REPORT GENERATOR (STATEMENT) ---
-        if (btn.id === 'btn-generate-supplier-statement') {
-             Renderers.renderSupplierStatement(
-                 document.getElementById('supplier-statement-select').value, 
-                 document.getElementById('statement-start-date').value, 
-                 document.getElementById('statement-end-date').value
-             ); 
-             return;
-        }
-
-        // --- TRANSFER ACTIONS ---
-        if (btn.classList.contains('btn-receive-transfer')) {
-             Transactions.openTransferModal(btn.dataset.batchId);
-             return;
-        }
-        if (btn.id === 'btn-confirm-receive-transfer') {
-             await Transactions.processTransferAction('receiveTransfer', btn.dataset.batchId, btn);
-             await reloadData();
-             return;
-        }
-        if (btn.id === 'btn-reject-transfer') {
-             await Transactions.processTransferAction('rejectTransfer', btn.dataset.batchId, btn);
-             await reloadData();
-             return;
-        }
-        if (btn.classList.contains('btn-cancel-transfer')) {
-             await Transactions.handleCancelTransfer(btn.dataset.batchId, btn);
-             await reloadData();
-             return;
-        }
-
-        // --- NOTIFICATION CLICK LOGIC ---
-        if (e.target.id === 'pending-requests-widget' || e.target.closest('#pending-requests-widget')) {
-             showView('operations');
-             setTimeout(() => {
-                 const tab = document.querySelector('button[data-subview="in-transit"]');
-                 if(tab) tab.click();
-             }, 100);
-             return; 
-        }
-        
-        // --- SELECT ITEMS ---
-        if (btn.classList.contains('btn-select-items')) {
-             state.currentSelectionModal.type = 'item-selector';
-             const m = document.getElementById('item-selector-modal');
-             m.dataset.context = btn.dataset.context;
-             m.dataset.allowedItems = "";
-             
-             if (btn.dataset.context === 'butchery-child') {
-                 const pc = document.getElementById('butchery-parent-code').value;
-                 if (!pc) { showToast('Select Parent First', 'error'); return; }
-                 const p = findByKey(state.items, 'code', pc);
-                 if(p && p.DefinedCuts) m.dataset.allowedItems = JSON.stringify(p.DefinedCuts.split(','));
-             }
-             state.modalSelections.clear();
-             Renderers.renderItemsInModal();
-             m.classList.add('active');
-             return;
-        }
-
-        // --- CONFIRM ITEM SELECTION ---
-        if (btn.id === 'btn-confirm-modal-selection') {
-            const m = document.getElementById('item-selector-modal');
-            const ctx = m.dataset.context;
-            const sel = Array.from(state.modalSelections);
-            
-            if (ctx === 'butchery-parent') {
-                const i = findByKey(state.items, 'code', sel[0]);
-                if(i) { 
-                    document.getElementById('butchery-parent-display').value = i.name; 
-                    document.getElementById('butchery-parent-code').value = i.code; 
-                }
-            } else {
-                const map = { 
-                    'receive': 'currentReceiveList', 
-                    'butchery-child': 'currentButcheryList', 
-                    'transfer': 'currentTransferList', 
-                    'po': 'currentPOList', 
-                    'return': 'currentReturnList', 
-                    'adjustment': 'currentAdjustmentList'
-                };
-                const listName = map[ctx];
-                
-                if(listName) {
-                    sel.forEach(c => {
-                        const i = findByKey(state.items, 'code', c);
-                        if(i && !state[listName].find(x => x.itemCode === c)) {
-                            state[listName].push({ 
-                                itemCode: i.code, 
-                                itemName: i.name, 
-                                quantity: '', 
-                                cost: parseFloat(i.cost) || 0 
-                            });
-                        }
-                    });
-                    if(ctx === 'receive') Renderers.renderReceiveListTable();
-                    if(ctx === 'butchery-child') Renderers.renderButcheryListTable();
-                    if(ctx === 'transfer') Renderers.renderTransferListTable();
-                    if(ctx === 'return') Renderers.renderReturnListTable();
-                    if(ctx === 'adjustment') Renderers.renderAdjustmentListTable();
-                    if(ctx === 'po') Renderers.renderPOListTable();
-                }
-            }
-            m.classList.remove('active');
-            state.modalSelections.clear();
-            return;
-        }
-
-        // ... Helpers ...
-        if (btn.id === 'btn-select-invoices') { Renderers.renderInvoicesInModal(); document.getElementById('invoice-selector-modal').classList.add('active'); return; }
-        if (btn.id === 'btn-confirm-invoice-selection') { document.getElementById('invoice-selector-modal').classList.remove('active'); Renderers.renderPaymentList(); return; }
-        
-        if (btn.id === 'btn-gen-item-code') { document.getElementById('item-code').value = `ITM-${Math.floor(Math.random()*9999)}`; return; }
-        if (btn.id === 'btn-gen-invoice') { document.getElementById('receive-invoice').value = `INV-${Date.now().toString().slice(-6)}`; return; }
-
-        // Remove Row Logic
-        if (btn.classList.contains('danger') && btn.dataset.index !== undefined && btn.textContent === 'X') {
-            const row = btn.closest('tr');
-            const tableId = row.closest('table').id;
-            const idx = parseInt(btn.dataset.index);
-            
-            const tableMap = {
-                'table-receive-list': { list: 'currentReceiveList', render: Renderers.renderReceiveListTable },
-                'table-butchery-children': { list: 'currentButcheryList', render: Renderers.renderButcheryListTable },
-                'table-transfer-list': { list: 'currentTransferList', render: Renderers.renderTransferListTable },
-                'table-po-list': { list: 'currentPOList', render: Renderers.renderPOListTable },
-                'table-return-list': { list: 'currentReturnList', render: Renderers.renderReturnListTable },
-                'table-adjustment-list': { list: 'currentAdjustmentList', render: Renderers.renderAdjustmentListTable }
-            };
-            
-            const config = tableMap[tableId];
-            if (config) {
-                state[config.list].splice(idx, 1);
-                config.render();
-            }
-            return;
-        }
-
-        // View/Print Transaction Documents
-        if (btn.classList.contains('btn-view-tx')) {
-            const batchId = btn.dataset.batchId;
-            const type = btn.dataset.type;
-            
-            if (type === 'po') {
-                const data = findByKey(state.purchaseOrders, 'poId', batchId);
-                const items = state.purchaseOrderItems.filter(i => i.poId === batchId);
-                if (data) Documents.generatePODocument({ ...data, items });
-            } else {
-                const group = state.transactions.filter(t => t.batchId === batchId);
-                if (group.length > 0) {
-                    const first = group[0];
-                    const data = { ...first, items: group.map(t => ({...t, itemName: findByKey(state.items, 'code', t.itemCode)?.name })) };
-                    
-                    if (type === 'receive') Documents.generateReceiveDocument(data);
-                    else if (type.includes('transfer')) Documents.generateTransferDocument(data);
-                    else if (type === 'return_out') Documents.generateReturnDocument(data);
-                }
-            }
-            return;
-        }
-
-        // Approve/Reject Financials
-        if (btn.classList.contains('btn-approve-financial') || btn.classList.contains('btn-reject-financial')) {
-            const id = btn.dataset.id;
-            const type = btn.dataset.type;
-            const action = btn.classList.contains('btn-approve-financial') ? 'approveFinancial' : 'rejectFinancial';
-            
-            if (confirm(`Confirm ${action}?`)) {
-                const res = await postData(action, { id, type }, btn);
-                if(res) {
-                    showToast('Updated', 'success');
-                    await reloadData();
-                    if (type === 'receive') {
-                        refreshViewData('operations');
-                    } else {
-                        refreshViewData('purchasing');
-                    }
-                }
-            }
-            return;
-        }
-        
-        // Admin Context
-        if (btn.id === 'btn-confirm-context') {
-            const modal = document.getElementById('context-selector-modal');
-            const ctx = {
-                fromBranch: modal.querySelector('#context-modal-fromBranch-group').style.display === 'block' ? modal.querySelector('#context-from-branch-select').value : null,
-                toBranch: modal.querySelector('#context-modal-toBranch-group').style.display === 'block' ? modal.querySelector('#context-to-branch-select').value : null,
-                branch: modal.querySelector('#context-modal-branch-group').style.display === 'block' ? modal.querySelector('#context-branch-select').value : null,
-            };
-            if (state.adminContextPromise.resolve) state.adminContextPromise.resolve(ctx);
-            modal.classList.remove('active');
-            return;
-        }
-    });
-
-    // --- 3. GLOBAL CHANGE LISTENER (Dynamic Form Handling) ---
-    document.body.addEventListener('change', (e) => {
-        // Dynamic Item Type Handler (Show/Hide Parent Select)
-        if (e.target.id === 'edit-item-type-select') {
-            const parentGroup = document.getElementById('group-edit-item-parent');
-            if (parentGroup) {
-                parentGroup.style.display = e.target.value === 'Cut' ? 'block' : 'none';
-            }
-            return;
-        }
-
-        // Table Input Handlers
-        if (e.target.classList.contains('table-input')) {
-            const input = e.target;
-            const row = input.closest('tr');
-            const tableId = row.closest('table').id;
-            const index = parseInt(input.dataset.index);
-            const field = input.dataset.field;
-            const val = parseFloat(input.value);
-
-            const tableMap = {
-                'table-receive-list': { list: 'currentReceiveList', render: Renderers.renderReceiveListTable },
-                'table-butchery-children': { list: 'currentButcheryList', render: Renderers.renderButcheryListTable },
-                'table-transfer-list': { list: 'currentTransferList', render: Renderers.renderTransferListTable },
-                'table-po-list': { list: 'currentPOList', render: Renderers.renderPOListTable },
-                'table-return-list': { list: 'currentReturnList', render: Renderers.renderReturnListTable },
-                'table-adjustment-list': { list: 'currentAdjustmentList', render: Renderers.renderAdjustmentListTable }
-            };
-
-            const config = tableMap[tableId];
-            if (config && state[config.list][index]) {
-                state[config.list][index][field] = isNaN(val) ? 0 : val;
-                config.render();
-            }
-        }
-        
-        if(e.target.id === 'butchery-parent-qty') Renderers.renderButcheryListTable();
-        
-        if (e.target.closest('#modal-invoice-list') && e.target.type === 'checkbox') {
-             const num = e.target.dataset.number;
-             e.target.checked ? state.invoiceModalSelections.add(num) : state.invoiceModalSelections.delete(num);
-        }
-        
-        if (e.target.closest('#modal-item-list') && e.target.type === 'checkbox') {
-             const code = e.target.dataset.code;
-             e.target.checked ? state.modalSelections.add(code) : state.modalSelections.delete(code);
-        }
-    });
-
-    // --- 4. EDIT/ADD FORM SUBMIT ---
-    const editForm = document.getElementById('form-edit-record');
-    if (editForm) {
-        editForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const form = e.target;
-            const formData = new FormData(form);
-            let type = form.dataset.type; 
-
-            let action = 'updateData';
-            let payload = {};
-            const updates = {};
-
-            // 1. Role Permission Update
-            if (type === 'role-permissions') {
-                action = 'updateRolePermissions';
-                const roleName = formData.get('RoleName');
-                form.querySelectorAll('input[type="checkbox"]').forEach(input => {
-                    updates[input.name] = input.checked;
-                });
-                payload = { RoleName: roleName, updates: updates };
-            }
-            // 2. Invoice Header Update
-            else if (type === 'invoice_header') {
-                action = 'updateTransactionHeader';
-                payload = {
-                    batchId: form.dataset.id,
-                    invoiceNumber: formData.get('invoiceNumber'),
-                    supplierCode: formData.get('supplierCode'),
-                    notes: formData.get('notes')
-                };
-            }
-            // 3. Standard Updates
-            else {
-                if (type === 'item') {
-                    const selectedCuts = [];
-                    form.querySelectorAll('input[name="DefinedCuts"]:checked').forEach(cb => selectedCuts.push(cb.value));
-                    
-                    if (formData.get('ItemType') === 'Main') {
-                        updates['DefinedCuts'] = selectedCuts.join(',');
-                    }
-                }
-                
-                for (let [key, value] of formData.entries()) { if (key !== 'DefinedCuts' && value !== "") updates[key] = value; }
-                
-                if (type === 'user') {
-                    updates['isDisabled'] = form.querySelector('[name="isDisabled"]').checked;
-                }
-
-                payload = { type, id: form.dataset.id, updates };
-
-                const isNew = !form.dataset.id;
-                
-                if (type === 'user') {
-                    const username = formData.get('Username');
-                    action = isNew ? 'addUser' : 'updateUser';
-                    payload = isNew ? updates : { Username: username, updates };
-                } else if (type === 'role') {
-                    action = 'addRole';
-                    payload = updates;
-                } else if (isNew) {
-                    if (type === 'item') action = 'addItem';
-                    if (type === 'supplier') action = 'addSupplier';
-                    if (type === 'branch') action = 'addBranch';
-                    if (type === 'section') action = 'addSection';
-                    payload = updates;
-                }
-            }
-
-            const res = await postData(action, payload, form.querySelector('button[type="submit"]'));
-            if(res) {
-                showToast('Action successful');
-                document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
-                await reloadData();
-                if (type === 'user' || type === 'role' || type === 'role-permissions') {
-                    refreshViewData('user-management');
-                } else if (type === 'invoice_header') {
-                    refreshViewData('transaction-history');
-                } else {
-                    refreshViewData('master-data');
-                }
-            }
-        });
-    }
-    
-    // Payment Form
-    const pf = document.getElementById('form-record-payment');
-    if(pf) pf.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const btn = pf.querySelector('button[type="submit"]');
-        const s = document.getElementById('payment-supplier-select').value;
-        const m = document.getElementById('payment-method').value;
-        const pay = [];
-        document.querySelectorAll('.payment-amount-input').forEach(i => {
-             const v = parseFloat(i.value);
-             if(v>0) pay.push({ paymentId: `PAY-${Date.now()}`, date: new Date().toISOString(), supplierCode: s, invoiceNumber: i.dataset.invoice, amount: v, method: m });
-        });
-        if(pay.length === 0) return;
-        const payload = { supplierCode: s, method: m, date: new Date().toISOString(), totalAmount: pay.reduce((a,b)=>a+b.amount,0), payments: pay };
-        if(await postData('addPaymentBatch', payload, btn)) {
-            showToast('Payment recorded!', 'success');
-            state.invoiceModalSelections.clear();
-            pf.reset();
-            
-            if(confirm("Print Payment Voucher?")) {
-                Documents.generatePaymentVoucher(payload);
-            }
-            
-            await reloadData();
-            refreshViewData('financials');
-        }
-    });
-
-    // --- TRANSACTION HANDLERS WRAPPER (Auto-Refresh) ---
-    const bindBtn = (id, handler) => { 
-        const btn = document.getElementById(id); 
-        if(btn) {
-            btn.addEventListener('click', async (e) => {
-                await handler(e); 
-                await reloadData();
-            });
-        }
-    };
-
-    bindBtn('btn-submit-receive-batch', Transactions.handleReceiveSubmit);
-    bindBtn('btn-submit-butchery', Transactions.handleButcherySubmit);
-    bindBtn('btn-submit-transfer-batch', Transactions.handleTransferSubmit);
-    bindBtn('btn-submit-po', Transactions.handlePOSubmit);
-    bindBtn('btn-submit-return', Transactions.handleReturnSubmit);
-    bindBtn('btn-submit-adjustment', Transactions.handleAdjustmentSubmit);
-
-    document.getElementById('global-refresh-button').addEventListener('click', async () => { await reloadData(); });
-
-    // --- NAVIGATION HANDLER ---
-    document.querySelectorAll('#main-nav a').forEach(link => {
-        link.addEventListener('click', (e) => {
-            e.preventDefault();
-            if(link.id === 'btn-logout') { sessionStorage.clear(); location.reload(); }
-            if(link.id === 'btn-install-app') return; // Handled separately
-            showView(link.dataset.view);
-        });
-    });
-    
-    document.querySelectorAll('.sub-nav-item').forEach(item => {
-        item.addEventListener('click', (e) => {
-            e.preventDefault();
-            const view = e.target.closest('.view');
-            view.querySelectorAll('.sub-nav-item, .sub-view').forEach(x => x.classList.remove('active'));
-            e.target.classList.add('active');
-            const subId = e.target.dataset.subview;
-            const subEl = document.getElementById(`subview-${subId}`);
-            if(subEl) subEl.classList.add('active');
-            refreshViewData(view.id.replace('view-', ''));
-        });
-    });
-});
-
-function applyUIPermissions() {
-    const user = state.currentUser;
-    if (!user || !user.permissions) return;
-
-    document.querySelectorAll('[data-permission]').forEach(el => {
-        const requiredPerms = el.dataset.permission.split(',');
-        const hasAccess = requiredPerms.some(perm => userCan(perm.trim()));
-        
-        if (!hasAccess) {
-            el.style.display = 'none';
-        } else {
-            el.style.display = el.tagName === 'LI' ? 'block' : ''; 
-        }
-    });
-
-    if (!userCan('createItem')) document.getElementById('card-add-item').style.display = 'none';
-    if (!userCan('createSupplier')) document.getElementById('card-add-supplier').style.display = 'none';
-    if (!userCan('createBranch')) document.getElementById('card-add-branch').style.display = 'none';
-    if (!userCan('createSection')) document.getElementById('card-add-section').style.display = 'none';
-}
-
-function initializeAppUI() {
-    applyTranslations();
-    applyUIPermissions();
-    
-    const u = state.currentUser;
-    document.querySelector('.sidebar-header h1').textContent = `Hi, ${u.Name.split(' ')[0]}`;
-    
-    const mobileBranchDisplay = document.getElementById('mobile-branch-display');
-    if (mobileBranchDisplay) {
-        const bName = u.AssignedBranchCode 
-            ? (findByKey(state.branches, 'branchCode', u.AssignedBranchCode)?.branchName || u.AssignedBranchCode)
-            : 'HQ';
-        mobileBranchDisplay.textContent = bName;
-    }
-
-    populateOptions(document.getElementById('receive-branch'), state.branches, 'Branch', 'branchCode', 'branchName');
-    populateOptions(document.getElementById('receive-supplier'), state.suppliers, 'Supplier', 'supplierCode', 'name');
-    populateOptions(document.getElementById('butchery-branch'), state.branches, 'Branch', 'branchCode', 'branchName');
-    populateOptions(document.getElementById('item-supplier'), state.suppliers, 'Supplier', 'supplierCode', 'name');
-    Renderers.updateNotifications();
-    showView('dashboard');
-}
-
-function showView(id) {
-    const navItem = document.querySelector(`.nav-item a[data-view="${id}"]`)?.parentElement;
-    if (navItem && navItem.hasAttribute('data-permission')) {
-        const perms = navItem.dataset.permission.split(',');
-        const hasAccess = perms.some(p => userCan(p.trim()));
-        if (!hasAccess) {
-            showToast('Access Denied', 'error');
-            return;
-        }
-    }
-
-    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-    document.querySelectorAll('.nav-item a').forEach(l => l.classList.remove('active'));
-    const v = document.getElementById(`view-${id}`);
-    if(v) v.classList.add('active');
-    const l = document.querySelector(`a[data-view="${id}"]`);
-    if(l) l.classList.add('active');
-    refreshViewData(id);
-}
-
-function refreshViewData(id) {
-    Renderers.updateNotifications();
-    if(id === 'dashboard') {
-        const stock = calculateStockLevels();
-        let val = 0;
-        Object.values(stock).forEach(b => Object.values(b).forEach(i => val += (i.quantity*i.avgCost)));
-        document.getElementById('dashboard-total-value').textContent = formatCurrency(val);
-        document.getElementById('dashboard-total-items').textContent = state.items.length;
-        document.getElementById('dashboard-total-suppliers').textContent = state.suppliers.length;
-        document.getElementById('dashboard-total-branches').textContent = state.branches.length;
-    }
-    if(id === 'stock-levels') Renderers.renderItemCentricStockView();
-    if(id === 'transaction-history') {
-        populateOptions(document.getElementById('tx-filter-branch'), state.branches, 'All Branches', 'branchCode', 'branchName');
-        Renderers.renderTransactionHistory();
-    }
-    if(id === 'financials') { 
-        populateOptions(document.getElementById('payment-supplier-select'), state.suppliers, 'Select Supplier', 'supplierCode', 'name');
-        populateOptions(document.getElementById('supplier-statement-select'), state.suppliers, 'Select Supplier', 'supplierCode', 'name');
-        const listContainer = document.getElementById('payment-invoice-list-container');
-        if(listContainer) listContainer.style.display = 'none';
-    }
-    if(id === 'master-data') {
-        Renderers.renderItemsTable();
-        Renderers.renderSuppliersTable();
-        Renderers.renderBranchesTable();
-    }
-    if(id === 'butchery') {
-        populateOptions(document.getElementById('butchery-branch'), state.branches, _t('branch'), 'branchCode', 'branchName');
-        Renderers.renderButcheryListTable();
-    }
-    if(id === 'operations') {
-        ['receive', 'transfer-from', 'transfer-to', 'return', 'adjustment'].forEach(prefix => {
-            const el = document.getElementById(`${prefix}-branch`);
-            if(el && el.options.length <= 1) populateOptions(el, state.branches, 'Branch', 'branchCode', 'branchName');
-        });
-        
-        const user = state.currentUser;
-        if (user && user.AssignedBranchCode) {
-            const rxBranch = document.getElementById('receive-branch');
-            if(rxBranch) { rxBranch.value = user.AssignedBranchCode; rxBranch.disabled = true; }
-            
-            const txFrom = document.getElementById('transfer-from-branch');
-            if(txFrom) { txFrom.value = user.AssignedBranchCode; txFrom.disabled = true; }
-            
-            const retBranch = document.getElementById('return-branch');
-            if(retBranch) { retBranch.value = user.AssignedBranchCode; retBranch.disabled = true; }
-        }
-        
-        populateOptions(document.getElementById('receive-supplier'), state.suppliers, _t('supplier'), 'supplierCode', 'name');
-        populateOptions(document.getElementById('return-supplier'), state.suppliers, _t('supplier'), 'supplierCode', 'name');
-        
-        Renderers.renderReceiveListTable();
-        Renderers.renderTransferListTable();
-        Renderers.renderReturnListTable();
-        Renderers.renderAdjustmentListTable();
-        Renderers.renderPendingTransfers();
-        Renderers.renderInTransitReport();
-        Renderers.renderPendingInvoices();
-    }
-    if(id === 'purchasing') {
-        populateOptions(document.getElementById('po-supplier'), state.suppliers, 'Supplier', 'supplierCode', 'name');
-        Renderers.renderPOListTable();
-        Renderers.renderPurchaseOrdersViewer();
-        Renderers.renderPendingPOs();
-    }
-    if(id === 'user-management') {
-         postData('getAllUsersAndRoles', {}, null).then(res => {
-            if(res) {
-                state.allUsers = res.data.users;
-                state.allRoles = res.data.roles;
-                Renderers.renderUserManagementUI();
-            }
-        });
-    }
-    if(id === 'activity-log') Renderers.renderActivityLog();
-}
-
-async function reloadData() {
-    try {
-        const res = await fetch(`${SCRIPT_URL}?username=${encodeURIComponent(state.username)}&loginCode=${encodeURIComponent(state.loginCode)}`);
-        const data = await res.json();
-        if(data.status !== 'error') {
-            Object.keys(data).forEach(key => { if(key!=='user') setState(key, data[key]); });
-            showToast(_t('data_refreshed_toast'));
-            const active = document.querySelector('.view.active').id.replace('view-', '');
-            refreshViewData(active);
-        }
-    } catch(e) { Logger.error(e); }
+@media print { 
+    body { background-color: #fff !important; } 
+    .app-container, .no-print, .mobile-header-bar, #pwa-install-sheet { display: none !important; } 
+    #print-area { display: block !important; } 
+    .printable-document { display: block !important; box-shadow: none; border: none; padding:0; } 
+    #print-area table { width: 100%; border-collapse: collapse; } 
+    #print-area th, #print-area td { border: 1px solid #000; padding: 4px; font-size: 12px; } 
 }
