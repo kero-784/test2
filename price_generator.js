@@ -1,4 +1,4 @@
---- START OF FILE price_generator.js ---
+
 
 import { state } from './state.js';
 import { postData, showToast, formatCurrency, _t } from './utils.js';
