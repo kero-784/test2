@@ -1,6 +1,4 @@
-// --- UPDATED sw.js ---
-
-const CACHE_NAME = 'meat-stock-v2'; // Increment version
+const CACHE_NAME = 'meat-stock-v3'; // Version incremented for new extension
 const ASSETS = [
   './',
   './index.html',
@@ -15,18 +13,19 @@ const ASSETS = [
   './documents.js',
   './sales_extension.js',
   './price_generator.js',
+  './butchery_extension.js', // NEW FILE ADDED
   'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'
 ];
 
 self.addEventListener('install', (e) => {
-  self.skipWaiting(); // Force activation
+  self.skipWaiting(); // Force activation immediately
   e.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
   );
 });
 
 self.addEventListener('activate', (e) => {
-    // Clear old caches
+    // Clean up old caches
     e.waitUntil(
         caches.keys().then((keys) => {
             return Promise.all(
@@ -36,7 +35,7 @@ self.addEventListener('activate', (e) => {
     );
 });
 
-// FIX: Network First Strategy (Falls back to cache if offline)
+// Network First Strategy (try network, fallback to cache)
 self.addEventListener('fetch', (e) => {
   e.respondWith(
     fetch(e.request)
