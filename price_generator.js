@@ -1,3 +1,5 @@
+--- START OF FILE price_generator.js ---
+
 import { state } from './state.js';
 import { postData, showToast, formatCurrency, _t } from './utils.js';
 
@@ -12,7 +14,7 @@ const priceGenState = {
     foreignPricesTemp: {} // Temporary storage for comparison inputs
 };
 
-// --- CSS STYLES ---
+// --- UPDATED CSS STYLES FOR RESPONSIVENESS ---
 const pgStyles = `
     .pg-compact-input { width: 100px !important; display: inline-block; padding: 6px 10px; font-size: 14px; }
     .pg-label-inline { font-weight: 600; width: 120px; display: inline-block; color: var(--text-light-color); font-size: 14px; }
@@ -20,10 +22,8 @@ const pgStyles = `
     .pg-tab-btn { margin-right: 5px; margin-bottom: 5px; }
     .pg-tab-btn.active { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }
     .pg-calc-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; }
-    .report-area { position: relative; overflow-y: auto; border: 1px solid #eee; border-radius: 8px; }
-    .report-area thead th { position: sticky; top: 0; background-color: #f1f3f4; z-index: 10; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
     
-    /* Comparison Input Style - WIDER */
+    /* Comparison Input Style */
     .comp-foreign-input { width: 140px !important; border: 1px solid #ccc; padding: 8px; border-radius: 4px; font-weight:bold; }
 
     /* MOBILE MENU STYLES */
@@ -32,13 +32,24 @@ const pgStyles = `
     #pg-mobile-menu-content button { width: 100%; text-align: left; border: none; border-bottom: 1px solid #eee; background: none; padding: 12px 20px; border-radius: 0; }
     #pg-mobile-menu-content button:last-child { border-bottom: none; }
 
+    /* MOBILE OVERRIDES */
     @media (max-width: 768px) {
         #pg-nav-container { display: none; }
         #pg-mobile-menu-btn { display: flex; }
+        .pg-calc-header { flex-direction: column; align-items: stretch; gap: 10px; }
+        .pg-calc-header h2 { font-size: 18px; margin-bottom: 5px; }
+        
+        .pg-row { flex-wrap: wrap; background: #f9f9f9; padding: 10px; border-radius: 8px; gap: 15px; }
+        .pg-label-inline { width: 100%; display: block; margin-bottom: 5px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+        
+        /* Expand inputs on mobile for easier tapping */
+        .pg-compact-input { width: 100% !important; max-width: none !important; min-height: 44px; }
+        
         .form-grid { grid-template-columns: 1fr !important; gap: 10px; }
-        .pg-row { flex-wrap: wrap; background: #f9f9f9; padding: 10px; border-radius: 8px; }
-        .pg-compact-input { width: 100% !important; max-width: none !important; }
         .modal-content { width: 95%; max-height: 95vh; }
+        
+        /* Comparison specific */
+        .comp-foreign-input { width: 100px !important; }
     }
 `;
 
@@ -142,8 +153,8 @@ function injectPriceGenUI() {
                             <h2 id="pg-section-title" style="margin:0; border:none; font-size:22px;">Price Calculator</h2>
                             <span class="status-tag status-pending" id="pg-display-discount" style="margin-top:5px; align-self:flex-start;">Disc: 0%</span>
                         </div>
-                        <div style="display:flex; gap:10px;">
-                            <button class="secondary" onclick="openCalcModal()">⚙️ Open Calculator</button>
+                        <div class="toolbar-actions" style="margin-left:0;">
+                            <button class="secondary" onclick="openCalcModal()">⚙️ Config</button>
                             <button class="primary" id="pg-btn-save">Save Prices</button>
                             <button class="secondary" id="pg-btn-export">Export Excel</button>
                         </div>
@@ -152,7 +163,7 @@ function injectPriceGenUI() {
 
                 <!-- Results Table -->
                 <div class="card" id="pg-result-card" style="margin-top:0;">
-                    <div class="report-area" style="max-height: 70vh; overflow-y: auto;">
+                    <div class="report-area" style="max-height: 70vh;">
                         <table id="pg-preview-table">
                             <thead><tr><th>Code</th><th>Name</th><th>Sub-Cat</th><th>Base Cost</th><th>Net Cost</th><th>Price A</th><th>Price B</th><th>Price C</th></tr></thead>
                             <tbody></tbody>
@@ -174,7 +185,7 @@ function injectPriceGenUI() {
                         <button class="primary" id="pg-btn-run-compare" style="margin-bottom:16px;">Compare</button>
                     </div>
                     <div id="pg-print-area">
-                        <div class="report-area" style="margin-top:20px; max-height:70vh; overflow-y:auto;">
+                        <div class="report-area" style="margin-top:20px; max-height:70vh;">
                             <table id="pg-compare-table">
                                 <thead>
                                     <tr>
@@ -197,7 +208,7 @@ function injectPriceGenUI() {
                  <div class="card">
                     <div class="toolbar">
                         <h2>Manage Pricing Items</h2>
-                        <div style="display:flex; gap:10px;">
+                        <div class="toolbar-actions">
                             <input type="search" id="pg-manage-search" placeholder="Search..." class="search-bar-input">
                             <button class="primary small" id="pg-btn-add-item">Add Item</button>
                         </div>
@@ -205,7 +216,7 @@ function injectPriceGenUI() {
                     <div class="sub-nav" style="margin-bottom:15px; border-bottom:1px solid #eee;">
                         ${masterTabsHtml}
                     </div>
-                    <div class="report-area" style="max-height:70vh; overflow-y:auto;">
+                    <div class="report-area" style="max-height:70vh;">
                         <table id="pg-manage-table"><thead><tr><th>Code</th><th>Name</th><th>Sub-Cat</th><th>Logic</th><th>Action</th></tr></thead><tbody></tbody></table>
                     </div>
                 </div>
@@ -220,7 +231,9 @@ function injectPriceGenUI() {
                         <div class="form-group" style="margin-bottom:0;"><label>Discount %</label><input type="number" id="pg-new-op-disc" class="pg-compact-input"></div>
                         <button class="primary" id="pg-btn-add-op">Add</button>
                     </div>
-                    <table class="report-area" style="margin-top:20px;"><thead><tr><th>Name</th><th>Discount %</th><th>Action</th></tr></thead><tbody id="pg-ops-list-tbody"></tbody></table>
+                    <div class="report-area">
+                        <table style="margin-top:20px;"><thead><tr><th>Name</th><th>Discount %</th><th>Action</th></tr></thead><tbody id="pg-ops-list-tbody"></tbody></table>
+                    </div>
                 </div>
             </div>
 
@@ -240,13 +253,13 @@ function injectPriceGenUI() {
 
                         <div id="box-method-borsa" class="method-box">
                             <div class="pg-row" style="background:#f9f9f9; padding:10px; border-radius:8px;">
-                                <div style="flex: 1;">
+                                <div style="flex: 1; min-width: 150px;">
                                     <label style="font-size:12px; display:block; color:#666; margin-bottom:4px;">Borsa Price</label>
-                                    <input type="number" id="pg-borsa" class="pg-compact-input" placeholder="0.00" style="width:100% !important;">
+                                    <input type="number" id="pg-borsa" class="pg-compact-input" placeholder="0.00">
                                 </div>
-                                <div style="flex: 1;">
+                                <div style="flex: 1; min-width: 150px;">
                                     <label style="font-size:12px; display:block; color:#666; margin-bottom:4px;">Transport</label>
-                                    <input type="number" id="pg-nawlon" class="pg-compact-input" placeholder="0.00" style="width:100% !important;">
+                                    <input type="number" id="pg-nawlon" class="pg-compact-input" placeholder="0.00">
                                 </div>
                             </div>
                         </div>
