@@ -103,27 +103,7 @@ export function renderReceiveListTable() {
     }); 
 }
 
-export function renderButcheryListTable() {
-    renderDynamicListTable('table-butchery-children', state.currentButcheryList, [ 
-        { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity', step: 0.001 } 
-    ], 'no_items_selected_toast', () => {
-        let total = state.currentButcheryList.reduce((acc, i) => acc + (parseFloat(i.quantity)||0), 0);
-        const totalEl = document.getElementById('butchery-total-weight');
-        if(totalEl) totalEl.textContent = total.toFixed(3);
-        
-        const parentQtyInput = document.getElementById('butchery-parent-qty');
-        const parentQty = parseFloat(parentQtyInput ? parentQtyInput.value : 0) || 0;
-        
-        if (parentQty > 0) {
-            const pct = (total / parentQty) * 100;
-            const el = document.getElementById('butchery-yield-pct');
-            if(el) {
-                el.textContent = pct.toFixed(1) + '%';
-                el.style.color = (pct > 102 || pct < 50) ? 'red' : 'green';
-            }
-        }
-    });
-}
+
 
 export function renderTransferListTable() { 
     renderDynamicListTable('table-transfer-list', state.currentTransferList, [ 
@@ -1191,40 +1171,7 @@ export function renderRolesTable() {
     });
 }
 
-// --- NEW REPORT RENDERER ---
-export function renderYieldAnalysisReport(type, filterText) {
-    const container = document.getElementById('yield-report-results');
-    if (!container) return;
-    
-    const allTx = state.transactions || [];
-    
-    // 1. Group transactions by Batch ID to reconstruct the production event
-    const productionBatches = {};
-    
-    allTx.forEach(t => {
-        if (t.type === 'production_out' || t.type === 'production_in') {
-            if (!productionBatches[t.batchId]) {
-                productionBatches[t.batchId] = {
-                    batchNo: t.batchId,
-                    date: t.date,
-                    branchCode: t.branchCode,
-                    parentItemCode: '',
-                    parentQuantity: 0,
-                    childItems: []
-                };
-            }
-            
-            if (t.type === 'production_out') {
-                productionBatches[t.batchId].parentItemCode = t.itemCode;
-                productionBatches[t.batchId].parentQuantity = t.quantity;
-            } else {
-                productionBatches[t.batchId].childItems.push({
-                    itemCode: t.itemCode,
-                    quantity: t.quantity
-                });
-            }
-        }
-    });
+
 
     const batches = Object.values(productionBatches).sort((a,b) => new Date(b.date) - new Date(a.date));
     let html = '';
