@@ -1,5 +1,4 @@
 
-
 /* ========================================= */
 /* 1. GLOBAL VARIABLES & RESET               */
 /* ========================================= */
@@ -138,6 +137,31 @@ html[dir="rtl"] body {
     width: 30px; 
     height: 30px; 
     border-width: 3px; 
+}
+
+/* New Login Install Section */
+.login-install-section {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color);
+    display: none; /* Hidden by default, shown via JS */
+}
+
+.btn-login-install {
+    width: 100%;
+    background-color: #F1F3F4;
+    color: var(--text-color);
+    border: none;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background-color 0.2s;
+}
+
+.btn-login-install:hover {
+    background-color: #e5e7eb;
 }
 
 /* ========================================= */
@@ -303,7 +327,7 @@ html[dir="rtl"] body {
     flex-shrink: 0; 
 }
 
-/* --- CRITICAL FIX: View Toggling --- */
+/* --- VIEW TOGGLING LOGIC --- */
 .view { 
     display: none !important; 
 }
@@ -569,7 +593,7 @@ button:disabled {
 }
 
 /* ========================================= */
-/* 6. TABLES & REPORTS (FIXED)               */
+/* 6. TABLES & REPORTS                       */
 /* ========================================= */
 
 table { 
@@ -622,7 +646,7 @@ tbody tr:hover {
 /* Table Width Fix */
 .report-area table {
     width: 100%;
-    min-width: 600px; /* Forces scroll on small screens */
+    min-width: 600px; 
     border-collapse: separate; 
     border-spacing: 0;
     margin-top: 0;
