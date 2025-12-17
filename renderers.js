@@ -82,48 +82,7 @@ const renderDynamicListTable = (tbodyId, list, columnsConfig, emptyMessage, tota
     if (totalizerFn) totalizerFn();
 };
 
-// --- TRANSACTION LIST RENDERERS ---
-
-export function renderReceiveListTable() { 
-    renderDynamicListTable('table-receive-list', state.currentReceiveList, [ 
-        { type: 'text', key: 'itemCode' }, 
-        { type: 'text', key: 'itemName' }, 
-        { type: 'number_input', key: 'quantity' }, 
-        { type: 'cost_input', key: 'cost' }, 
-        { type: 'calculated', calculator: item => formatCurrency((parseFloat(item.quantity)||0) * (parseFloat(item.cost)||0)) } 
-    ], 'no_items_selected_toast', () => {
-        let total = state.currentReceiveList.reduce((acc, i) => acc + ((parseFloat(i.quantity)||0) * (parseFloat(i.cost)||0)), 0);
-        const el = document.getElementById('receive-grand-total');
-        if(el) el.textContent = formatCurrency(total);
-    }); 
-}
-
-export function renderTransferListTable() { 
-    renderDynamicListTable('table-transfer-list', state.currentTransferList, [ 
-        { type: 'text', key: 'itemCode' }, 
-        { type: 'text', key: 'itemName' }, 
-        { type: 'available_stock', branchSelectId: 'transfer-from-branch' }, 
-        { type: 'number_input', key: 'quantity' } 
-    ], 'no_items_selected_toast', () => {
-        let total = state.currentTransferList.reduce((acc, i) => acc + (parseFloat(i.quantity)||0), 0);
-        const el = document.getElementById('transfer-grand-total');
-        if(el) el.textContent = total.toFixed(3);
-    }); 
-}
-
-export function renderReturnListTable() { 
-    renderDynamicListTable('table-return-list', state.currentReturnList, [ 
-        { type: 'text', key: 'itemCode' }, 
-        { type: 'text', key: 'itemName' }, 
-        { type: 'available_stock', branchSelectId: 'return-branch' }, 
-        { type: 'number_input', key: 'quantity' }, 
-        { type: 'cost_input', key: 'cost' } 
-    ], 'no_items_selected_toast', () => {
-        let total = state.currentReturnList.reduce((acc, i) => acc + ((parseFloat(i.quantity)||0) * (parseFloat(i.cost)||0)), 0);
-        const el = document.getElementById('return-grand-total');
-        if(el) el.textContent = formatCurrency(total);
-    }); 
-}
+// --- CORE TRANSACTION LIST RENDERER (Purchase Orders) ---
 
 export function renderPOListTable() { 
     renderDynamicListTable('table-po-list', state.currentPOList, [ 
@@ -137,30 +96,6 @@ export function renderPOListTable() {
         const el = document.getElementById('po-grand-total');
         if(el) el.textContent = formatCurrency(total);
     }); 
-}
-
-export function renderAdjustmentListTable() {
-    const table = document.getElementById('table-adjustment-list');
-    if (!table) return;
-    const tbody = table.querySelector('tbody');
-    if (!tbody) return;
-    tbody.innerHTML = '';
-    
-    if (!state.currentAdjustmentList || state.currentAdjustmentList.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">${_t('no_items_for_adjustment')}</td></tr>`;
-        return;
-    }
-    const stock = calculateStockLevels();
-    const branchCode = document.getElementById('adjustment-branch')?.value;
-    state.currentAdjustmentList.forEach((item, index) => {
-        const systemQty = (branchCode && stock[branchCode]?.[item.itemCode]?.quantity) || 0;
-        const physicalCount = typeof item.physicalCount !== 'undefined' ? item.physicalCount : '';
-        const adjustment = (parseFloat(physicalCount) || 0) - systemQty;
-        item.physicalCount = physicalCount;
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${item.itemCode}</td><td>${item.itemName}</td><td>${systemQty.toFixed(3)}</td><td><input type="number" class="table-input" value="${physicalCount}" min="0" step="0.001" data-index="${index}" data-field="physicalCount"></td><td style="font-weight: bold; color: ${adjustment > 0 ? 'var(--secondary-color)' : (adjustment < 0 ? 'var(--danger-color)' : 'inherit')}">${adjustment.toFixed(3)}</td><td><button class="danger small" data-index="${index}">X</button></td>`;
-        tbody.appendChild(tr);
-    });
 }
 
 // --- MASTER DATA RENDERERS ---
@@ -236,7 +171,7 @@ export function renderTransactionHistory(filters = {}) {
         const userBranch = String(currentUser.AssignedBranchCode).trim();
         if (userBranch && userBranch !== 'undefined') {
             allTx = allTx.filter(t => String(t.branchCode) === userBranch || String(t.fromBranchCode) === userBranch || String(t.toBranchCode) === userBranch);
-            allPo = [];
+            allPo = []; // Hide POs for branch users
             const branchFilterEl = document.getElementById('tx-filter-branch');
             if(branchFilterEl) branchFilterEl.style.display = 'none';
         }
@@ -314,37 +249,6 @@ export function renderPendingPOs() {
         let actionButtons = userCan('opApprovePO') ? `<div class="action-buttons"><button class="primary small btn-approve-financial" data-id="${item.poId}" data-type="po">${_t('approve')}</button><button class="danger small btn-reject-financial" data-id="${item.poId}" data-type="po">${_t('reject')}</button></div>` : `<span style="color:var(--text-light-color); font-style:italic;">${_t('status_pending')}</span>`;
         const tr = document.createElement('tr');
         tr.innerHTML = `<td>${formatDate(item.date)}</td><td>${item.poId}</td><td>PO for ${findByKey(state.suppliers, 'supplierCode', item.supplierCode)?.name || item.supplierCode}</td><td>${formatCurrency(item.totalValue)}</td><td>${actionButtons}</td>`;
-        tbody.appendChild(tr);
-    });
-}
-
-export function renderPendingInvoices() {
-    const table = document.getElementById('table-pending-invoices');
-    if (!table) return;
-    const tbody = table.querySelector('tbody');
-    tbody.innerHTML = '';
-    const user = state.currentUser;
-    const isAdmin = userCan('viewAllBranches');
-    const pendingReceivesGroups = {};
-    
-    (state.transactions || []).filter(t => t.type === 'receive' && !(t.isApproved === true || String(t.isApproved).toUpperCase() === 'TRUE')).forEach(t => {
-        if (!pendingReceivesGroups[t.batchId]) {
-            pendingReceivesGroups[t.batchId] = { date: t.date, txType: 'receive', ref: t.invoiceNumber, batchId: t.batchId, branchCode: t.branchCode, details: `GRN from ${findByKey(state.suppliers, 'supplierCode', t.supplierCode)?.name || 'N/A'}`, totalValue: 0 };
-        }
-        pendingReceivesGroups[t.batchId].totalValue += (parseFloat(t.quantity) || 0) * (parseFloat(t.cost) || 0);
-    });
-    
-    let allPendingGRNs = Object.values(pendingReceivesGroups);
-    if (user && user.AssignedBranchCode && !isAdmin) {
-        allPendingGRNs = allPendingGRNs.filter(g => g.branchCode === user.AssignedBranchCode);
-    }
-    
-    if (allPendingGRNs.length === 0) { tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">${_t('no_pending_financial_approval')}</td></tr>`; return; }
-    
-    allPendingGRNs.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(item => {
-        let actionButtons = userCan('opApproveGRN') ? `<div class="action-buttons"><button class="primary small btn-approve-financial" data-id="${item.batchId}" data-type="receive">${_t('approve')}</button><button class="danger small btn-reject-financial" data-id="${item.batchId}" data-type="receive">${_t('reject')}</button></div>` : `<span style="color:var(--text-light-color); font-style:italic;">${_t('status_pending')}</span>`;
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${formatDate(item.date)}</td><td>${item.ref}</td><td>${item.details}</td><td>${formatCurrency(item.totalValue)}</td><td>${actionButtons}</td>`;
         tbody.appendChild(tr);
     });
 }
@@ -491,44 +395,6 @@ export function renderActivityLog() {
     tbody.innerHTML = '';
     if (!state.activityLog || state.activityLog.length === 0) { tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;">No activity logged.</td></tr>`; return; }
     state.activityLog.slice().reverse().forEach(log => { tbody.innerHTML += `<tr><td>${new Date(log.Timestamp).toLocaleString()}</td><td>${log.User || 'N/A'}</td><td>${log.Action}</td><td>${log.Description}</td></tr>`; });
-}
-
-export function renderPendingTransfers() {
-    const container = document.getElementById('pending-transfers-card'); if (!container) return;
-    const tbody = document.getElementById('table-pending-transfers')?.querySelector('tbody'); if (!tbody) return; tbody.innerHTML = '';
-    const uBranch = state.currentUser?.AssignedBranchCode;
-    const isAdmin = userCan('viewAllBranches');
-    const groups = {};
-    state.transactions.forEach(t => {
-        if (t.type === 'transfer_out' && t.Status === 'In Transit') {
-            if (isAdmin || t.toBranchCode === uBranch) {
-                if (!groups[t.batchId]) groups[t.batchId] = { ...t, items: [] };
-                groups[t.batchId].items.push(t);
-            }
-        }
-    });
-    const list = Object.values(groups);
-    if (!list.length) { container.style.display = 'none'; return; }
-    container.style.display = 'block';
-    list.forEach(t => {
-        tbody.innerHTML += `<tr><td>${formatDate(t.date)}</td><td>Incoming from ${findByKey(state.branches, 'branchCode', t.fromBranchCode)?.branchName || t.fromBranchCode}</td><td>${t.ref}</td><td>${t.items.length}</td><td>${userCan('opReceive') ? `<button class="primary small btn-receive-transfer" data-batch-id="${t.batchId}">Receive</button>` : 'Pending Receipt'}</td></tr>`;
-    });
-}
-
-export function renderInTransitReport() {
-    const tbody = document.getElementById('table-in-transit')?.querySelector('tbody'); if (!tbody) return; tbody.innerHTML = '';
-    const groups = {};
-    (state.transactions || []).filter(t => t.type === 'transfer_out' && t.Status === 'In Transit').forEach(t => { if (!groups[t.batchId]) groups[t.batchId] = { ...t, items: [] }; groups[t.batchId].items.push(t); });
-    const sorted = Object.values(groups).sort((a,b) => new Date(b.date) - new Date(a.date));
-    if(sorted.length === 0) { tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">No items currently in transit.</td></tr>`; return; }
-    sorted.forEach(t => {
-        const myBranch = state.currentUser?.AssignedBranchCode;
-        const isAdmin = userCan('viewAllBranches');
-        let action = `<span class="status-tag status-intransit">In Transit</span>`;
-        if (t.toBranchCode === myBranch && userCan('opReceive')) action = `<button class="primary small btn-receive-transfer" data-batch-id="${t.batchId}">Receive Stock</button>`;
-        else if ((t.fromBranchCode === myBranch || isAdmin) && userCan('opTransfer')) action = `<button class="danger small btn-cancel-transfer" data-batch-id="${t.batchId}">Cancel Transfer</button>`;
-        tbody.innerHTML += `<tr><td>${formatDate(t.date)}</td><td>${findByKey(state.branches, 'branchCode', t.fromBranchCode)?.branchName || 'N/A'}</td><td>${findByKey(state.branches, 'branchCode', t.toBranchCode)?.branchName || 'N/A'}</td><td>${t.ref}</td><td>${t.items.length}</td><td>${t.Status}</td><td>${action}</td></tr>`;
-    });
 }
 
 export function updateNotifications() {
