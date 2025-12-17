@@ -3,51 +3,23 @@ import { _t, findByKey, userCan, populateOptions, formatCurrency, formatDate } f
 import { calculateStockLevels, calculateSupplierFinancials } from './calculations.js';
 import * as Documents from './documents.js';
 
-// --- CONFIG: PERMISSION DEFINITIONS ---
 const PERMISSION_GROUPS = {
-    'Administration': [ 
-        { key: 'manageUsers', label: 'Manage Users & Roles' }, 
-        { key: 'viewAllBranches', label: 'View All Branches (Super User)' }, 
-        { key: 'opBackupRestore', label: 'Backup & Restore' } 
-    ],
-    'Master Data Creation': [ 
-        { key: 'createItem', label: 'Create Items' }, 
-        { key: 'createSupplier', label: 'Create Suppliers' }, 
-        { key: 'createBranch', label: 'Create Branches' } 
-    ],
-    'Stock Operations': [ 
-        { key: 'opReceive', label: 'Receive Stock (GRN)' }, 
-        { key: 'opTransfer', label: 'Send Transfer' }, 
-        { key: 'opReturn', label: 'Return to Supplier' }, 
-        { key: 'opStockAdjustment', label: 'Stock Adjustments' }, 
-        { key: 'opProduction', label: 'Butchery & Production' }, 
-        { key: 'opApproveGRN', label: 'Approve Invoices/GRNs' }, 
-        { key: 'opRecordSales', label: 'Record Sales' } 
-    ],
-    'Financials': [ 
-        { key: 'opCreatePO', label: 'Create PO' }, 
-        { key: 'opApprovePO', label: 'Approve Purchase Orders' }, 
-        { key: 'opEditInvoice', label: 'Edit GRN/Invoice' }, 
-        { key: 'opRecordPayment', label: 'Record Payments' }, 
-        { key: 'viewYieldReports', label: 'View Butchery Reports' }, 
-        { key: 'opManagePriceLists', label: 'Manage Selling Prices & Generator' } 
-    ]
+    'Administration': [ { key: 'manageUsers', label: 'Manage Users & Roles' }, { key: 'viewAllBranches', label: 'View All Branches (Super User)' }, { key: 'opBackupRestore', label: 'Backup & Restore' } ],
+    'Master Data Creation': [ { key: 'createItem', label: 'Create Items' }, { key: 'createSupplier', label: 'Create Suppliers' }, { key: 'createBranch', label: 'Create Branches' } ],
+    'Stock Operations': [ { key: 'opReceive', label: 'Receive Stock (GRN)' }, { key: 'opTransfer', label: 'Send Transfer' }, { key: 'opReturn', label: 'Return to Supplier' }, { key: 'opStockAdjustment', label: 'Stock Adjustments' }, { key: 'opProduction', label: 'Butchery & Production' }, { key: 'opApproveGRN', label: 'Approve Invoices/GRNs' }, { key: 'opRecordSales', label: 'Record Sales' } ],
+    'Financials': [ { key: 'opCreatePO', label: 'Create PO' }, { key: 'opApprovePO', label: 'Approve Purchase Orders' }, { key: 'opEditInvoice', label: 'Edit GRN/Invoice' }, { key: 'opRecordPayment', label: 'Record Payments' }, { key: 'viewYieldReports', label: 'View Butchery Reports' }, { key: 'opManagePriceLists', label: 'Manage Selling Prices & Generator' } ]
 }
 
-// --- GENERIC TABLE RENDERER ---
 const renderDynamicListTable = (tbodyId, list, columnsConfig, emptyMessage, totalizerFn) => {
     const table = document.getElementById(tbodyId);
     if (!table) return;
     const tbody = table.querySelector('tbody');
-    if (!tbody) return;
     tbody.innerHTML = '';
-    
     if (!list || list.length === 0) {
         tbody.innerHTML = `<tr><td colspan="${columnsConfig.length + 1}" style="text-align:center;">${_t(emptyMessage)}</td></tr>`;
         if (totalizerFn) totalizerFn();
         return;
     }
-    
     const stock = calculateStockLevels();
     list.forEach((item, index) => {
         const tr = document.createElement('tr');
@@ -57,18 +29,10 @@ const renderDynamicListTable = (tbodyId, list, columnsConfig, emptyMessage, tota
             const availableStock = fromBranch ? (stock[fromBranch]?.[item.itemCode]?.quantity || 0) : 0;
             switch (col.type) {
                 case 'text': content = item[col.key] || ''; break;
-                case 'number_input': 
-                    content = `<input type="number" class="table-input" value="${item[col.key] || ''}" min="${col.min || 0.001}" step="${col.step || 0.001}" data-index="${index}" data-field="${col.key}">`; 
-                    break;
-                case 'cost_input': 
-                    content = `<input type="number" class="table-input" value="${(parseFloat(item.cost) || 0).toFixed(2)}" min="0" step="0.01" data-index="${index}" data-field="cost">`; 
-                    break;
-                case 'calculated': 
-                    content = `<span>${col.calculator(item)}</span>`; 
-                    break;
-                case 'available_stock': 
-                    content = availableStock.toFixed(3); 
-                    break;
+                case 'number_input': content = `<input type="number" class="table-input" value="${item[col.key] || ''}" min="${col.min || 0.001}" step="${col.step || 0.001}" data-index="${index}" data-field="${col.key}">`; break;
+                case 'cost_input': content = `<input type="number" class="table-input" value="${(parseFloat(item.cost) || 0).toFixed(2)}" min="0" step="0.01" data-index="${index}" data-field="cost">`; break;
+                case 'calculated': content = `<span>${col.calculator(item)}</span>`; break;
+                case 'available_stock': content = availableStock.toFixed(3); break;
             }
             const td = document.createElement('td');
             td.innerHTML = content;
@@ -82,23 +46,13 @@ const renderDynamicListTable = (tbodyId, list, columnsConfig, emptyMessage, tota
     if (totalizerFn) totalizerFn();
 };
 
-// --- CORE TRANSACTION LIST RENDERER (Purchase Orders) ---
-
 export function renderPOListTable() { 
-    renderDynamicListTable('table-po-list', state.currentPOList, [ 
-        { type: 'text', key: 'itemCode' }, 
-        { type: 'text', key: 'itemName' }, 
-        { type: 'number_input', key: 'quantity' }, 
-        { type: 'cost_input', key: 'cost' }, 
-        { type: 'calculated', calculator: item => formatCurrency((parseFloat(item.quantity)||0) * (parseFloat(item.cost)||0)) } 
-    ], 'no_items_selected_toast', () => {
+    renderDynamicListTable('table-po-list', state.currentPOList, [ { type: 'text', key: 'itemCode' }, { type: 'text', key: 'itemName' }, { type: 'number_input', key: 'quantity' }, { type: 'cost_input', key: 'cost' }, { type: 'calculated', calculator: item => formatCurrency((parseFloat(item.quantity)||0) * (parseFloat(item.cost)||0)) } ], 'no_items_selected_toast', () => {
         let total = state.currentPOList.reduce((acc, i) => acc + ((parseFloat(i.quantity)||0) * (parseFloat(i.cost)||0)), 0);
         const el = document.getElementById('po-grand-total');
         if(el) el.textContent = formatCurrency(total);
     }); 
 }
-
-// --- MASTER DATA RENDERERS ---
 
 export function renderItemsTable(data = state.items) {
     const table = document.getElementById('table-items');
@@ -126,12 +80,11 @@ export function renderSuppliersTable(data = state.suppliers) {
     const financials = calculateSupplierFinancials();
     data.forEach(s => {
         const isDisabled = s.isActive === false || String(s.isActive).toUpperCase() === 'FALSE';
-        const balance = financials[s.supplierCode]?.balance || 0;
         const tr = document.createElement('tr');
         if (isDisabled) tr.style.backgroundColor = '#f8d7da';
         const toggleBtnText = isDisabled ? 'Enable' : 'Disable';
         const toggleBtnClass = isDisabled ? 'success' : 'danger';
-        tr.innerHTML = `<td>${s.supplierCode || ''}</td><td>${s.name}</td><td>${s.contact}</td><td>${formatCurrency(balance)}</td><td>${isDisabled ? 'Disabled' : 'Active'}</td><td><div class="action-buttons">${userCan('createSupplier') ? `<button class="secondary small btn-edit" data-type="supplier" data-id="${s.supplierCode}">${_t('edit')}</button>` : ''}${userCan('createSupplier') ? `<button class="${toggleBtnClass} small btn-toggle-status" data-type="supplier" data-id="${s.supplierCode}" data-current="${isDisabled}">${toggleBtnText}</button>` : ''}</div></td>`;
+        tr.innerHTML = `<td>${s.supplierCode || ''}</td><td>${s.name}</td><td>${s.contact}</td><td>${formatCurrency(financials[s.supplierCode]?.balance || 0)}</td><td>${isDisabled ? 'Disabled' : 'Active'}</td><td><div class="action-buttons">${userCan('createSupplier') ? `<button class="secondary small btn-edit" data-type="supplier" data-id="${s.supplierCode}">${_t('edit')}</button>` : ''}${userCan('createSupplier') ? `<button class="${toggleBtnClass} small btn-toggle-status" data-type="supplier" data-id="${s.supplierCode}" data-current="${isDisabled}">${toggleBtnText}</button>` : ''}</div></td>`;
         tbody.appendChild(tr);
     });
 }
@@ -153,15 +106,12 @@ export function renderBranchesTable(data = state.branches) {
     });
 }
 
-// --- REPORT & HISTORY RENDERERS ---
-
 export function renderTransactionHistory(filters = {}) {
     const table = document.getElementById('table-transaction-history');
     if (!table) return; 
     const tbody = table.querySelector('tbody');
     if (!tbody) return;
     tbody.innerHTML = '';
-    
     let allTx = [...state.transactions];
     let allPo = [...state.purchaseOrders];
     const currentUser = state.currentUser;
@@ -171,16 +121,15 @@ export function renderTransactionHistory(filters = {}) {
         const userBranch = String(currentUser.AssignedBranchCode).trim();
         if (userBranch && userBranch !== 'undefined') {
             allTx = allTx.filter(t => String(t.branchCode) === userBranch || String(t.fromBranchCode) === userBranch || String(t.toBranchCode) === userBranch);
-            allPo = []; // Hide POs for branch users
-            const branchFilterEl = document.getElementById('tx-filter-branch');
-            if(branchFilterEl) branchFilterEl.style.display = 'none';
+            allPo = [];
+            document.getElementById('tx-filter-branch').style.display = 'none';
         }
     }
     
     let allHistoryItems = [ ...allTx, ...allPo.map(po => ({...po, type: 'po', batchId: po.poId, ref: po.poId})) ];
     const sDate = filters.startDate ? new Date(filters.startDate) : null;
-    if(sDate) sDate.setHours(0,0,0,0);
     const eDate = filters.endDate ? new Date(filters.endDate) : null;
+    if(sDate) sDate.setHours(0,0,0,0);
     if(eDate) eDate.setHours(23,59,59,999);
 
     if (sDate) allHistoryItems = allHistoryItems.filter(t => new Date(t.date) >= sDate);
@@ -210,7 +159,6 @@ export function renderTransactionHistory(filters = {}) {
         const first = group.transactions[0];
         let details = '', statusTag = '', refNum = first.ref || first.batchId;
         let typeDisplay = _t(first.type) || (first.type ? first.type.toUpperCase() : 'UNKNOWN');
-        
         const isApproved = first.isApproved === true || String(first.isApproved).toUpperCase() === 'TRUE';
         const canEditInvoice = userCan('opEditInvoice') && first.type === 'receive' && !isApproved;
         let actionsHtml = `<button class="secondary small btn-view-tx" data-batch-id="${group.batchId}" data-type="${first.type}">${_t('view_print')}</button>`;
@@ -231,7 +179,6 @@ export function renderTransactionHistory(filters = {}) {
             details = `PO for <strong>${findByKey(state.suppliers, 'supplierCode', first.supplierCode)?.name}</strong>`;
             statusTag = `<span class="status-tag status-${(first.Status || 'pending').toLowerCase().replace(/ /g,'')}">${first.Status}</span>`;
         }
-
         const tr = document.createElement('tr');
         tr.innerHTML = `<td>${formatDate(first.date)}</td><td>${typeDisplay}</td><td>${refNum}</td><td>${details}</td><td>${statusTag}</td><td><div class="action-buttons">${actionsHtml}</div></td>`;
         tbody.appendChild(tr);
@@ -252,8 +199,6 @@ export function renderPendingPOs() {
         tbody.appendChild(tr);
     });
 }
-
-// --- MODAL CONTENT RENDERERS ---
 
 export function renderEditModalContent(type, id) {
     const editModalBody = document.getElementById('edit-modal-body');
