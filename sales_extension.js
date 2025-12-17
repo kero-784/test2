@@ -1,3 +1,4 @@
+
 import { state } from './state.js';
 import { postData, showToast, findByKey, formatCurrency, formatDate } from './utils.js';
 import { calculateStockLevels } from './calculations.js';
@@ -78,10 +79,10 @@ function injectSalesUI() {
                 <div class="card">
                     <div class="toolbar">
                         <h2>Record Sales Period</h2>
-                        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <div class="toolbar-actions">
                             <input type="file" id="ext-sales-upload" accept=".xlsx, .xls" style="display:none">
-                            <button class="secondary small" onclick="document.getElementById('ext-sales-upload').click()">Upload Matrix Excel</button>
-                            <button class="secondary small" id="ext-btn-template">Download Template</button>
+                            <button class="secondary small" onclick="document.getElementById('ext-sales-upload').click()">Upload Excel</button>
+                            <button class="secondary small" id="ext-btn-template">Template</button>
                         </div>
                     </div>
                     <form id="ext-sales-form" class="form-grid" onsubmit="return false;">
@@ -95,16 +96,19 @@ function injectSalesUI() {
                 <div class="card">
                     <h2>Items to Sell</h2>
                     <div style="margin-bottom:15px;">
-                        <button class="secondary" id="ext-btn-open-add-items" style="width:100%; border:1px dashed #aaa; padding:15px;">
+                        <button class="secondary" id="ext-btn-open-add-items" style="width:100%; border:1px dashed #aaa; padding:15px; font-weight:bold;">
                             + Click to Select Items
                         </button>
                     </div>
                     
-                    <table id="ext-sales-table">
-                        <thead><tr><th>Branch</th><th>Item</th><th>Stock</th><th>Qty Sold</th><th>Price</th><th>Total</th><th>Action</th></tr></thead>
-                        <tbody></tbody>
-                        <tfoot><tr><td colspan="5" style="text-align:right;"><strong>Total Revenue:</strong></td><td id="ext-sales-total">0.00</td><td></td></tr></tfoot>
-                    </table>
+                    <!-- WRAPPED IN REPORT-AREA FOR MOBILE SCROLLING -->
+                    <div class="report-area">
+                        <table id="ext-sales-table">
+                            <thead><tr><th>Branch</th><th>Item</th><th>Stock</th><th>Qty Sold</th><th>Price</th><th>Total</th><th>Action</th></tr></thead>
+                            <tbody></tbody>
+                            <tfoot><tr><td colspan="5" style="text-align:right;"><strong>Total Revenue:</strong></td><td id="ext-sales-total">0.00</td><td></td></tr></tfoot>
+                        </table>
+                    </div>
                     <div style="margin-top:20px; text-align:right;">
                         <button id="ext-btn-submit-sales" class="primary">Confirm Sales</button>
                     </div>
@@ -117,12 +121,12 @@ function injectSalesUI() {
                 <div class="card">
                     <div class="toolbar">
                         <h2>Manage Price Lists</h2>
-                        <div style="display:flex; gap:10px;">
+                        <div class="toolbar-actions">
                             <input type="search" id="ext-price-search" placeholder="Search Items..." class="search-bar-input">
                             <button class="primary" id="ext-btn-save-prices">Save Changes</button>
                         </div>
                     </div>
-                    <div class="report-area" style="max-height:600px; overflow-y:auto;">
+                    <div class="report-area" style="max-height:600px;">
                         <table id="ext-price-table">
                             <thead>
                                 <tr>
@@ -196,7 +200,9 @@ function injectSalesUI() {
                     <div class="modal-header"><h2 id="ext-modal-title">Sales for Item</h2><button class="close-button" onclick="document.getElementById('ext-sales-modal').classList.remove('active')">×</button></div>
                     <div class="modal-body">
                         <p style="color:#666; font-size:0.9em; margin-bottom:10px;">Prices are automatically populated based on Branch Category.</p>
-                        <table style="width:100%"><thead><tr><th>Branch</th><th>Cat</th><th>Stock</th><th>Qty Sold</th><th>Price</th></tr></thead><tbody id="ext-modal-tbody"></tbody></table>
+                        <div class="report-area">
+                            <table style="width:100%"><thead><tr><th>Branch</th><th>Cat</th><th>Stock</th><th>Qty Sold</th><th>Price</th></tr></thead><tbody id="ext-modal-tbody"></tbody></table>
+                        </div>
                     </div>
                     <div class="modal-footer"><button class="primary" id="ext-btn-modal-add">Add to List</button></div>
                 </div>
@@ -460,9 +466,10 @@ function renderSalesItemSelectionList(filterText = '') {
         div.style.cursor = 'pointer';
         div.style.display = 'flex';
         div.style.justifyContent = 'space-between';
+        div.style.alignItems = 'center';
         
         div.innerHTML = `
-            <div><strong>${item.name}</strong> <small style="color:#888;">${item.code}</small></div>
+            <div><strong>${item.name}</strong> <br><small style="color:#888;">${item.code}</small></div>
             <button class="secondary small">Select</button>
         `;
         
