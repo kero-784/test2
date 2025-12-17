@@ -1,6 +1,5 @@
-
 import { state } from './state.js';
-import { postData, showToast, findByKey, formatCurrency, formatDate } from './utils.js';
+import { postData, showToast, findByKey, formatCurrency, formatDate, populateOptions } from './utils.js';
 import { calculateStockLevels } from './calculations.js';
 
 // --- 1. LOCAL STATE ---
@@ -21,7 +20,7 @@ function initSalesModule() {
     const user = state.currentUser;
     if (!user) return; 
 
-    // View Permission: User can see Sales module if they can Record Sales OR Manage Prices
+    // View Permission: Record Sales OR Manage Prices
     const hasViewPermission = user.permissions?.opRecordSales || user.permissions?.opManagePriceLists || user.RoleName === 'Admin';
     
     if (!hasViewPermission) return;
@@ -34,8 +33,6 @@ function initSalesModule() {
 
 function injectSalesUI() {
     const user = state.currentUser;
-    
-    // SPECIFIC PERMISSION CHECK FOR PRICE TAB
     const canManagePrices = user.permissions?.opManagePriceLists === true || user.RoleName === 'Admin';
 
     // A. Sidebar Link
@@ -48,9 +45,15 @@ function injectSalesUI() {
             <svg style="width:22px;height:22px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
             <span style="margin-left:10px;">Sales</span>
         </a>`;
-        const refEntry = sidebar.querySelector('a[data-view="operations"]')?.parentElement;
-        if (refEntry) refEntry.after(li);
-        else sidebar.appendChild(li);
+        
+        // LOGIC: Insert BEFORE 'Stock Levels'
+        const stockLevelsBtn = sidebar.querySelector('a[data-view="stock-levels"]')?.parentElement;
+        if (stockLevelsBtn) {
+            sidebar.insertBefore(li, stockLevelsBtn);
+        } else {
+            const logoutBtn = sidebar.querySelector('.nav-item-logout');
+            sidebar.insertBefore(li, logoutBtn);
+        }
     }
 
     // B. Main View
@@ -60,13 +63,10 @@ function injectSalesUI() {
         viewDiv.id = 'view-sales';
         viewDiv.className = 'view';
         
-        // CONDITIONAL TAB RENDERING
         let tabsHtml = `<button class="sub-nav-item active" data-target="sales-record">Record Sales</button>`;
-        
         if (canManagePrices) {
             tabsHtml += `<button class="sub-nav-item" data-target="sales-prices">Price Lists</button>`;
         }
-        
         tabsHtml += `<button class="sub-nav-item" data-target="sales-report">Sales Reports</button>`;
 
         viewDiv.innerHTML = `
@@ -100,8 +100,6 @@ function injectSalesUI() {
                             + Click to Select Items
                         </button>
                     </div>
-                    
-                    <!-- WRAPPED IN REPORT-AREA FOR MOBILE SCROLLING -->
                     <div class="report-area">
                         <table id="ext-sales-table">
                             <thead><tr><th>Branch</th><th>Item</th><th>Stock</th><th>Qty Sold</th><th>Price</th><th>Total</th><th>Action</th></tr></thead>
@@ -128,15 +126,7 @@ function injectSalesUI() {
                     </div>
                     <div class="report-area" style="max-height:600px;">
                         <table id="ext-price-table">
-                            <thead>
-                                <tr>
-                                    <th>Code</th>
-                                    <th>Item Name</th>
-                                    <th>Price A</th>
-                                    <th>Price B</th>
-                                    <th>Price C</th>
-                                </tr>
-                            </thead>
+                            <thead><tr><th>Code</th><th>Item Name</th><th>Price A</th><th>Price B</th><th>Price C</th></tr></thead>
                             <tbody></tbody>
                         </table>
                     </div>
@@ -200,15 +190,12 @@ function injectSalesUI() {
                     <div class="modal-header"><h2 id="ext-modal-title">Sales for Item</h2><button class="close-button" onclick="document.getElementById('ext-sales-modal').classList.remove('active')">×</button></div>
                     <div class="modal-body">
                         <p style="color:#666; font-size:0.9em; margin-bottom:10px;">Prices are automatically populated based on Branch Category.</p>
-                        <div class="report-area">
-                            <table style="width:100%"><thead><tr><th>Branch</th><th>Cat</th><th>Stock</th><th>Qty Sold</th><th>Price</th></tr></thead><tbody id="ext-modal-tbody"></tbody></table>
-                        </div>
+                        <div class="report-area"><table style="width:100%"><thead><tr><th>Branch</th><th>Cat</th><th>Stock</th><th>Qty Sold</th><th>Price</th></tr></thead><tbody id="ext-modal-tbody"></tbody></table></div>
                     </div>
                     <div class="modal-footer"><button class="primary" id="ext-btn-modal-add">Add to List</button></div>
                 </div>
             </div>
 
-            <!-- REPORT MODALS -->
             <div id="ext-rpt-branch-modal" class="modal-overlay">
                 <div class="modal-content" style="max-width: 400px;">
                     <div class="modal-header"><h2>Select Branches</h2><button class="close-button" onclick="document.getElementById('ext-rpt-branch-modal').classList.remove('active')">×</button></div>
@@ -238,7 +225,6 @@ function injectSalesUI() {
 
 // --- 3. EVENT LISTENERS ---
 function attachEventListeners() {
-    // Nav Click
     document.getElementById('nav-sales-link')?.addEventListener('click', (e) => {
         e.preventDefault();
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -248,7 +234,6 @@ function attachEventListeners() {
         updateRecordContext();
     });
 
-    // Sub-Nav Tabs
     document.querySelectorAll('.sub-nav-item').forEach(btn => {
         btn.addEventListener('click', (e) => {
             if(e.target.closest('#view-sales')) {
@@ -256,27 +241,23 @@ function attachEventListeners() {
                 document.querySelectorAll('.sales-tab').forEach(t => t.style.display = 'none');
                 e.target.classList.add('active');
                 document.getElementById(`tab-${e.target.dataset.target}`).style.display = 'block';
-                
                 if(e.target.dataset.target === 'sales-report') initReportFilters();
                 if(e.target.dataset.target === 'sales-prices') renderPriceList();
             }
         });
     });
 
-    // Actions
     document.getElementById('ext-sales-upload')?.addEventListener('change', handleExcel);
     document.getElementById('ext-btn-submit-sales')?.addEventListener('click', submitSales);
     document.getElementById('ext-btn-template')?.addEventListener('click', downloadMatrixTemplate);
     document.getElementById('ext-btn-open-add-items')?.addEventListener('click', openSalesItemSelectionModal);
     document.getElementById('ext-sales-item-select-search')?.addEventListener('input', (e) => renderSalesItemSelectionList(e.target.value));
 
-    // Price Actions (Conditional)
     if(document.getElementById('ext-price-search')) {
         document.getElementById('ext-price-search').addEventListener('input', (e) => renderPriceList(e.target.value));
         document.getElementById('ext-btn-save-prices').addEventListener('click', savePriceChanges);
     }
 
-    // Table Actions (Record Sales)
     const tableBody = document.querySelector('#ext-sales-table tbody');
     if(tableBody) {
         tableBody.addEventListener('change', (e) => {
@@ -295,7 +276,6 @@ function attachEventListeners() {
         });
     }
 
-    // Report Actions
     document.getElementById('rpt-btn-generate')?.addEventListener('click', generateReport);
     document.getElementById('rpt-btn-export')?.addEventListener('click', () => {
         if(typeof XLSX !== 'undefined') {
@@ -316,8 +296,6 @@ function attachEventListeners() {
     });
 }
 
-// --- 4. CORE PRICING LOGIC ---
-
 function getPriceForBranch(branchCode, item) {
     const branch = findByKey(state.branches, 'branchCode', branchCode);
     if (!branch) return 0;
@@ -327,13 +305,10 @@ function getPriceForBranch(branchCode, item) {
     return parseFloat(item[key]) || 0;
 }
 
-// --- 5. RECORD SALES UI ---
-
 function updateRecordContext() {
     const user = state.currentUser;
     const select = document.getElementById('ext-sales-branch');
     const div = document.getElementById('ext-div-branch-select');
-    
     if(!select) return;
 
     select.innerHTML = '';
@@ -381,7 +356,6 @@ function renderSalesTable() {
     document.getElementById('ext-sales-total').textContent = formatCurrency(totalRevenue);
 }
 
-// -- PRICE LIST TAB --
 function renderPriceList(filter = '') {
     const tbody = document.querySelector('#ext-price-table tbody');
     if(!tbody) return;
@@ -389,23 +363,14 @@ function renderPriceList(filter = '') {
     
     const lower = filter.toLowerCase();
     
-    state.items.filter(i => 
-        String(i.isActive) !== 'false' && 
-        (i.name.toLowerCase().includes(lower) || i.code.toLowerCase().includes(lower))
-    ).forEach(item => {
+    state.items.filter(i => String(i.isActive) !== 'false' && (i.name.toLowerCase().includes(lower) || i.code.toLowerCase().includes(lower))).forEach(item => {
         const changes = salesState.priceChanges.get(item.code) || {};
         const pA = changes.PriceA !== undefined ? changes.PriceA : (parseFloat(item.PriceA) || 0);
         const pB = changes.PriceB !== undefined ? changes.PriceB : (parseFloat(item.PriceB) || 0);
         const pC = changes.PriceC !== undefined ? changes.PriceC : (parseFloat(item.PriceC) || 0);
 
         const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${item.code}</td>
-            <td>${item.name}</td>
-            <td><input type="number" step="0.01" class="table-input p-edit" data-col="PriceA" data-code="${item.code}" value="${pA}"></td>
-            <td><input type="number" step="0.01" class="table-input p-edit" data-col="PriceB" data-code="${item.code}" value="${pB}"></td>
-            <td><input type="number" step="0.01" class="table-input p-edit" data-col="PriceC" data-code="${item.code}" value="${pC}"></td>
-        `;
+        tr.innerHTML = `<td>${item.code}</td><td>${item.name}</td><td><input type="number" step="0.01" class="table-input p-edit" data-col="PriceA" data-code="${item.code}" value="${pA}"></td><td><input type="number" step="0.01" class="table-input p-edit" data-col="PriceB" data-code="${item.code}" value="${pB}"></td><td><input type="number" step="0.01" class="table-input p-edit" data-col="PriceC" data-code="${item.code}" value="${pC}"></td>`;
         
         tr.querySelectorAll('.p-edit').forEach(input => {
             input.addEventListener('change', (e) => {
@@ -428,8 +393,7 @@ async function savePriceChanges() {
     let count = 0;
     
     for (const [itemCode, updates] of salesState.priceChanges.entries()) {
-        const res = await postData('updateData', { type: 'item', id: itemCode, updates: updates }, null);
-        if(res) {
+        if(await postData('updateData', { type: 'item', id: itemCode, updates: updates }, null)) {
             const item = findByKey(state.items, 'code', itemCode);
             if(item) Object.assign(item, updates);
             count++;
@@ -441,7 +405,6 @@ async function savePriceChanges() {
     renderPriceList();
 }
 
-// -- ITEM SELECTION MODAL --
 function openSalesItemSelectionModal() {
     document.getElementById('ext-sales-item-select-search').value = '';
     renderSalesItemSelectionList();
@@ -454,33 +417,17 @@ function renderSalesItemSelectionList(filterText = '') {
     container.innerHTML = '';
     const lower = filterText.toLowerCase();
 
-    const items = state.items.filter(i => 
-        String(i.isActive) !== 'false' && 
-        (i.name.toLowerCase().includes(lower) || i.code.toLowerCase().includes(lower))
-    ).slice(0, 50);
-
-    items.forEach(item => {
+    state.items.filter(i => String(i.isActive) !== 'false' && (i.name.toLowerCase().includes(lower) || i.code.toLowerCase().includes(lower))).slice(0, 50).forEach(item => {
         const div = document.createElement('div');
-        div.style.padding = '10px';
-        div.style.borderBottom = '1px solid #eee';
-        div.style.cursor = 'pointer';
-        div.style.display = 'flex';
-        div.style.justifyContent = 'space-between';
-        div.style.alignItems = 'center';
-        
-        div.innerHTML = `
-            <div><strong>${item.name}</strong> <br><small style="color:#888;">${item.code}</small></div>
-            <button class="secondary small">Select</button>
-        `;
-        
+        div.style.padding = '10px'; div.style.borderBottom = '1px solid #eee'; div.style.cursor = 'pointer'; div.style.display = 'flex'; div.style.justifyContent = 'space-between'; div.style.alignItems = 'center';
+        div.innerHTML = `<div><strong>${item.name}</strong> <br><small style="color:#888;">${item.code}</small></div><button class="secondary small">Select</button>`;
         div.onclick = () => {
             if (salesState.isAdmin) {
                 openMultiBranchModal(item);
                 document.getElementById('ext-sales-item-select-modal').classList.remove('active');
             } else {
                 const userBranch = document.getElementById('ext-sales-branch').value;
-                const autoPrice = getPriceForBranch(userBranch, item);
-                addItemToList(userBranch, item, 1, autoPrice); 
+                addItemToList(userBranch, item, 1, getPriceForBranch(userBranch, item)); 
                 showToast(`Added ${item.name}`);
             }
         };
@@ -489,45 +436,26 @@ function renderSalesItemSelectionList(filterText = '') {
 }
 
 function addItemToList(branchCode, item, qty, price) {
-    salesState.currentList.push({
-        branchCode: branchCode,
-        itemCode: item.code,
-        itemName: item.name,
-        quantity: qty,
-        price: price,
-        cost: parseFloat(item.cost)
-    });
+    salesState.currentList.push({ branchCode: branchCode, itemCode: item.code, itemName: item.name, quantity: qty, price: price, cost: parseFloat(item.cost) });
     renderSalesTable();
 }
 
 function openMultiBranchModal(item) {
     const modal = document.getElementById('ext-sales-modal');
     const tbody = document.getElementById('ext-modal-tbody');
-    const title = document.getElementById('ext-modal-title');
-    const btnAdd = document.getElementById('ext-btn-modal-add');
-
-    title.textContent = `Sales for: ${item.name}`;
+    document.getElementById('ext-modal-title').textContent = `Sales for: ${item.name}`;
     tbody.innerHTML = '';
     const stock = calculateStockLevels();
 
     state.branches.forEach(b => {
         if (String(b.isActive) === 'false') return;
         const available = stock[b.branchCode]?.[item.code]?.quantity || 0;
-        
         const branchPrice = getPriceForBranch(b.branchCode, item);
         const catLabel = b.PriceCategory || 'PriceA';
-
-        tbody.innerHTML += `
-            <tr>
-                <td>${b.branchName}</td>
-                <td style="font-size:0.8em; color:#666;">${catLabel}</td>
-                <td style="color:${available <= 0 ? 'red' : 'green'}">${available.toFixed(3)}</td>
-                <td><input type="number" class="table-input modal-qty" data-branch="${b.branchCode}" placeholder="Qty"></td>
-                <td><input type="number" class="table-input modal-price" data-branch="${b.branchCode}" value="${branchPrice}" placeholder="Price"></td>
-            </tr>`;
+        tbody.innerHTML += `<tr><td>${b.branchName}</td><td style="font-size:0.8em; color:#666;">${catLabel}</td><td style="color:${available <= 0 ? 'red' : 'green'}">${available.toFixed(3)}</td><td><input type="number" class="table-input modal-qty" data-branch="${b.branchCode}" placeholder="Qty"></td><td><input type="number" class="table-input modal-price" data-branch="${b.branchCode}" value="${branchPrice}" placeholder="Price"></td></tr>`;
     });
 
-    btnAdd.onclick = () => {
+    document.getElementById('ext-btn-modal-add').onclick = () => {
         document.querySelectorAll('.modal-qty').forEach(input => {
             const qty = parseFloat(input.value);
             if (qty > 0) {
@@ -542,70 +470,31 @@ function openMultiBranchModal(item) {
     modal.classList.add('active');
 }
 
-// --- SUBMIT SALES ---
 async function submitSales() {
-    const btn = document.getElementById('ext-btn-submit-sales');
     const dFrom = document.getElementById('ext-sales-from').value;
     const dTo = document.getElementById('ext-sales-to').value;
     const ref = document.getElementById('ext-sales-ref').value;
 
-    if(!dFrom || !dTo || salesState.currentList.length === 0) {
-        showToast('Please add items and set the date period.', 'error');
-        return;
-    }
+    if(!dFrom || !dTo || salesState.currentList.length === 0) { showToast('Please add items and set the date period.', 'error'); return; }
 
     const batches = {};
-    salesState.currentList.forEach(item => {
-        if(!batches[item.branchCode]) batches[item.branchCode] = [];
-        batches[item.branchCode].push(item);
-    });
+    salesState.currentList.forEach(item => { if(!batches[item.branchCode]) batches[item.branchCode] = []; batches[item.branchCode].push(item); });
 
-    const totalBatches = Object.keys(batches).length;
     let processed = 0;
-
     for (const [branchCode, items] of Object.entries(batches)) {
         const batchId = `SALE-${Date.now()}-${branchCode}`;
         const payload = {
-            type: 'issue', 
-            batchId: batchId,
-            ref: ref || 'Sales Period',
-            branchCode: branchCode,
-            fromBranchCode: branchCode,
-            date: new Date(dTo).toISOString(), 
-            startDate: dFrom,
-            endDate: dTo,
-            notes: `SALES (${dFrom} to ${dTo})`, 
-            items: items.map(i => ({
-                itemCode: i.itemCode,
-                itemName: i.itemName,
-                quantity: parseFloat(i.quantity),
-                cost: i.cost,
-                price: i.price,
-                type: 'issue'
-            }))
+            type: 'issue', batchId: batchId, ref: ref || 'Sales Period', branchCode: branchCode, fromBranchCode: branchCode, date: new Date(dTo).toISOString(), startDate: dFrom, endDate: dTo, notes: `SALES (${dFrom} to ${dTo})`, 
+            items: items.map(i => ({ itemCode: i.itemCode, itemName: i.itemName, quantity: parseFloat(i.quantity), cost: i.cost, price: i.price, type: 'issue' }))
         };
 
-        const res = await postData('addTransactionBatch', payload, btn);
-        if(res) {
+        if(await postData('addTransactionBatch', payload, document.getElementById('ext-btn-submit-sales'))) {
             processed++;
-            const now = new Date(dTo).toISOString();
-            payload.items.forEach(i => {
-                state.transactions.push({
-                    ...i,
-                    batchId: batchId,
-                    date: now,
-                    branchCode: branchCode,
-                    fromBranchCode: branchCode,
-                    Status: 'Completed',
-                    StartDate: dFrom,
-                    EndDate: dTo,
-                    isApproved: true
-                });
-            });
+            payload.items.forEach(i => state.transactions.push({ ...i, batchId: batchId, date: new Date(dTo).toISOString(), branchCode: branchCode, fromBranchCode: branchCode, Status: 'Completed', StartDate: dFrom, EndDate: dTo, isApproved: true }));
         }
     }
 
-    if(processed === totalBatches) {
+    if(processed === Object.keys(batches).length) {
         showToast('Sales Recorded Successfully', 'success');
         salesState.currentList = [];
         renderSalesTable();
@@ -613,7 +502,6 @@ async function submitSales() {
     }
 }
 
-// --- REPORTING LOGIC ---
 function initReportFilters() {
     const today = new Date().toISOString().split('T')[0];
     if(!document.getElementById('rpt-date-from').value) {
@@ -624,10 +512,8 @@ function initReportFilters() {
 }
 
 function updateReportSummaries() {
-    const bCount = salesState.reportSelectedBranches.size;
-    const iCount = salesState.reportSelectedItems.size;
-    document.getElementById('rpt-branch-summary').textContent = bCount === 0 ? "All Branches" : `${bCount} Branch(es)`;
-    document.getElementById('rpt-item-summary').textContent = iCount === 0 ? "All Items" : `${iCount} Item(s)`;
+    document.getElementById('rpt-branch-summary').textContent = salesState.reportSelectedBranches.size === 0 ? "All Branches" : `${salesState.reportSelectedBranches.size} Branch(es)`;
+    document.getElementById('rpt-item-summary').textContent = salesState.reportSelectedItems.size === 0 ? "All Items" : `${salesState.reportSelectedItems.size} Item(s)`;
 }
 
 function openReportBranchModal() {
@@ -639,10 +525,7 @@ function openReportBranchModal() {
             const div = document.createElement('div');
             div.className = 'form-group-checkbox';
             div.innerHTML = `<input type="checkbox" id="rb-${b.branchCode}" value="${b.branchCode}" ${isChecked}><label for="rb-${b.branchCode}">${b.branchName}</label>`;
-            div.querySelector('input').addEventListener('change', (e) => {
-                if(e.target.checked) salesState.reportSelectedBranches.add(b.branchCode);
-                else salesState.reportSelectedBranches.delete(b.branchCode);
-            });
+            div.querySelector('input').addEventListener('change', (e) => { e.target.checked ? salesState.reportSelectedBranches.add(b.branchCode) : salesState.reportSelectedBranches.delete(b.branchCode); });
             container.appendChild(div);
         }
     });
@@ -651,11 +534,7 @@ function openReportBranchModal() {
 
 function toggleAllReportBranches(selectAll) {
     salesState.reportSelectedBranches.clear();
-    const checks = document.querySelectorAll('#rpt-branch-list input[type="checkbox"]');
-    checks.forEach(c => {
-        c.checked = selectAll;
-        if(selectAll) salesState.reportSelectedBranches.add(c.value);
-    });
+    document.querySelectorAll('#rpt-branch-list input[type="checkbox"]').forEach(c => { c.checked = selectAll; if(selectAll) salesState.reportSelectedBranches.add(c.value); });
 }
 
 function openReportItemModal() {
@@ -668,21 +547,12 @@ function renderReportItemModalList(filterText = '') {
     const container = document.getElementById('rpt-item-list');
     container.innerHTML = '';
     const lower = filterText.toLowerCase();
-    const itemsToShow = state.items.filter(i => 
-        String(i.isActive) !== 'false' && 
-        (i.name.toLowerCase().includes(lower) || i.code.toLowerCase().includes(lower))
-    ).slice(0, 100);
-
-    itemsToShow.forEach(i => {
+    state.items.filter(i => String(i.isActive) !== 'false' && (i.name.toLowerCase().includes(lower) || i.code.toLowerCase().includes(lower))).slice(0, 100).forEach(i => {
         const isChecked = salesState.reportSelectedItems.has(i.code) ? 'checked' : '';
         const div = document.createElement('div');
-        div.style.padding = '8px';
-        div.style.borderBottom = '1px solid #eee';
+        div.style.padding = '8px'; div.style.borderBottom = '1px solid #eee';
         div.innerHTML = `<label style="display:flex; align-items:center; gap:10px; cursor:pointer;"><input type="checkbox" ${isChecked}><div><strong>${i.name}</strong><br><small style="color:#888">${i.code}</small></div></label>`;
-        div.querySelector('input').addEventListener('change', (e) => {
-            if(e.target.checked) salesState.reportSelectedItems.add(i.code);
-            else salesState.reportSelectedItems.delete(i.code);
-        });
+        div.querySelector('input').addEventListener('change', (e) => { e.target.checked ? salesState.reportSelectedItems.add(i.code) : salesState.reportSelectedItems.delete(i.code); });
         container.appendChild(div);
     });
 }
@@ -693,10 +563,8 @@ function generateReport() {
     const dFrom = new Date(document.getElementById('rpt-date-from').value);
     const dTo = new Date(document.getElementById('rpt-date-to').value);
     dTo.setHours(23,59,59);
-
     const useBranchFilter = salesState.reportSelectedBranches.size > 0;
     const useItemFilter = salesState.reportSelectedItems.size > 0;
-
     const tbody = document.querySelector('#rpt-table tbody');
     tbody.innerHTML = '';
     let totalQty = 0; let totalRev = 0;
@@ -711,24 +579,17 @@ function generateReport() {
         return true;
     });
 
-    if(reportData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center">No records found.</td></tr>';
-        document.getElementById('rpt-result-card').style.display = 'block';
-        return;
-    }
+    if(reportData.length === 0) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center">No records found.</td></tr>'; document.getElementById('rpt-result-card').style.display = 'block'; return; }
 
     reportData.sort((a,b) => new Date(b.date) - new Date(a.date));
-
     reportData.forEach(r => {
         const qty = parseFloat(r.quantity) || 0;
         const price = parseFloat(r.price) || 0;
         const rev = qty * price;
-        totalQty += qty;
-        totalRev += rev;
+        totalQty += qty; totalRev += rev;
         const period = (r.StartDate && r.EndDate) ? `${r.StartDate} to ${r.EndDate}` : '-';
         const bName = findByKey(state.branches, 'branchCode', r.branchCode)?.branchName || r.branchCode;
         const iName = findByKey(state.items, 'code', r.itemCode)?.name || r.itemCode;
-
         tbody.innerHTML += `<tr><td>${formatDate(r.date)}</td><td>${period}</td><td>${bName}</td><td>${iName}</td><td>${qty.toFixed(3)}</td><td>${price.toFixed(2)}</td><td>${rev.toFixed(2)}</td><td>${r.ref || r.batchId}</td></tr>`;
     });
 
@@ -746,33 +607,25 @@ function handleExcel(e) {
         const wb = XLSX.read(data, {type:'array'});
         const ws = wb.Sheets[wb.SheetNames[0]];
         const json = XLSX.utils.sheet_to_json(ws);
-        let found = 0;
         if(json.length === 0) { showToast('Empty file', 'error'); return; }
         const headers = Object.keys(json[0]);
         const branchCols = headers.filter(h => state.branches.some(b => b.branchCode === h));
-
+        let found = 0;
         json.forEach(r => {
             const code = r['ItemCode'];
-            // Manual overrides in Excel still take precedence, else lookup
             let manualPrice = parseFloat(r['SellingPrice'] || r['Price'] || 0);
-            
             if(code) {
                 const item = findByKey(state.items, 'code', code);
                 if(item) {
                     branchCols.forEach(branchCode => {
                         const qty = parseFloat(r[branchCode]);
-                        if(qty > 0) {
-                            // If Excel has specific price use it, else lookup branch category price
-                            const price = manualPrice > 0 ? manualPrice : getPriceForBranch(branchCode, item);
-                            addItemToList(branchCode, item, qty, price);
-                        }
+                        if(qty > 0) addItemToList(branchCode, item, qty, manualPrice > 0 ? manualPrice : getPriceForBranch(branchCode, item));
                     });
                     found++;
                 }
             }
         });
-        if(found > 0) { showToast(`Imported ${found} rows.`, 'success'); renderSalesTable(); } 
-        else showToast('No data found.', 'info');
+        if(found > 0) { showToast(`Imported ${found} rows.`, 'success'); renderSalesTable(); } else showToast('No data found.', 'info');
         e.target.value = '';
     };
     reader.readAsArrayBuffer(file);
