@@ -1,9 +1,6 @@
-// --- START OF FILE transactions.js ---
-
 import { state, resetStateLists } from './state.js';
 import { postData, showToast, _t, generateId, findByKey, requestAdminContext } from './utils.js';
 import { 
-    renderButcheryListTable, 
     renderReceiveListTable, 
     renderTransferListTable, 
     renderReturnListTable, 
@@ -15,98 +12,6 @@ import {
 } from './renderers.js';
 import { calculateStockLevels } from './calculations.js';
 import { generateReceiveDocument, generateTransferDocument, generateReturnDocument, generatePODocument } from './documents.js';
-
-// --- BUTCHERY (YIELD) ---
-export async function handleButcherySubmit(e) {
-    if (e) e.preventDefault();
-    const btn = e.currentTarget;
-    const parentCode = document.getElementById('butchery-parent-code').value;
-    let parentQty = parseFloat(document.getElementById('butchery-parent-qty').value); 
-    const branchCode = document.getElementById('butchery-branch').value;
-    let batchNo = document.getElementById('butchery-batch').value;
-    const expiryDate = document.getElementById('butchery-expiry').value;
-
-    if (!parentCode || !parentQty || !branchCode || !expiryDate || state.currentButcheryList.length === 0) {
-        showToast('Please fill all fields and add cuts.', 'error');
-        return;
-    }
-
-    // --- VALIDATION: CHECK STOCK AVAILABILITY ---
-    const stock = calculateStockLevels();
-    const availableStock = stock[branchCode]?.[parentCode]?.quantity || 0;
-
-    if (parentQty > availableStock) {
-        showToast(`Insufficient Stock! You only have ${availableStock.toFixed(3)} kg available.`, 'error');
-        return; 
-    }
-
-    // 1. Calculate Totals
-    const totalChildWeight = state.currentButcheryList.reduce((a,b) => a + (parseFloat(b.quantity) || 0), 0);
-    const difference = parentQty - totalChildWeight;
-
-    // 2. Logic: Handle Weight Difference
-    if (difference > 0.001) {
-        const msg = `⚠️ Weight Mismatch Detected!\n\n` +
-                    `Input Weight: ${parentQty} kg\n` +
-                    `Total Cuts: ${totalChildWeight.toFixed(3)} kg\n` +
-                    `Remaining: ${difference.toFixed(3)} kg\n\n` +
-                    `• Click OK to PROCEED: The remaining ${difference.toFixed(3)} kg will stay in your stock.\n` +
-                    `• Click CANCEL to go back and modify the weights.`;
-
-        if (!confirm(msg)) {
-            return; // User clicked Cancel
-        }
-        
-        // User clicked OK -> Adjust input to match output (Stock Preservation)
-        parentQty = totalChildWeight; 
-        showToast(`Processed. ${difference.toFixed(3)}kg remains in parent stock.`, 'info');
-
-    } else if (difference < -0.001) {
-        showToast(`Error: Output (${totalChildWeight}kg) cannot exceed Input (${parentQty}kg).`, 'error');
-        return;
-    }
-
-    const parentAvgCost = stock[branchCode]?.[parentCode]?.avgCost || 0;
-    
-    if(!batchNo) batchNo = `PRD-${Date.now().toString().slice(-8)}`;
-
-    const childItems = state.currentButcheryList.map(c => ({
-        itemCode: c.itemCode,
-        itemName: c.itemName, 
-        quantity: parseFloat(c.quantity),
-        cost: parentAvgCost 
-    }));
-
-    const payload = {
-        parentItemCode: parentCode,
-        parentQuantity: parentQty, 
-        branchCode: branchCode,
-        childItems: childItems,
-        batchNo: batchNo,
-        expiryDate: expiryDate,
-        notes: `Yield Process`
-    };
-
-    const result = await postData('processButchery', payload, btn);
-    if (result) {
-        showToast('Production Complete!', 'success');
-        const now = new Date().toISOString();
-        
-        childItems.forEach(c => state.transactions.push({
-            batchId: batchNo, date: now, type: 'production_in', itemCode: c.itemCode, quantity: c.quantity, cost: c.cost, branchCode: branchCode, Status: 'Completed', isApproved: true
-        }));
-        
-        state.transactions.push({
-            batchId: batchNo, date: now, type: 'production_out', itemCode: parentCode, quantity: parentQty, cost: parentAvgCost, branchCode: branchCode, fromBranchCode: branchCode, Status: 'Completed', isApproved: true
-        });
-
-        state.currentButcheryList = [];
-        document.getElementById('form-butchery').reset();
-        document.getElementById('butchery-parent-display').value = '';
-        document.getElementById('butchery-parent-code').value = '';
-        renderButcheryListTable();
-    }
-}
 
 // --- RECEIVE (GRN) ---
 export async function handleReceiveSubmit(e) {
@@ -144,7 +49,6 @@ export async function handleReceiveSubmit(e) {
         poId,
         date: new Date().toISOString(),
         notes,
-        // --- FIX: Explicitly tell server this is Pending ---
         isApproved: false, 
         Status: 'Pending Approval',
         items: state.currentReceiveList.map(i => ({
@@ -155,7 +59,6 @@ export async function handleReceiveSubmit(e) {
             type: 'receive',
             batchNo: batchNo,
             expiryDate: expiryDate,
-            // --- FIX: Ensure item lines are also Pending ---
             isApproved: false,
             Status: 'Pending Approval'
         }))
@@ -165,7 +68,7 @@ export async function handleReceiveSubmit(e) {
     if (result) {
         showToast('Stock Received!', 'success');
         
-        // Update local state to match what we sent
+        // Update local state
         payload.items.forEach(item => {
             state.transactions.push({ 
                 ...item, 
@@ -207,7 +110,7 @@ export async function handleTransferSubmit(e) {
         return;
     }
 
-    // --- VALIDATION ---
+    // Validation
     const stock = calculateStockLevels();
     const branchStock = stock[fromBranchCode] || {};
     
@@ -309,7 +212,7 @@ export async function handleReturnSubmit(e) {
         return;
     }
 
-    // --- VALIDATION ---
+    // Validation
     const stock = calculateStockLevels();
     const branchStock = stock[fromBranchCode] || {};
 
@@ -418,10 +321,7 @@ export function openTransferModal(batchId) {
     const body = document.getElementById('view-transfer-modal-body');
     const title = document.getElementById('view-transfer-modal-title');
     
-    if (!modal || !body || !title) {
-        console.error('Transfer modal HTML missing');
-        return;
-    }
+    if (!modal || !body || !title) return;
     
     const txs = state.transactions.filter(t => t.batchId === batchId && t.type === 'transfer_out');
     if(!txs.length) return;
