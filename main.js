@@ -422,10 +422,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     }
                 });
-                if(ctx === 'receive') Renderers.renderReceiveListTable();
-                if(ctx === 'transfer') Renderers.renderTransferListTable();
-                if(ctx === 'return') Renderers.renderReturnListTable();
-                if(ctx === 'adjustment') Renderers.renderAdjustmentListTable();
+                // Note: Only PO list is rendered in main renderers now. Others are in extensions.
                 if(ctx === 'po') Renderers.renderPOListTable();
             }
             
@@ -441,24 +438,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btn.id === 'btn-gen-item-code') { document.getElementById('item-code').value = `ITM-${Math.floor(Math.random()*9999)}`; return; }
         if (btn.id === 'btn-gen-invoice') { document.getElementById('receive-invoice').value = `INV-${Date.now().toString().slice(-6)}`; return; }
 
-        // Remove Row Logic
+        // Remove Row Logic (Only for PO list here)
         if (btn.classList.contains('danger') && btn.dataset.index !== undefined && btn.textContent === 'X') {
             const row = btn.closest('tr');
             const tableId = row.closest('table').id;
             const idx = parseInt(btn.dataset.index);
             
-            const tableMap = {
-                'table-receive-list': { list: 'currentReceiveList', render: Renderers.renderReceiveListTable },
-                'table-transfer-list': { list: 'currentTransferList', render: Renderers.renderTransferListTable },
-                'table-po-list': { list: 'currentPOList', render: Renderers.renderPOListTable },
-                'table-return-list': { list: 'currentReturnList', render: Renderers.renderReturnListTable },
-                'table-adjustment-list': { list: 'currentAdjustmentList', render: Renderers.renderAdjustmentListTable }
-            };
-            
-            const config = tableMap[tableId];
-            if (config) {
-                state[config.list].splice(idx, 1);
-                config.render();
+            if (tableId === 'table-po-list') {
+                state.currentPOList.splice(idx, 1);
+                Renderers.renderPOListTable();
             }
             return;
         }
@@ -532,27 +520,21 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Table Input Handlers
+        // Table Input Handlers (Only for PO list here)
         if (e.target.classList.contains('table-input')) {
             const input = e.target;
             const row = input.closest('tr');
+            if(!row) return;
             const tableId = row.closest('table').id;
             const index = parseInt(input.dataset.index);
             const field = input.dataset.field;
             const val = parseFloat(input.value);
 
-            const tableMap = {
-                'table-receive-list': { list: 'currentReceiveList', render: Renderers.renderReceiveListTable },
-                'table-transfer-list': { list: 'currentTransferList', render: Renderers.renderTransferListTable },
-                'table-po-list': { list: 'currentPOList', render: Renderers.renderPOListTable },
-                'table-return-list': { list: 'currentReturnList', render: Renderers.renderReturnListTable },
-                'table-adjustment-list': { list: 'currentAdjustmentList', render: Renderers.renderAdjustmentListTable }
-            };
-
-            const config = tableMap[tableId];
-            if (config && state[config.list][index]) {
-                state[config.list][index][field] = isNaN(val) ? 0 : val;
-                config.render();
+            if(tableId === 'table-po-list') {
+                if(state.currentPOList[index]) {
+                    state.currentPOList[index][field] = isNaN(val) ? 0 : val;
+                    Renderers.renderPOListTable();
+                }
             }
         }
         
@@ -696,11 +678,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    bindBtn('btn-submit-receive-batch', Transactions.handleReceiveSubmit);
-    bindBtn('btn-submit-transfer-batch', Transactions.handleTransferSubmit);
     bindBtn('btn-submit-po', Transactions.handlePOSubmit);
-    bindBtn('btn-submit-return', Transactions.handleReturnSubmit);
-    bindBtn('btn-submit-adjustment', Transactions.handleAdjustmentSubmit);
 
     document.getElementById('global-refresh-button').addEventListener('click', async () => { await reloadData(); });
 
@@ -716,10 +694,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.sub-nav-item').forEach(item => {
         item.addEventListener('click', (e) => {
             e.preventDefault();
-            // FIX: Safe check for view
             const view = e.target.closest('.view');
             if(!view) return;
-
+            
             view.querySelectorAll('.sub-nav-item, .sub-view').forEach(x => x.classList.remove('active'));
             e.target.classList.add('active');
             const subId = e.target.dataset.subview;
@@ -758,8 +735,16 @@ function initializeAppUI() {
     applyTranslations();
     applyUIPermissions();
     
+    // --- 1. DYNAMIC USER GREETING FIX ---
     const u = state.currentUser;
-    document.querySelector('.sidebar-header h1').textContent = `Hi, ${u.Name.split(' ')[0]}`;
+    const greetingEl = document.getElementById('user-greeting');
+    if (greetingEl && u && u.Name) {
+        // Gets first name, capitalizes first letter
+        const firstName = u.Name.split(' ')[0];
+        // Use translation logic or direct replacement
+        const template = _t('hi_user') || 'Hi, {userFirstName}';
+        greetingEl.textContent = template.replace('{userFirstName}', firstName); 
+    }
     
     // --- Update Mobile Header Branch Display ---
     const mobileBranchDisplay = document.getElementById('mobile-branch-display');
@@ -770,9 +755,7 @@ function initializeAppUI() {
         mobileBranchDisplay.textContent = bName;
     }
 
-    populateOptions(document.getElementById('receive-branch'), state.branches, 'Branch', 'branchCode', 'branchName');
-    populateOptions(document.getElementById('receive-supplier'), state.suppliers, 'Supplier', 'supplierCode', 'name');
-    populateOptions(document.getElementById('item-supplier'), state.suppliers, 'Supplier', 'supplierCode', 'name');
+    populateOptions(document.getElementById('po-supplier'), state.suppliers, 'Supplier', 'supplierCode', 'name');
     Renderers.updateNotifications();
     showView('dashboard');
 }
@@ -792,8 +775,17 @@ function showView(id) {
     document.querySelectorAll('.nav-item a').forEach(l => l.classList.remove('active'));
     const v = document.getElementById(`view-${id}`);
     if(v) v.classList.add('active');
-    const l = document.querySelector(`a[data-view="${id}"]`);
-    if(l) l.classList.add('active');
+    
+    const link = document.querySelector(`a[data-view="${id}"]`);
+    if(link) {
+        link.classList.add('active');
+        // --- 2. DYNAMIC TITLE FIX ---
+        const titleEl = document.getElementById('view-title');
+        // Extract text from span inside link, ignore icon
+        const textSpan = link.querySelector('span');
+        if (titleEl && textSpan) titleEl.textContent = textSpan.textContent;
+    }
+
     refreshViewData(id);
 }
 
@@ -824,36 +816,6 @@ function refreshViewData(id) {
         Renderers.renderSuppliersTable();
         Renderers.renderBranchesTable();
     }
-    if(id === 'operations') {
-        ['receive', 'transfer-from', 'transfer-to', 'return', 'adjustment'].forEach(prefix => {
-            const el = document.getElementById(`${prefix}-branch`);
-            if(el && el.options.length <= 1) populateOptions(el, state.branches, 'Branch', 'branchCode', 'branchName');
-        });
-        
-        // --- BRANCH RESTRICTION (LOCKING) ---
-        const user = state.currentUser;
-        if (user && user.AssignedBranchCode) {
-            const rxBranch = document.getElementById('receive-branch');
-            if(rxBranch) { rxBranch.value = user.AssignedBranchCode; rxBranch.disabled = true; }
-            
-            const txFrom = document.getElementById('transfer-from-branch');
-            if(txFrom) { txFrom.value = user.AssignedBranchCode; txFrom.disabled = true; }
-            
-            const retBranch = document.getElementById('return-branch');
-            if(retBranch) { retBranch.value = user.AssignedBranchCode; retBranch.disabled = true; }
-        }
-        
-        populateOptions(document.getElementById('receive-supplier'), state.suppliers, _t('supplier'), 'supplierCode', 'name');
-        populateOptions(document.getElementById('return-supplier'), state.suppliers, _t('supplier'), 'supplierCode', 'name');
-        
-        Renderers.renderReceiveListTable();
-        Renderers.renderTransferListTable();
-        Renderers.renderReturnListTable();
-        Renderers.renderAdjustmentListTable();
-        Renderers.renderPendingTransfers();
-        Renderers.renderInTransitReport();
-        Renderers.renderPendingInvoices();
-    }
     if(id === 'purchasing') {
         populateOptions(document.getElementById('po-supplier'), state.suppliers, 'Supplier', 'supplierCode', 'name');
         Renderers.renderPOListTable();
@@ -880,7 +842,7 @@ async function reloadData() {
             Object.keys(data).forEach(key => { if(key!=='user') setState(key, data[key]); });
             showToast(_t('data_refreshed_toast'));
             
-            // FIX: Safe navigation to active view
+            // FIX: Safe navigation
             const activeView = document.querySelector('.view.active');
             if (activeView) {
                 refreshViewData(activeView.id.replace('view-', ''));
