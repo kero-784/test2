@@ -1,3 +1,5 @@
+--- START OF FILE main.js ---
+
 import { SCRIPT_URL } from './config.js';
 import { state, setState, resetStateLists } from './state.js';
 import { Logger, showToast, applyTranslations, populateOptions, findByKey, postData, formatCurrency, _t, userCan, exportTableToExcel } from './utils.js';
@@ -6,10 +8,90 @@ import * as Renderers from './renderers.js';
 import * as Transactions from './transactions.js';
 import * as Documents from './documents.js';
 
+// --- ADVANCED PWA INSTALLER LOGIC ---
+let deferredPrompt;
+
+// Check if device is iOS
+const isIos = () => {
+  const userAgent = window.navigator.userAgent.toLowerCase();
+  return /iphone|ipad|ipod/.test(userAgent);
+};
+
+// Check if app is already running in standalone mode
+const isInStandaloneMode = () => ('standalone' in window.navigator) && (window.navigator.standalone);
+
+// Capture the install event
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    // Show install prompt after a short delay so it doesn't block the login screen immediately
+    setTimeout(() => showInstallPromotion(), 2000);
+});
+
+function showInstallPromotion() {
+    // Logic: Don't annoy user if they dismissed it recently (e.g., 3 days)
+    if (localStorage.getItem('pwa_dismissed_ts')) {
+        const dismissedTime = parseInt(localStorage.getItem('pwa_dismissed_ts'));
+        if (Date.now() - dismissedTime < 259200000) return; // 3 days in ms
+    }
+
+    const sheet = document.getElementById('pwa-install-sheet');
+    const iosGuide = document.getElementById('pwa-ios-guide');
+    const stdActions = document.getElementById('pwa-standard-actions');
+    
+    if (sheet) {
+        if (isIos() && !isInStandaloneMode()) {
+            // Show iOS specific guide
+            if(iosGuide) iosGuide.style.display = 'block';
+            if(stdActions) stdActions.style.display = 'none';
+            sheet.classList.add('active');
+        } else if (deferredPrompt) {
+            // Show Android/Desktop Prompt
+            if(iosGuide) iosGuide.style.display = 'none';
+            if(stdActions) stdActions.style.display = 'flex';
+            sheet.classList.add('active');
+        }
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     Logger.info('Initializing Meat Stock Manager...');
 
-    // --- MOBILE MENU HANDLER (New for Mobile/PWA) ---
+    // --- PWA BUTTON HANDLERS ---
+    const btnInstall = document.getElementById('btn-pwa-confirm');
+    const btnCancel = document.getElementById('btn-pwa-cancel');
+    const btnIosClose = document.getElementById('btn-pwa-ios-close');
+    const sheet = document.getElementById('pwa-install-sheet');
+
+    if (btnInstall) {
+        btnInstall.addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    console.log('User accepted the install prompt');
+                }
+                deferredPrompt = null;
+                sheet.classList.remove('active');
+            }
+        });
+    }
+
+    if (btnCancel) {
+        btnCancel.addEventListener('click', () => {
+            sheet.classList.remove('active');
+            localStorage.setItem('pwa_dismissed_ts', Date.now());
+        });
+    }
+
+    if (btnIosClose) {
+        btnIosClose.addEventListener('click', () => {
+            sheet.classList.remove('active');
+            localStorage.setItem('pwa_dismissed_ts', Date.now());
+        });
+    }
+
+    // --- MOBILE MENU HANDLER ---
     const btnToggleSidebar = document.getElementById('btn-toggle-sidebar');
     const sidebar = document.getElementById('app-sidebar');
     const overlay = document.getElementById('sidebar-overlay');
@@ -27,7 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
             overlay.classList.remove('active');
         });
 
-        // Close Sidebar when a nav link is clicked (UX improvement for mobile)
+        // Close Sidebar when a nav link is clicked
         document.querySelectorAll('.nav-item a').forEach(link => {
             link.addEventListener('click', () => {
                 sidebar.classList.remove('open');
@@ -35,7 +117,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
-
 
     // --- LOGIN HANDLER ---
     const loginForm = document.getElementById('login-form');
@@ -58,7 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.status !== 'error' && data.user) {
                     if (String(data.user.isDisabled).toUpperCase() === 'TRUE') throw new Error('Account disabled.');
                     
-                    // FIX: Save credentials for auto-recovery (handled in utils.js)
+                    // Save credentials for auto-recovery
                     sessionStorage.setItem('meatUser', username);
                     sessionStorage.setItem('meatPass', code);
 
