@@ -1,8 +1,8 @@
 // --- START OF FILE transactions.js ---
 
 import { state, resetStateLists } from './state.js';
-import { postData, showToast, _t, generateId, findByKey } from './utils.js';
-import { renderPOListTable, renderPendingTransfers, renderInTransitReport } from './renderers.js';
+import { postData, showToast, generateId, findByKey } from './utils.js';
+import { renderPOListTable } from './renderers.js'; 
 import { generatePODocument } from './documents.js';
 
 /*
@@ -135,11 +135,12 @@ export async function processTransferAction(action, batchId, btn) {
         
         document.getElementById('view-transfer-modal').classList.remove('active');
         
-        // Refresh core views
-        renderPendingTransfers(); 
-        
-        // Try to refresh extension view if it exists (Optional/Safe)
-        if(window.renderOpsPendingTransfers) window.renderOpsPendingTransfers();
+        // Refresh extension view if it is loaded (Global Scope Check)
+        // Since renderOpsPendingTransfers is defined in operations_extension.js, it isn't automatically global.
+        // We rely on the extension re-rendering itself on tab switch or data change.
+        // If we want immediate update:
+        const opsBtn = document.querySelector('button[data-view="operations-ext"]');
+        if(opsBtn) opsBtn.click(); 
     }
 }
 
@@ -153,9 +154,11 @@ export async function handleCancelTransfer(batchId, btn) {
             if(t.batchId === batchId) t.Status = 'Cancelled'; 
         });
         
-        renderInTransitReport();
-        
-        // Try to refresh extension view if it exists
-        if(window.renderOpsInTransit) window.renderOpsInTransit();
+        // Trigger refresh if Operations view is active
+        const opsBtn = document.querySelector('button[data-view="operations-ext"]');
+        if(opsBtn && opsBtn.classList.contains('active')) {
+             // Just clicking it again usually triggers the refresh logic in extensions
+             opsBtn.click();
+        }
     }
 }
