@@ -1,3 +1,4 @@
+--- START OF FILE manifest.json ---
 {
   "name": "Meat Stock Manager",
   "short_name": "MeatStock",
@@ -6,6 +7,7 @@
   "background_color": "#F7F8FC",
   "theme_color": "#D32F2F",
   "orientation": "portrait-primary",
+  "categories": ["business", "productivity", "finance"],
   "icons": [
     {
       "src": "https://cdn-icons-png.flaticon.com/512/1134/1134447.png",
@@ -16,6 +18,32 @@
       "src": "https://cdn-icons-png.flaticon.com/512/1134/1134447.png",
       "sizes": "512x512",
       "type": "image/png"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Receive Stock",
+      "url": "./index.html#operations",
+      "icons": [{ "src": "https://cdn-icons-png.flaticon.com/512/1134/1134447.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Record Sales",
+      "url": "./index.html#sales",
+      "icons": [{ "src": "https://cdn-icons-png.flaticon.com/512/1134/1134447.png", "sizes": "96x96" }]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "https://via.placeholder.com/400x800.png?text=Mobile+Dashboard",
+      "sizes": "400x800",
+      "type": "image/png",
+      "form_factor": "narrow"
+    },
+    {
+      "src": "https://via.placeholder.com/1280x800.png?text=Desktop+Dashboard",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "form_factor": "wide"
     }
   ]
 }
