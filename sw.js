@@ -1,6 +1,6 @@
-// --- UPDATED sw.js ---
+// --- FULL COMPLETE sw.js ---
 
-const CACHE_NAME = 'meat-stock-v4'; // Incremented version
+const CACHE_NAME = 'meat-stock-v6'; // Version incremented to force update
 const ASSETS = [
   './',
   './index.html',
@@ -13,19 +13,26 @@ const ASSETS = [
   './renderers.js',
   './transactions.js',
   './documents.js',
+  // Extensions
   './sales_extension.js',
   './price_generator.js',
   './butchery_extension.js',
+  './financials_extension.js',
+  // External Library
   'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'
 ];
 
+// 1. Install Event: Cache all assets immediately
 self.addEventListener('install', (e) => {
-  self.skipWaiting();
+  self.skipWaiting(); // Force this service worker to become active immediately
   e.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(ASSETS);
+    })
   );
 });
 
+// 2. Activate Event: Clean up old caches
 self.addEventListener('activate', (e) => {
     e.waitUntil(
         caches.keys().then((keys) => {
@@ -36,33 +43,37 @@ self.addEventListener('activate', (e) => {
     );
 });
 
+// 3. Fetch Event: Network First Strategy
+// (Try network -> if success, update cache -> if fail, use cache)
 self.addEventListener('fetch', (e) => {
-  // 1. IGNORE POST REQUESTS (API Calls cannot be cached)
+  // Ignore POST requests (API calls cannot be cached)
   if (e.request.method !== 'GET') {
-    return; 
+    return;
   }
 
-  // 2. IGNORE CHROME EXTENSIONS & NON-HTTP SCHEMES
+  // Ignore non-http requests (like chrome-extension://)
   if (!e.request.url.startsWith('http')) {
     return;
   }
 
-  // 3. Network First Strategy for GET requests
   e.respondWith(
     fetch(e.request)
       .then((res) => {
-        // Check if we received a valid response
+        // If response is valid, clone it and update the cache
         if (!res || res.status !== 200 || res.type !== 'basic') {
           return res;
         }
 
-        // Clone response to put in cache
         const resClone = res.clone();
         caches.open(CACHE_NAME).then((cache) => {
           cache.put(e.request, resClone);
         });
+
         return res;
       })
-      .catch(() => caches.match(e.request))
+      .catch(() => {
+        // If network fails, try to return from cache
+        return caches.match(e.request);
+      })
   );
 });
