@@ -29,8 +29,6 @@
             </form>
             <div id="login-error" class="login-error"></div>
             <div id="login-loader" style="display: none;"><div class="spinner"></div><p data-translate-key="signing_in">Signing in...</p></div>
-            
-            <!-- LOGIN INSTALL BUTTON -->
             <div id="login-install-wrapper" class="login-install-section">
                 <button type="button" id="btn-login-install" class="btn-login-install">
                     <span>📲 Install App</span>
@@ -42,7 +40,7 @@
     <!-- MAIN APP CONTAINER -->
     <div id="app-container" class="app-container" style="display: none;">
         
-        <!-- MOBILE HEADER (Visible only on small screens) -->
+        <!-- MOBILE HEADER -->
         <div class="mobile-header-bar">
             <button id="btn-toggle-sidebar" class="icon-btn">
                 <svg width="28" height="28" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
@@ -53,10 +51,9 @@
             </div>
         </div>
 
-        <!-- SIDEBAR OVERLAY (Mobile Backdrop) -->
         <div id="sidebar-overlay" class="sidebar-overlay"></div>
 
-        <!-- SIDEBAR NAVIGATION -->
+        <!-- SIDEBAR -->
         <aside class="sidebar" id="app-sidebar">
             <div class="sidebar-header">
                 <div class="logo-container">
@@ -73,22 +70,17 @@
                 </div>
             </div>
             <ul class="sidebar-nav" id="main-nav">
-                <!-- Public/Common Views -->
+                <!-- Core Dashboard -->
                 <li class="nav-item"><a href="#" data-view="dashboard" class="active"><span data-translate-key="dashboard">Dashboard</span></a></li>
                 
-                <!-- Operational Views -->
-                <li class="nav-item" data-permission="opReceive,opTransfer,opReturn,opStockAdjustment,opApproveGRN"><a href="#" data-view="operations"><span data-translate-key="stock_operations">Stock Operations</span></a></li>
+                <!-- EXTENSIONS INJECT LINKS HERE AUTOMATICALLY -->
                 
-                <!-- REMOVED: Butchery Link (Injected via Extension) -->
-                
-                <!-- Common Read Views -->
+                <!-- Core Read-Only Views -->
                 <li class="nav-item"><a href="#" data-view="stock-levels"><span data-translate-key="stock_levels">Stock Levels</span></a></li>
                 <li class="nav-item"><a href="#" data-view="transaction-history"><span data-translate-key="transaction_history">Transaction History</span></a></li>
                 
-                <!-- Financials -->
+                <!-- Core Purchasing -->
                 <li class="nav-item" data-permission="opCreatePO,opApprovePO"><a href="#" data-view="purchasing"><span data-translate-key="purchasing">Purchasing</span></a></li>
-                
-                <!-- REMOVED: Financials Link (Injected via Extension) -->
                 
                 <!-- Admin / Master Data -->
                 <li class="nav-item"><a href="#" data-view="master-data"><span data-translate-key="master_data">Master Data</span></a></li>
@@ -99,18 +91,26 @@
             </ul>
         </aside>
 
-        <!-- MAIN CONTENT -->
+        <!-- MAIN CONTENT AREA -->
         <main class="main-content">
            <header class="main-header">
                 <h2 id="view-title" data-translate-key="dashboard">Dashboard</h2>
+                <!-- Widget for notifications (populated by JS) -->
                 <div id="pending-requests-widget" class="pending-requests-widget" style="display: none;">
-                    <span id="pending-requests-widget-text">Pending Incoming: </span><span id="pending-requests-count">0</span>
+                    <span id="pending-requests-widget-text">Pending: </span><span id="pending-requests-count">0</span>
                 </div>
                 <span id="user-branch-display" class="user-branch-display"></span>
             </header>
 
             <!-- VIEW: DASHBOARD -->
-            <div id="view-dashboard" class="view active"><div class="kpi-grid"><div class="card"><div class="kpi-label" data-translate-key="total_items">Total Items</div><div id="dashboard-total-items" class="kpi-value">0</div></div><div class="card"><div class="kpi-label" data-translate-key="total_stock_value">Total Stock Value</div><div id="dashboard-total-value" class="kpi-value">0.00 EGP</div></div><div class="card"><div class="kpi-label" data-translate-key="total_suppliers">Total Suppliers</div><div id="dashboard-total-suppliers" class="kpi-value">0</div></div><div class="card"><div class="kpi-label" data-translate-key="total_branches">Total Branches</div><div id="dashboard-total-branches" class="kpi-value">0</div></div></div></div>
+            <div id="view-dashboard" class="view active">
+                <div class="kpi-grid">
+                    <div class="card"><div class="kpi-label" data-translate-key="total_items">Total Items</div><div id="dashboard-total-items" class="kpi-value">0</div></div>
+                    <div class="card"><div class="kpi-label" data-translate-key="total_stock_value">Total Stock Value</div><div id="dashboard-total-value" class="kpi-value">0.00 EGP</div></div>
+                    <div class="card"><div class="kpi-label" data-translate-key="total_suppliers">Total Suppliers</div><div id="dashboard-total-suppliers" class="kpi-value">0</div></div>
+                    <div class="card"><div class="kpi-label" data-translate-key="total_branches">Total Branches</div><div id="dashboard-total-branches" class="kpi-value">0</div></div>
+                </div>
+            </div>
             
             <!-- VIEW: MASTER DATA -->
             <div id="view-master-data" class="view">
@@ -119,8 +119,6 @@
                     <button class="sub-nav-item" data-subview="suppliers" data-translate-key="suppliers">Suppliers</button>
                     <button class="sub-nav-item" data-subview="branches" data-translate-key="branches">Branches</button>
                 </div>
-                
-                <!-- Items -->
                 <div id="subview-items" class="sub-view active">
                     <div class="card">
                         <div class="toolbar">
@@ -134,8 +132,6 @@
                         <div class="report-area"><table id="table-items"><thead><tr><th data-translate-key="table_h_code">Code</th><th data-translate-key="table_h_name">Name</th><th data-translate-key="table_h_category">Category</th><th data-translate-key="item_type">Type</th><th data-translate-key="table_h_cost">Default Cost</th><th data-translate-key="table_h_status">Status</th><th data-translate-key="table_h_actions">Actions</th></tr></thead><tbody></tbody></table></div>
                     </div>
                 </div>
-                
-                <!-- Suppliers -->
                 <div id="subview-suppliers" class="sub-view">
                     <div class="card">
                         <div class="toolbar">
@@ -149,8 +145,6 @@
                         <div class="report-area"><table id="table-suppliers"><thead><tr><th data-translate-key="table_h_code">Code</th><th data-translate-key="table_h_name">Name</th><th data-translate-key="table_h_contact">Contact</th><th data-translate-key="table_h_balance">Balance (Owed)</th><th data-translate-key="table_h_status">Status</th><th data-translate-key="table_h_actions">Actions</th></tr></thead><tbody></tbody></table></div>
                     </div>
                 </div>
-                
-                <!-- Branches -->
                 <div id="subview-branches" class="sub-view">
                     <div class="card">
                         <div class="toolbar">
@@ -166,87 +160,24 @@
                 </div>
             </div> 
              
-            <!-- VIEW: OPERATIONS -->
-            <div id="view-operations" class="view">
-                <div class="sub-nav">
-                    <button class="sub-nav-item active" data-subview="receive" data-translate-key="receive_stock">Receive Stock</button>
-                    <button class="sub-nav-item" data-subview="pending-invoices" data-translate-key="pending_invoices">Pending Invoices</button>
-                    <button class="sub-nav-item" data-subview="transfer" data-translate-key="internal_transfer">Internal Transfer</button>
-                    <button class="sub-nav-item" data-subview="return" data-translate-key="return_to_supplier">Return to Supplier</button>
-                    <button class="sub-nav-item" data-subview="in-transit" data-translate-key="in_transit_report">In-Transit Report</button>
-                    <button class="sub-nav-item" data-subview="adjustments" data-translate-key="adjustments">Adjustments</button>
-                </div>
-                
-                <!-- Receive Stock -->
-                <div id="subview-receive" class="sub-view active">
-                    <div class="card" id="pending-transfers-card" style="display: none;">
-                        <h2 data-translate-key="pending_incoming_transfers">Pending Incoming Transfers</h2>
-                        <div class="report-area"><table id="table-pending-transfers"><thead><tr><th data-translate-key="table_h_date_sent">Date Sent</th><th data-translate-key="table_h_from_branch">From Branch</th><th data-translate-key="table_h_ref_no">Reference #</th><th data-translate-key="items">Items</th><th data-translate-key="actions">Actions</th></tr></thead><tbody></tbody></table></div>
-                    </div>
-                    <div class="card">
-                        <h2 data-translate-key="receive_stock_from_supplier">Receive Stock from Supplier</h2>
-                        <form id="form-receive-details" class="form-grid" onsubmit="return false;">
-                            <div class="form-group"><label for="receive-po-select"><span data-translate-key="receive_against_po">Receive Against PO</span> <small data-translate-key="optional">(Optional)</small></label><select id="receive-po-select"><option value="" data-translate-key="select_a_po">Select a Purchase Order</option></select></div>
-                            <div class="form-group"><label for="receive-supplier" data-translate-key="supplier">Supplier</label><select id="receive-supplier" required></select></div>
-                            <div class="form-group"><label for="receive-invoice" data-translate-key="table_h_invoice_no">Invoice Number</label><div style="display:flex; gap:5px;"><input type="text" id="receive-invoice" required><button type="button" class="secondary small" id="btn-gen-invoice">Auto</button></div></div>
-                            <div class="form-group"><label for="receive-branch" data-translate-key="to_branch">To Branch</label><select id="receive-branch" required></select></div>
-                            <div class="form-group"><label for="receive-batch" data-translate-key="batch_number">Batch / Lot Number</label><input type="text" id="receive-batch" placeholder="Leave empty to auto-generate"></div>
-                            <div class="form-group"><label for="receive-expiry" data-translate-key="expiry_date">Expiry Date</label><input type="date" id="receive-expiry" required></div>
-                            <div class="form-group span-full"><label for="receive-notes" data-translate-key="notes_optional">Notes (Optional)</label><textarea id="receive-notes" rows="2"></textarea></div>
-                        </form>
-                    </div>
-                    <div class="card" id="receive-list-card">
-                        <h2 data-translate-key="items_to_be_received">Items to be Received</h2>
-                        <div class="report-area"><table id="table-receive-list"><thead><tr><th data-translate-key="table_h_code">Code</th><th data-translate-key="item_name">Item Name</th><th data-translate-key="table_h_quantity">Quantity</th><th data-translate-key="table_h_cost_per_unit">Cost/Unit</th><th data-translate-key="table_h_total">Total</th><th data-translate-key="actions">Action</th></tr></thead><tbody></tbody><tfoot><tr style="font-weight: bold; background-color: var(--bg-color);"><td colspan="4" style="text-align: right;" data-translate-key="grand_total">Grand Total:</td><td id="receive-grand-total" colspan="2">0.00 EGP</td></tr></tfoot></table></div>
-                        <div style="margin-top: 20px; display: flex; gap: 10px; flex-wrap:wrap;"><button type="button" data-context="receive" class="secondary btn-select-items" data-translate-key="select_items">Select Items</button><button id="btn-submit-receive-batch" class="primary" data-translate-key="submit_for_approval">Submit Stock Receipt</button></div>
-                    </div>
-                </div>
-                
-                <!-- Pending Invoices -->
-                <div id="subview-pending-invoices" class="sub-view">
-                    <div class="card"><h2 data-translate-key="pending_invoices_title">Pending Invoices (GRNs)</h2><div class="report-area"><table id="table-pending-invoices"><thead><tr><th data-translate-key="table_h_date">Date</th><th data-translate-key="table_h_ref_no">Reference #</th><th data-translate-key="table_h_details">Details</th><th data-translate-key="table_h_amount">Amount</th><th data-translate-key="actions">Actions</th></tr></thead><tbody></tbody></table></div></div>
-                </div>
-                
-                <!-- Internal Transfer -->
-                <div id="subview-transfer" class="sub-view">
-                    <div class="card"><h2 data-translate-key="send_stock_to_branch">Send Stock to Another Branch</h2><form id="form-transfer-details" class="form-grid" onsubmit="return false;"><div class="form-group"><label for="transfer-from-branch" data-translate-key="from_branch">From Branch</label><select id="transfer-from-branch" required></select></div><div class="form-group"><label for="transfer-to-branch" data-translate-key="to_branch">To Branch</label><select id="transfer-to-branch" required></select></div><div class="form-group"><label for="transfer-ref" data-translate-key="transfer_ref_no">Transfer Reference #</label><input type="text" id="transfer-ref" readonly></div><div class="form-group span-full"><label for="transfer-notes" data-translate-key="notes_optional">Notes (Optional)</label><textarea id="transfer-notes" rows="2"></textarea></div></form></div>
-                    <div class="card" id="transfer-list-card"><h2 data-translate-key="items_to_be_transferred">Items to be Transferred</h2><div class="report-area"><table id="table-transfer-list"><thead><tr><th data-translate-key="table_h_code">Code</th><th data-translate-key="item_name">Item Name</th><th data-translate-key="table_h_available">Available</th><th data-translate-key="table_h_qty_to_transfer">Quantity to Transfer</th><th data-translate-key="actions">Action</th></tr></thead><tbody></tbody><tfoot><tr style="font-weight: bold; background-color: var(--bg-color);"><td colspan="3" style="text-align: right;" data-translate-key="total_items_to_transfer">Total Items to Transfer:</td><td id="transfer-grand-total" colspan="2">0.00</td></tr></tfoot></table></div><div style="margin-top: 20px; display: flex; gap: 10px; flex-wrap:wrap;"><button type="button" data-context="transfer" class="secondary btn-select-items" data-translate-key="select_items">Select Items</button><button id="btn-submit-transfer-batch" class="primary" data-translate-key="confirm_transfer_all">Confirm & Transfer All Items</button></div></div>
-                </div>
-                
-                <!-- Return to Supplier -->
-                <div id="subview-return" class="sub-view">
-                    <div class="card"><h2 data-translate-key="return_to_supplier">Return to Supplier</h2><form id="form-return-details" class="form-grid" onsubmit="return false;"><div class="form-group"><label for="return-supplier" data-translate-key="supplier">Supplier</label><select id="return-supplier" required></select></div><div class="form-group"><label for="return-branch" data-translate-key="from_branch">From Branch</label><select id="return-branch" required></select></div><div class="form-group"><label for="return-ref" data-translate-key="credit_note_ref">Credit Note Ref #</label><input type="text" id="return-ref" required></div><div class="form-group span-full"><label for="return-notes" data-translate-key="reason_for_return">Reason for Return (Optional)</label><textarea id="return-notes" rows="2"></textarea></div></form></div>
-                    <div class="card" id="return-list-card"><h2 data-translate-key="items_to_return">Items to Return</h2><div class="report-area"><table id="table-return-list"><thead><tr><th data-translate-key="table_h_code">Code</th><th data-translate-key="item_name">Item Name</th><th data-translate-key="table_h_available">Available</th><th data-translate-key="table_h_qty_to_return">Qty to Return</th><th data-translate-key="table_h_cost">Cost</th><th data-translate-key="actions">Action</th></tr></thead><tbody></tbody><tfoot><tr style="font-weight: bold; background-color: var(--bg-color);"><td colspan="4" style="text-align: right;" data-translate-key="total_return_value">Total Return Value:</td><td id="return-grand-total" colspan="2">0.00 EGP</td></tr></tfoot></table></div><div style="margin-top: 20px; display: flex; gap: 10px; flex-wrap:wrap;"><button type="button" data-context="return" class="secondary btn-select-items" data-translate-key="select_items">Select Items</button><button id="btn-submit-return" class="primary" data-translate-key="confirm_return_all">Confirm & Return All Items</button></div></div>
-                </div>
-                
-                <!-- In-Transit -->
-                <div id="subview-in-transit" class="sub-view"><div class="card"><h2 data-translate-key="goods_in_transit_report">Goods In-Transit Report</h2><div class="report-area"><table id="table-in-transit"><thead><tr><th data-translate-key="table_h_date_sent">Date Sent</th><th data-translate-key="table_h_from_branch">From Branch</th><th data-translate-key="table_h_to_branch">To Branch</th><th data-translate-key="table_h_ref_no">Reference #</th><th data-translate-key="items">Items</th><th data-translate-key="table_h_status">Status</th><th data-translate-key="actions">Actions</th></tr></thead><tbody></tbody></table></div></div></div>
-                
-                <!-- Adjustments -->
-                <div id="subview-adjustments" class="sub-view">
-                    <div id="stock-adjustment-card" class="card"><h2 data-translate-key="stock_count_adjustment">Stock Count Adjustment</h2><form id="form-adjustment-details" class="form-grid" onsubmit="return false;"><div class="form-group"><label for="adjustment-branch" data-translate-key="branch">Branch</label><select id="adjustment-branch" required></select></div><div class="form-group"><label for="adjustment-ref" data-translate-key="reference">Reference</label><input type="text" id="adjustment-ref" data-translate-placeholder="stocktake_example" required></div><div class="form-group span-full"><label for="adjustment-notes" data-translate-key="notes_reason">Notes / Reason</label><textarea id="adjustment-notes" rows="2"></textarea></div></form></div>
-                    <div id="stock-adjustment-list-card" class="card"><h2 data-translate-key="items_to_adjust">Items to Adjust</h2><div class="report-area"><table id="table-adjustment-list"><thead><tr><th data-translate-key="table_h_code">Code</th><th data-translate-key="item_name">Item Name</th><th data-translate-key="table_h_system_qty">System Qty</th><th data-translate-key="table_h_physical_count">Physical Count</th><th data-translate-key="table_h_adjustment">Adjustment</th><th data-translate-key="actions">Action</th></tr></thead><tbody></tbody></table></div><div style="margin-top: 20px; display: flex; gap: 10px; flex-wrap:wrap;"><button type="button" data-context="adjustment" class="secondary btn-select-items" data-translate-key="select_items">Select Items</button><button id="btn-submit-adjustment" class="primary" data-translate-key="process_stock_adjustment">Process Stock Adjustment</button></div></div>
-                </div>
-            </div>
-
-            <!-- VIEW: PURCHASING -->
+            <!-- VIEW: PURCHASING (Core PO Functionality) -->
             <div id="view-purchasing" class="view">
                 <div class="sub-nav">
                     <button class="sub-nav-item active" data-subview="create-po" data-translate-key="create_po">Create Purchase Order</button>
                     <button class="sub-nav-item" data-subview="view-pos" data-translate-key="view_pos">View Purchase Orders</button>
                     <button class="sub-nav-item" data-subview="pending-pos" data-translate-key="pending_pos_title">Pending POs</button>
                 </div>
-                
                 <div id="subview-create-po" class="sub-view active">
                     <div class="card"><h2 data-translate-key="po_details">Purchase Order Details</h2><form id="form-po-details" class="form-grid" onsubmit="return false;"><div class="form-group"><label for="po-supplier" data-translate-key="supplier">Supplier</label><select id="po-supplier" required></select></div><div class="form-group"><label for="po-ref" data-translate-key="po_ref_no">PO Reference #</label><input type="text" id="po-ref" readonly></div><div class="form-group span-full"><label for="po-notes" data-translate-key="notes_optional">Notes (Optional)</label><textarea id="po-notes" rows="2"></textarea></div></form></div>
                     <div class="card" id="po-list-card"><h2 data-translate-key="items_to_order">Items to Order</h2><div class="report-area"><table id="table-po-list"><thead><tr><th data-translate-key="table_h_code">Code</th><th data-translate-key="item_name">Item Name</th><th data-translate-key="table_h_quantity">Quantity</th><th data-translate-key="table_h_cost_per_unit">Cost/Unit</th><th data-translate-key="table_h_total">Total</th><th data-translate-key="actions">Action</th></tr></thead><tbody></tbody><tfoot><tr style="font-weight: bold; background-color: var(--bg-color);"><td colspan="4" style="text-align: right;" data-translate-key="grand_total">Grand Total:</td><td id="po-grand-total" colspan="2">0.00 EGP</td></tr></tfoot></table></div><div style="margin-top: 20px; display: flex; gap: 10px; flex-wrap:wrap;"><button type="button" data-context="po" class="secondary btn-select-items" data-translate-key="select_items">Select Items</button><button id="btn-submit-po" class="primary" data-translate-key="submit_for_approval">Submit for Approval</button></div></div>
                 </div>
-                
-                <div id="subview-view-pos" class="sub-view"><div class="card"><h2 data-translate-key="po_list">Purchase Order List</h2><div class="report-area"><table id="table-po-viewer"><thead><tr><th data-translate-key="table_h_po_no">PO #</th><th data-translate-key="table_h_date">Date</th><th data-translate-key="supplier">Supplier</th><th data-translate-key="items">Items</th><th data-translate-key="table_h_total_value">Total Value</th><th data-translate-key="table_h_status">Status</th><th data-translate-key="actions">Actions</th></tr></thead><tbody></tbody></table></div></div></div>
-                <div id="subview-pending-pos" class="sub-view"><div class="card"><h2 data-translate-key="pending_pos_title">Pending Purchase Orders</h2><div class="report-area"><table id="table-pending-pos"><thead><tr><th data-translate-key="table_h_date">Date</th><th data-translate-key="table_h_ref_no">Reference #</th><th data-translate-key="table_h_details">Details</th><th data-translate-key="table_h_amount">Amount</th><th data-translate-key="actions">Actions</th></tr></thead><tbody></tbody></table></div></div></div>
+                <div id="subview-view-pos" class="sub-view">
+                    <div class="card"><h2 data-translate-key="po_list">Purchase Order List</h2><div class="report-area"><table id="table-po-viewer"><thead><tr><th data-translate-key="table_h_po_no">PO #</th><th data-translate-key="table_h_date">Date</th><th data-translate-key="supplier">Supplier</th><th data-translate-key="items">Items</th><th data-translate-key="table_h_total_value">Total Value</th><th data-translate-key="table_h_status">Status</th><th data-translate-key="actions">Actions</th></tr></thead><tbody></tbody></table></div></div>
+                </div>
+                <div id="subview-pending-pos" class="sub-view">
+                    <div class="card"><h2 data-translate-key="pending_pos_title">Pending Purchase Orders</h2><div class="report-area"><table id="table-pending-pos"><thead><tr><th data-translate-key="table_h_date">Date</th><th data-translate-key="table_h_ref_no">Reference #</th><th data-translate-key="table_h_details">Details</th><th data-translate-key="table_h_amount">Amount</th><th data-translate-key="actions">Actions</th></tr></thead><tbody></tbody></table></div></div>
+                </div>
             </div>
-
-            <!-- REMOVED: Financials Views (Now in financials_extension.js) -->
 
             <!-- VIEW: STOCK LEVELS -->
             <div id="view-stock-levels" class="view">
@@ -278,37 +209,18 @@
         </main>
     </div>
     
-    <!-- MODALS -->
+    <!-- MODALS (Core) -->
     <div id="item-selector-modal" class="modal-overlay"><div class="modal-content"><div class="modal-header"><h2 data-translate-key="select_items_modal_title">Select Items</h2><button class="close-button">×</button></div><div class="modal-body"><input type="search" id="modal-search-items" data-translate-placeholder="search_items_placeholder_modal"><div id="modal-item-list" class="modal-item-list"></div></div><div class="modal-footer"><button class="secondary modal-cancel" data-translate-key="cancel">Cancel</button><button id="btn-confirm-modal-selection" class="primary" data-translate-key="confirm_selection">Confirm Selection</button></div></div></div>
-    <!-- REMOVED: Invoice modal (now in financials_extension.js) -->
-    
     <div id="edit-modal" class="modal-overlay"><form id="form-edit-record" class="modal-content"><div class="modal-header"><h2 id="edit-modal-title" data-translate-key="edit_modal_title">Edit</h2><button type="button" class="close-button">×</button></div><div class="modal-body" id="edit-modal-body"></div><div class="modal-footer"><button type="button" class="secondary modal-cancel" data-translate-key="cancel">Cancel</button><button type="submit" class="primary" data-translate-key="save_changes">Save Changes</button></div></form></div>
-    
     <div id="history-modal" class="modal-overlay"><div class="modal-content" style="max-width: 900px;"><div class="modal-header"><h2 id="history-modal-title" data-translate-key="item_history_modal_title">Item History</h2><button class="close-button">×</button></div><div class="modal-body" id="history-modal-body"><div class="sub-nav"><button class="sub-nav-item active" data-subview="price-history" data-translate-key="price_history">Price History</button><button class="sub-nav-item" data-subview="movement-history" data-translate-key="movement_history">Movement History</button></div><div id="subview-price-history" class="sub-view active report-area"></div><div id="subview-movement-history" class="sub-view report-area"><div class="filters-container" style="padding: 10px 0; gap: 10px;"><input type="date" id="history-filter-start-date" class="small"><input type="date" id="history-filter-end-date" class="small"><select id="history-filter-type" class="small"><option value="" data-translate-key="all_types">All Types</option></select><select id="history-filter-branch" class="small"><option value="" data-translate-key="all_branches">All Branches</option></select></div><div id="movement-history-table-container"></div></div></div><div class="modal-footer"><button class="secondary modal-cancel" data-translate-key="close">Close</button></div></div></div>
-    
     <div id="context-selector-modal" class="modal-overlay"><div class="modal-content" style="max-width: 500px;"><div class="modal-header"><h2 id="context-modal-title">Select Operational Context</h2></div><div class="modal-body"><div id="context-modal-fromBranch-group" class="form-group" style="display: none;"><label>Select From Branch</label><select id="context-from-branch-select"></select></div><div id="context-modal-toBranch-group" class="form-group" style="display: none;"><label>Select To Branch</label><select id="context-to-branch-select"></select></div><div id="context-modal-branch-group" class="form-group" style="display: none;"><label>Select Branch</label><select id="context-branch-select"></select></div></div><div class="modal-footer"><button id="btn-confirm-context" class="primary">Confirm Selection</button></div></div></div>
     
-    <div id="view-transfer-modal" class="modal-overlay"><div class="modal-content"><div class="modal-header"><h2 id="view-transfer-modal-title">Confirm Transfer</h2><button class="close-button">×</button></div><div class="modal-body" id="view-transfer-modal-body"></div><div class="modal-footer"><button class="secondary modal-cancel">Cancel</button><button id="btn-reject-transfer" class="danger">Reject</button><button id="btn-confirm-receive-transfer" class="primary">Confirm Receipt</button></div></div></div>
-
-    <!-- CUSTOM PWA INSTALL SHEET -->
+    <!-- PWA INSTALL SHEET -->
     <div id="pwa-install-sheet">
         <img src="https://cdn-icons-png.flaticon.com/512/1134/1134447.png" alt="App Icon" class="pwa-icon-large">
-        <div>
-            <div class="pwa-title">Install App</div>
-            <div class="pwa-desc">Install Meat Stock Manager for a better experience, offline access, and faster loading.</div>
-        </div>
-        <div id="pwa-standard-actions" class="pwa-btn-group">
-            <button class="pwa-btn cancel" id="btn-pwa-cancel">Not Now</button>
-            <button class="pwa-btn install" id="btn-pwa-confirm">Install</button>
-        </div>
-        <div id="pwa-ios-guide" class="ios-install-guide">
-            <strong>Install on iPhone/iPad:</strong>
-            <ol>
-                <li>Tap the <strong>Share</strong> button <span class="ios-icon-share"></span> below.</li>
-                <li>Scroll down and select <strong>"Add to Home Screen"</strong>.</li>
-            </ol>
-            <button class="pwa-btn cancel" id="btn-pwa-ios-close" style="width:100%; margin-top:10px;">Close</button>
-        </div>
+        <div><div class="pwa-title">Install App</div><div class="pwa-desc">Install Meat Stock Manager for a better experience, offline access, and faster loading.</div></div>
+        <div id="pwa-standard-actions" class="pwa-btn-group"><button class="pwa-btn cancel" id="btn-pwa-cancel">Not Now</button><button class="pwa-btn install" id="btn-pwa-confirm">Install</button></div>
+        <div id="pwa-ios-guide" class="ios-install-guide"><strong>Install on iPhone/iPad:</strong><ol><li>Tap the <strong>Share</strong> button <span class="ios-icon-share"></span> below.</li><li>Scroll down and select <strong>"Add to Home Screen"</strong>.</li></ol><button class="pwa-btn cancel" id="btn-pwa-ios-close" style="width:100%; margin-top:10px;">Close</button></div>
     </div>
 
     <!-- HELPERS -->
@@ -326,9 +238,11 @@
       }
     </script>
     <script type="module" src="main.js"></script>
+    <!-- Extensions -->
     <script type="module" src="sales_extension.js"></script>
     <script type="module" src="price_generator.js"></script>
     <script type="module" src="butchery_extension.js"></script>
     <script type="module" src="financials_extension.js"></script>
+    <script type="module" src="operations_extension.js"></script>
 </body>
 </html>
