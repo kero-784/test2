@@ -3,15 +3,13 @@ import { postData, showToast, findByKey, formatCurrency, formatDate, _t, populat
 import { calculateStockLevels } from './calculations.js';
 import { generateButcheryReport } from './documents.js';
 
-// --- LOCAL STATE ---
 const butcheryState = {
     initialized: false,
-    currentList: [], // Local list for child items
+    currentList: [], 
     parentItem: null,
     reportFilter: ''
 };
 
-// --- INITIALIZATION ---
 function initButcheryModule() {
     if (butcheryState.initialized) return;
     if (!document.getElementById('main-nav')) return;
@@ -19,7 +17,6 @@ function initButcheryModule() {
     const user = state.currentUser;
     if (!user) return;
 
-    // Check Permissions
     const canProduce = user.permissions?.opProduction === true || user.RoleName === 'Admin';
     const canViewReports = user.permissions?.viewYieldReports === true || user.RoleName === 'Admin';
 
@@ -28,12 +25,10 @@ function initButcheryModule() {
     injectButcheryUI(canProduce, canViewReports);
     attachButcheryListeners();
     butcheryState.initialized = true;
-    console.log("Butchery Module Loaded (Standalone)");
+    console.log("Butchery Module Loaded");
 }
 
-// --- UI INJECTION ---
 function injectButcheryUI(canProduce, canViewReports) {
-    // 1. Sidebar Link
     const sidebar = document.getElementById('main-nav');
     if (sidebar && !document.getElementById('nav-butchery-link')) {
         const li = document.createElement('li');
@@ -43,13 +38,16 @@ function injectButcheryUI(canProduce, canViewReports) {
             <span style="margin-left:10px;">Butchery & Yield</span>
         </a>`;
         
-        // Insert after Operations
-        const refEntry = sidebar.querySelector('a[data-view="operations"]')?.parentElement;
-        if (refEntry) refEntry.after(li);
-        else sidebar.appendChild(li);
+        // Insert BEFORE 'Stock Levels'
+        const stockLevelsBtn = sidebar.querySelector('a[data-view="stock-levels"]')?.parentElement;
+        if (stockLevelsBtn) {
+            sidebar.insertBefore(li, stockLevelsBtn);
+        } else {
+            const logoutBtn = sidebar.querySelector('.nav-item-logout');
+            sidebar.insertBefore(li, logoutBtn);
+        }
     }
 
-    // 2. Main View Container
     const mainContent = document.querySelector('.main-content');
     if (mainContent && !document.getElementById('view-butchery-ext')) {
         const viewDiv = document.createElement('div');
@@ -63,7 +61,7 @@ function injectButcheryUI(canProduce, canViewReports) {
         viewDiv.innerHTML = `
             <div class="sub-nav">${tabsHtml}</div>
 
-            <!-- TAB 1: PRODUCTION -->
+            <!-- PRODUCTION TAB -->
             <div id="tab-butchery-prod" class="butchery-tab" style="display:${canProduce ? 'block' : 'none'}">
                 <div class="card">
                     <h2>Butchery Production</h2>
@@ -103,7 +101,7 @@ function injectButcheryUI(canProduce, canViewReports) {
                 </div>
             </div>
 
-            <!-- TAB 2: REPORTS -->
+            <!-- REPORTS TAB -->
             <div id="tab-butchery-report" class="butchery-tab" style="display:${!canProduce && canViewReports ? 'block' : 'none'}">
                  <div class="card">
                     <div class="toolbar">
@@ -133,20 +131,20 @@ function injectButcheryUI(canProduce, canViewReports) {
     }
 }
 
-// --- LOGIC & HANDLERS ---
-
 function attachButcheryListeners() {
-    // Nav Click
+    // 1. Navigation
     document.getElementById('nav-butchery-link')?.addEventListener('click', (e) => {
         e.preventDefault();
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
         document.querySelectorAll('.nav-item a').forEach(l => l.classList.remove('active'));
         document.getElementById('view-butchery-ext').classList.add('active');
         e.currentTarget.classList.add('active');
-        refreshButcheryContext();
+        
+        const sel = document.getElementById('ext-butchery-branch');
+        if(sel && sel.options.length <= 1) populateOptions(sel, state.branches, 'Select Branch', 'branchCode', 'branchName');
     });
 
-    // Tab Switching
+    // 2. Tabs
     document.querySelectorAll('#view-butchery-ext .sub-nav-item').forEach(btn => {
         btn.addEventListener('click', (e) => {
             document.querySelectorAll('#view-butchery-ext .sub-nav-item').forEach(b => b.classList.remove('active'));
@@ -156,17 +154,17 @@ function attachButcheryListeners() {
         });
     });
 
-    // Production Actions
+    // 3. Actions
     document.getElementById('ext-btn-sel-parent')?.addEventListener('click', () => openItemModal('parent'));
     document.getElementById('ext-btn-add-cuts')?.addEventListener('click', () => openItemModal('child'));
     document.getElementById('ext-btn-submit-butchery')?.addEventListener('click', submitButcheryProduction);
     document.getElementById('ext-butchery-parent-qty')?.addEventListener('input', renderButcheryTable);
     
-    // Modal Actions
+    // 4. Modal
     document.getElementById('ext-modal-close')?.addEventListener('click', () => document.getElementById('ext-butchery-modal').classList.remove('active'));
     document.getElementById('ext-modal-search')?.addEventListener('input', (e) => renderItemModalList(e.target.value, document.getElementById('ext-butchery-modal').dataset.context));
 
-    // Table Interactions (Remove & Edit)
+    // 5. Table Dynamic Inputs
     document.querySelector('#ext-butchery-table tbody')?.addEventListener('click', (e) => {
         if (e.target.classList.contains('ext-remove-row')) {
             const idx = e.target.dataset.index;
@@ -174,6 +172,7 @@ function attachButcheryListeners() {
             renderButcheryTable();
         }
     });
+    
     document.querySelector('#ext-butchery-table tbody')?.addEventListener('change', (e) => {
         if (e.target.classList.contains('ext-qty-input')) {
             const idx = e.target.dataset.index;
@@ -182,15 +181,13 @@ function attachButcheryListeners() {
         }
     });
 
-    // Report Actions
+    // 6. Reports
     document.getElementById('ext-btn-gen-report')?.addEventListener('click', generateReport);
     
-    // Dynamic Print Button Listener
     document.getElementById('ext-yield-results')?.addEventListener('click', (e) => {
         if(e.target.classList.contains('ext-btn-print-rpt')) {
             const batchId = e.target.dataset.batch;
-            // Need to reconstruct data from state transactions
-            const txs = state.transactions.filter(t => t.batchId === batchId && (t.type === 'production_in' || t.type === 'production_out'));
+            const txs = state.transactions.filter(t => t.batchId === batchId);
             const parentTx = txs.find(t => t.type === 'production_out');
             const childTxs = txs.filter(t => t.type === 'production_in');
             
@@ -209,19 +206,17 @@ function attachButcheryListeners() {
     });
 }
 
-function refreshButcheryContext() {
-    const sel = document.getElementById('ext-butchery-branch');
-    if(sel && sel.options.length === 0) {
-        populateOptions(sel, state.branches, 'Select Branch', 'branchCode', 'branchName');
-    }
-}
-
-// --- MODAL LOGIC ---
 function openItemModal(context) {
     const modal = document.getElementById('ext-butchery-modal');
     modal.dataset.context = context;
     document.getElementById('ext-modal-title').innerText = context === 'parent' ? 'Select Parent Item' : 'Select Cuts';
     document.getElementById('ext-modal-search').value = '';
+    
+    if(context === 'child' && !butcheryState.parentItem) {
+        showToast('Please select a parent item first', 'error');
+        return;
+    }
+    
     renderItemModalList('', context);
     modal.classList.add('active');
 }
@@ -231,13 +226,14 @@ function renderItemModalList(filter = '', context) {
     container.innerHTML = '';
     const lower = filter.toLowerCase();
 
-    // Context Filtering
     let items = state.items.filter(i => String(i.isActive) !== 'false');
     
-    // If Child context, try to filter by defined cuts of parent
     if (context === 'child' && butcheryState.parentItem && butcheryState.parentItem.DefinedCuts) {
         const allowed = butcheryState.parentItem.DefinedCuts.split(',');
         items = items.filter(i => allowed.includes(i.code) || i.name.toLowerCase().includes(lower));
+    } else if (context === 'parent') {
+        // Optional: Filter to only show 'Main' items
+        items = items.filter(i => i.ItemType === 'Main' || i.name.toLowerCase().includes(lower));
     } else {
         items = items.filter(i => i.name.toLowerCase().includes(lower) || i.code.toLowerCase().includes(lower));
     }
@@ -254,10 +250,9 @@ function renderItemModalList(filter = '', context) {
                 document.getElementById('ext-butchery-parent-display').value = item.name;
                 document.getElementById('ext-butchery-parent-code').value = item.code;
                 butcheryState.parentItem = item;
-                butcheryState.currentList = []; // Reset children on parent change
+                butcheryState.currentList = []; // Reset children
                 renderButcheryTable();
             } else {
-                // Add Child
                 if (!butcheryState.currentList.find(x => x.itemCode === item.code)) {
                     butcheryState.currentList.push({ itemCode: item.code, itemName: item.name, quantity: 0 });
                     renderButcheryTable();
@@ -269,7 +264,6 @@ function renderItemModalList(filter = '', context) {
     });
 }
 
-// --- TABLE RENDERER ---
 function renderButcheryTable() {
     const tbody = document.querySelector('#ext-butchery-table tbody');
     tbody.innerHTML = '';
@@ -295,7 +289,6 @@ function renderButcheryTable() {
     yEl.style.color = (yieldPct < 50 || yieldPct > 102) ? 'red' : 'green';
 }
 
-// --- SUBMISSION ---
 async function submitButcheryProduction() {
     const parentCode = document.getElementById('ext-butchery-parent-code').value;
     let parentQty = parseFloat(document.getElementById('ext-butchery-parent-qty').value);
@@ -304,11 +297,10 @@ async function submitButcheryProduction() {
     const expiry = document.getElementById('ext-butchery-expiry').value;
 
     if (!parentCode || !parentQty || !branchCode || !expiry || butcheryState.currentList.length === 0) {
-        showToast('Please fill all fields and add at least one cut.', 'error');
+        showToast('Please fill all fields and add cuts.', 'error');
         return;
     }
 
-    // Stock Check
     const stock = calculateStockLevels();
     const available = stock[branchCode]?.[parentCode]?.quantity || 0;
     
@@ -317,26 +309,25 @@ async function submitButcheryProduction() {
         return;
     }
 
-    // Weight Check
     const outputWeight = butcheryState.currentList.reduce((a,b) => a+b.quantity, 0);
     const diff = parentQty - outputWeight;
 
     if (diff > 0.001) {
-        if(!confirm(`Weight Mismatch!\nInput: ${parentQty}\nOutput: ${outputWeight.toFixed(3)}\nRemaining: ${diff.toFixed(3)}\n\nClick OK to keep remaining weight in stock.`)) return;
-        parentQty = outputWeight; // Adjust OUT to match IN so remainder stays
+        if(!confirm(`Weight Mismatch!\nInput: ${parentQty}\nOutput: ${outputWeight.toFixed(3)}\nRemaining: ${diff.toFixed(3)}\n\nClick OK to PROCEED (remaining weight stays in stock).`)) return;
+        // Logic: Input stays as entered, Output is what it is. The difference is naturally left in stock by the 'production_out' transaction.
     } else if (diff < -0.001) {
         showToast('Error: Output cannot exceed Input.', 'error');
         return;
     }
 
     if(!batchNo) batchNo = `PRD-${Date.now().toString().slice(-6)}`;
-    const parentCost = stock[branchCode]?.[parentCode]?.avgCost || 0;
+    const parentAvgCost = stock[branchCode]?.[parentCode]?.avgCost || 0;
 
     const childItems = butcheryState.currentList.map(c => ({
         itemCode: c.itemCode,
         itemName: c.itemName,
         quantity: c.quantity,
-        cost: parentCost // Inherit cost logic
+        cost: parentAvgCost
     }));
 
     const payload = {
@@ -354,16 +345,16 @@ async function submitButcheryProduction() {
     
     if (res) {
         showToast('Production Successful', 'success');
-        // Update Local State for immediate view
         const now = new Date().toISOString();
+        
         state.transactions.push({
-            batchId: batchNo, date: now, type: 'production_out', itemCode: parentCode, quantity: parentQty, cost: parentCost, branchCode: branchCode, fromBranchCode: branchCode, Status: 'Completed', isApproved: true
+            batchId: batchNo, date: now, type: 'production_out', itemCode: parentCode, quantity: parentQty, cost: parentAvgCost, branchCode: branchCode, fromBranchCode: branchCode, Status: 'Completed', isApproved: true
         });
+        
         childItems.forEach(c => state.transactions.push({
             batchId: batchNo, date: now, type: 'production_in', itemCode: c.itemCode, quantity: c.quantity, cost: c.cost, branchCode: branchCode, Status: 'Completed', isApproved: true
         }));
         
-        // Reset Form
         butcheryState.currentList = [];
         document.getElementById('ext-form-butchery').reset();
         document.getElementById('ext-butchery-parent-code').value = '';
@@ -372,7 +363,6 @@ async function submitButcheryProduction() {
     }
 }
 
-// --- REPORT GENERATION ---
 function generateReport() {
     const type = document.getElementById('ext-yield-type').value;
     const search = document.getElementById('ext-yield-search').value.toLowerCase();
@@ -380,7 +370,6 @@ function generateReport() {
     
     container.innerHTML = 'Loading...';
 
-    // Group Transactions
     const batches = {};
     state.transactions.forEach(t => {
         if (t.type === 'production_out' || t.type === 'production_in') {
@@ -406,11 +395,19 @@ function generateReport() {
         });
         html += '</tbody></table>';
     } else {
-        // By Item Summary
+        // --- BY ITEM SUMMARY (This was missing in previous versions) ---
         const items = {};
         list.forEach(b => {
             const pc = b.parent.itemCode;
-            if(!items[pc]) items[pc] = { name: findByKey(state.items, 'code', pc)?.name, totalIn: 0, totalOut: 0, count: 0 };
+            if (search && !pc.toLowerCase().includes(search)) return;
+            
+            if(!items[pc]) items[pc] = { 
+                name: findByKey(state.items, 'code', pc)?.name || pc, 
+                totalIn: 0, 
+                totalOut: 0, 
+                count: 0 
+            };
+            
             items[pc].totalIn += parseFloat(b.parent.quantity);
             items[pc].totalOut += b.children.reduce((a,c) => a + parseFloat(c.quantity), 0);
             items[pc].count++;
@@ -418,7 +415,6 @@ function generateReport() {
         
         html = `<table style="width:100%"><thead><tr><th>Item Code</th><th>Name</th><th>Batches</th><th>Total Input</th><th>Total Output</th><th>Avg Yield</th></tr></thead><tbody>`;
         for(const [code, data] of Object.entries(items)) {
-            if (search && !data.name.toLowerCase().includes(search)) continue;
             const pct = data.totalIn > 0 ? (data.totalOut / data.totalIn * 100).toFixed(1) : 0;
             html += `<tr><td>${code}</td><td>${data.name}</td><td>${data.count}</td><td>${data.totalIn.toFixed(2)}</td><td>${data.totalOut.toFixed(2)}</td><td>${pct}%</td></tr>`;
         }
@@ -428,7 +424,6 @@ function generateReport() {
     container.innerHTML = html || '<p style="text-align:center">No records found.</p>';
 }
 
-// Auto-init
 const interval = setInterval(() => {
     if (state.currentUser && document.getElementById('main-nav')) {
         initButcheryModule();
